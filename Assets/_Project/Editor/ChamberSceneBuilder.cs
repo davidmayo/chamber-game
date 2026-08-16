@@ -176,21 +176,34 @@ public static class ChamberSceneBuilder
 
         foreach (float x in columnX)
         {
-            Box($"Ceiling Light {fixtureNumber++:00}", ceilingLights,
+            BuildCeilingLight($"Ceiling Light {fixtureNumber++:00}", ceilingLights,
                 new Vector3(x, fixtureY, front + 1.5f), fixtureSize, lightPanel, fixtureRotation);
         }
         foreach (float z in sideZ)
         {
-            Box($"Ceiling Light {fixtureNumber++:00}", ceilingLights,
+            BuildCeilingLight($"Ceiling Light {fixtureNumber++:00}", ceilingLights,
                 new Vector3(columnX[0], fixtureY, z), fixtureSize, lightPanel, fixtureRotation);
-            Box($"Ceiling Light {fixtureNumber++:00}", ceilingLights,
+            BuildCeilingLight($"Ceiling Light {fixtureNumber++:00}", ceilingLights,
                 new Vector3(columnX[columnX.Length - 1], fixtureY, z), fixtureSize, lightPanel, fixtureRotation);
         }
         foreach (float x in columnX)
         {
-            Box($"Ceiling Light {fixtureNumber++:00}", ceilingLights,
+            BuildCeilingLight($"Ceiling Light {fixtureNumber++:00}", ceilingLights,
                 new Vector3(x, fixtureY, rear - 1.5f), fixtureSize, lightPanel, fixtureRotation);
         }
+    }
+
+    private static void BuildCeilingLight(
+        string name,
+        Transform parent,
+        Vector3 position,
+        Vector3 size,
+        Material lightPanel,
+        Quaternion rotation)
+    {
+        GameObject fixture = Box(name, parent, position, size, lightPanel, rotation);
+        SpotLight("Illumination", fixture.transform, new Vector3(0f, -0.08f, 0f), Vector3.down,
+            Color.white, 8f, 9f, 105f, 75f, false);
     }
 
     private static void BuildArchitecture(Transform parent, Material wall, Material floor)
@@ -230,7 +243,10 @@ public static class ChamberSceneBuilder
         Transform backFixtures = NewGroup("Back Wall Fixtures", parent);
         foreach (float x in new[] { -1.5f, 1.5f })
         {
-            Box("Light Fixture", backFixtures, new Vector3(x, 2.5f, 4.915f), new Vector3(0.1f, 0.3f, 0.02f), lightPanel);
+            GameObject fixture = Box("Light Fixture", backFixtures,
+                new Vector3(x, 2.5f, 4.915f), new Vector3(0.1f, 0.3f, 0.02f), lightPanel);
+            SpotLight("Illumination", fixture.transform, new Vector3(0f, 0f, -0.03f), Vector3.back,
+                Color.white, 10f, 10f, 100f, 70f, true);
         }
 
         Transform floodStand = NewGroup("Flood Light Stand", parent);
@@ -255,6 +271,8 @@ public static class ChamberSceneBuilder
             head.localPosition = MirrorPosition(new Vector3(x, 0f, 0f));
             Box("Frame", head, Vector3.zero, new Vector3(0.32f, 0.22f, 0.07f), dark);
             Box("Panel", head, new Vector3(0f, 0f, 0.041f), new Vector3(0.26f, 0.16f, 0.012f), lightPanel);
+            SpotLight("Illumination", head, new Vector3(0f, 0f, 0.055f), Vector3.forward,
+                Color.white, 14f, 10f, 60f, 42f, true);
         }
     }
 
@@ -447,11 +465,12 @@ public static class ChamberSceneBuilder
             camera.nearClipPlane = 0.05f;
         }
 
-        Light directional = Object.FindFirstObjectByType<Light>();
-        if (directional != null)
+        foreach (Light light in Object.FindObjectsByType<Light>(FindObjectsSortMode.None))
         {
-            directional.transform.rotation = MirrorRotation(Quaternion.Euler(50f, -30f, 0f));
-            directional.intensity = 1.2f;
+            if (light.type != LightType.Directional) continue;
+            light.transform.rotation = MirrorRotation(Quaternion.Euler(50f, -30f, 0f));
+            light.intensity = 1.2f;
+            break;
         }
     }
 
@@ -490,6 +509,36 @@ public static class ChamberSceneBuilder
         Quaternion rotation = Quaternion.FromToRotation(primitiveNormal, inwardNormal.normalized);
         SetPrimitive(gameObject, name, parent, position, rotation, new Vector3(width, height, 1f), material);
         return gameObject;
+    }
+
+    private static Light SpotLight(
+        string name,
+        Transform parent,
+        Vector3 localPosition,
+        Vector3 localDirection,
+        Color color,
+        float intensity,
+        float range,
+        float outerAngle,
+        float innerAngle,
+        bool castShadows)
+    {
+        GameObject gameObject = new(name);
+        gameObject.transform.SetParent(parent, false);
+        gameObject.transform.localPosition = localPosition;
+        gameObject.transform.localRotation = Quaternion.LookRotation(localDirection, Vector3.forward);
+
+        Light light = gameObject.AddComponent<Light>();
+        light.type = LightType.Spot;
+        light.color = color;
+        light.intensity = intensity;
+        light.range = range;
+        light.spotAngle = outerAngle;
+        light.innerSpotAngle = innerAngle;
+        light.shadows = castShadows ? LightShadows.Soft : LightShadows.None;
+        light.shadowStrength = 0.85f;
+        light.shadowCustomResolution = 256;
+        return light;
     }
 
     private static GameObject Sphere(string name, Transform parent, Vector3 position, float radius, Material material)
