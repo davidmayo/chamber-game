@@ -52,6 +52,7 @@ public static class ChamberSceneBuilder
     private static readonly Color StandColor = Hex(0xe4b51b);
     private static readonly Color DarkColor = Hex(0x151719);
     private static readonly Color SourceColor = Hex(0x2ecc71);
+    private static readonly Color ConcreteColor = Hex(0x8a8d91);
 
     static ChamberSceneBuilder()
     {
@@ -123,9 +124,11 @@ public static class ChamberSceneBuilder
         Material stand = GetMaterial("FloodStandYellow", StandColor, 0.25f, 0.45f);
         Material dark = GetMaterial("FixtureDark", DarkColor, 0.35f, 0.35f);
         Material source = GetMaterial("SourceGreen", SourceColor, 0.15f, 0.5f);
-        Material lightPanel = GetMaterial("LightPanel", Color.white, 0f, 0.75f, true);
+        Material concrete = GetMaterial("Concrete", ConcreteColor, 0f, 0.05f);
+        Material lightPanel = GetMaterial("LightPanel", Color.white, 0f, 0.75f, true, 8f);
 
         Transform root = NewGroup(RootName, null);
+        BuildContainingRoom(NewGroup("Containing Room", root), concrete, lightPanel);
         BuildArchitecture(NewGroup("Architecture", root), wall, floor);
         BuildLightingFixtures(NewGroup("Lighting Fixtures", root), stand, dark, lightPanel);
         BuildEquipment(NewGroup("Equipment", root), table, lift, housing, purple, orange, yellow, source);
@@ -135,6 +138,59 @@ public static class ChamberSceneBuilder
         EditorSceneManager.SaveScene(scene);
         AssetDatabase.SaveAssets();
         Debug.Log("Built chamber geometry from the Three.js reference into Main.unity.");
+    }
+
+    private static void BuildContainingRoom(Transform parent, Material concrete, Material lightPanel)
+    {
+        // Chamber bounds are x = +/-2.5, z = -5..5, y = 0..3.5.
+        // The containing room extends 2 m on each side, 4 m forward,
+        // 3 m rearward, 0.3 m downward, and 2 m upward.
+        const float left = -4.5f;
+        const float right = 4.5f;
+        const float front = -9f;
+        const float rear = 8f;
+        const float bottom = -0.3f;
+        const float top = 5.5f;
+        const float centerZ = (front + rear) / 2f;
+        const float centerY = (bottom + top) / 2f;
+        const float width = right - left;
+        const float depth = rear - front;
+        const float height = top - bottom;
+
+        Transform shell = NewGroup("Concrete Shell", parent);
+        // Input coordinates are pre-reflection, so left/right names reflect their final positions.
+        Quad("Left Wall", shell, new Vector3(-left, centerY, centerZ), depth, height, Vector3.left, concrete);
+        Quad("Right Wall", shell, new Vector3(-right, centerY, centerZ), depth, height, Vector3.right, concrete);
+        Quad("Front Wall", shell, new Vector3(0f, centerY, front), width, height, Vector3.forward, concrete);
+        Quad("Rear Wall", shell, new Vector3(0f, centerY, rear), width, height, Vector3.back, concrete);
+        Quad("Floor", shell, new Vector3(0f, bottom, centerZ), width, depth, Vector3.up, concrete);
+        Quad("Ceiling", shell, new Vector3(0f, top, centerZ), width, depth, Vector3.down, concrete);
+
+        Transform ceilingLights = NewGroup("Ceiling Lights", parent);
+        const float fixtureY = top - 0.04f;
+        Vector3 fixtureSize = new(1.15f, 0.08f, 0.28f);
+        Quaternion fixtureRotation = Quaternion.Euler(0f, 90f, 0f);
+        float[] columnX = { -3.5f, -1.75f, 0f, 1.75f, 3.5f };
+        float[] sideZ = { -4f, -0.5f, 3f };
+        int fixtureNumber = 1;
+
+        foreach (float x in columnX)
+        {
+            Box($"Ceiling Light {fixtureNumber++:00}", ceilingLights,
+                new Vector3(x, fixtureY, front + 1.5f), fixtureSize, lightPanel, fixtureRotation);
+        }
+        foreach (float z in sideZ)
+        {
+            Box($"Ceiling Light {fixtureNumber++:00}", ceilingLights,
+                new Vector3(columnX[0], fixtureY, z), fixtureSize, lightPanel, fixtureRotation);
+            Box($"Ceiling Light {fixtureNumber++:00}", ceilingLights,
+                new Vector3(columnX[columnX.Length - 1], fixtureY, z), fixtureSize, lightPanel, fixtureRotation);
+        }
+        foreach (float x in columnX)
+        {
+            Box($"Ceiling Light {fixtureNumber++:00}", ceilingLights,
+                new Vector3(x, fixtureY, rear - 1.5f), fixtureSize, lightPanel, fixtureRotation);
+        }
     }
 
     private static void BuildArchitecture(Transform parent, Material wall, Material floor)
@@ -406,10 +462,16 @@ public static class ChamberSceneBuilder
         return group.transform;
     }
 
-    private static GameObject Box(string name, Transform parent, Vector3 position, Vector3 size, Material material)
+    private static GameObject Box(
+        string name,
+        Transform parent,
+        Vector3 position,
+        Vector3 size,
+        Material material,
+        Quaternion? rotation = null)
     {
         GameObject gameObject = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        SetPrimitive(gameObject, name, parent, position, Quaternion.identity, size, material);
+        SetPrimitive(gameObject, name, parent, position, rotation ?? Quaternion.identity, size, material);
         return gameObject;
     }
 
@@ -509,7 +571,8 @@ public static class ChamberSceneBuilder
         Color color,
         float metallic,
         float smoothness,
-        bool emissive = false)
+        bool emissive = false,
+        float emissionIntensity = 3f)
     {
         string path = $"{MaterialFolder}/{name}.mat";
         Material material = AssetDatabase.LoadAssetAtPath<Material>(path);
@@ -529,11 +592,16 @@ public static class ChamberSceneBuilder
         if (emissive)
         {
             material.EnableKeyword("_EMISSION");
-            if (material.HasProperty("_EmissionColor")) material.SetColor("_EmissionColor", color * 3f);
+            if (material.HasProperty("_EmissionColor"))
+            {
+                material.SetColor("_EmissionColor", color * emissionIntensity);
+            }
+            material.globalIlluminationFlags = MaterialGlobalIlluminationFlags.BakedEmissive;
         }
         else
         {
             material.DisableKeyword("_EMISSION");
+            material.globalIlluminationFlags = MaterialGlobalIlluminationFlags.EmissiveIsBlack;
         }
         EditorUtility.SetDirty(material);
         return material;
