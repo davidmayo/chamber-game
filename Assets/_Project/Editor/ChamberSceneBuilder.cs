@@ -138,33 +138,34 @@ public static class ChamberSceneBuilder
 
     private static void BuildArchitecture(Transform parent, Material wall, Material floor)
     {
-        const float wallThickness = 0.05f;
-        Transform rightWall = NewGroup("Right Wall", parent);
-        Box("Rear Section", rightWall, new Vector3(2.5f, 1.75f, 4f), new Vector3(wallThickness, 3.5f, 2f), wall);
-        Box("Front Section", rightWall, new Vector3(2.5f, 1.75f, -1.5f), new Vector3(wallThickness, 3.5f, 7f), wall);
-        Box("Above Door", rightWall, new Vector3(2.5f, 2.75f, 2.5f), new Vector3(wallThickness, 1.5f, 1f), wall);
-        Box("Door Frame Front Jamb", rightWall, new Vector3(2.5f, 1f, 1.75f), new Vector3(0.15f, 2f, 0.5f), wall);
-        Box("Door Frame Rear Jamb", rightWall, new Vector3(2.5f, 1f, 3.25f), new Vector3(0.15f, 2f, 0.5f), wall);
-        Box("Door Frame Header", rightWall, new Vector3(2.5f, 2.25f, 2.5f), new Vector3(0.15f, 0.5f, 2f), wall);
+        // The source Three.js planes are mirrored across x = 0 as they are built.
+        // Each quad faces into the room and remains invisible from its back side.
+        Transform doorWall = NewGroup("Left Wall - Door", parent);
+        Quad("Rear Section", doorWall, new Vector3(2.5f, 1.75f, 4f), 2f, 3.5f, Vector3.left, wall);
+        Quad("Front Section", doorWall, new Vector3(2.5f, 1.75f, -1.5f), 7f, 3.5f, Vector3.left, wall);
+        Quad("Above Door", doorWall, new Vector3(2.5f, 2.75f, 2.5f), 1f, 1.5f, Vector3.left, wall);
+        Box("Door Frame Front Jamb", doorWall, new Vector3(2.5f, 1f, 1.75f), new Vector3(0.15f, 2f, 0.5f), wall);
+        Box("Door Frame Rear Jamb", doorWall, new Vector3(2.5f, 1f, 3.25f), new Vector3(0.15f, 2f, 0.5f), wall);
+        Box("Door Frame Header", doorWall, new Vector3(2.5f, 2.25f, 2.5f), new Vector3(0.15f, 0.5f, 2f), wall);
 
-        Transform leftWall = NewGroup("Left Wall", parent);
-        Box("Wall", leftWall, new Vector3(-2.5f, 1.75f, 0f), new Vector3(wallThickness, 3.5f, 10f), wall);
+        Transform solidWall = NewGroup("Right Wall - Solid", parent);
+        Quad("Wall", solidWall, new Vector3(-2.5f, 1.75f, 0f), 10f, 3.5f, Vector3.right, wall);
 
         Transform backWall = NewGroup("Back Wall", parent);
-        Box("Wall", backWall, new Vector3(0f, 1.75f, 5f), new Vector3(5f, 3.5f, wallThickness), wall);
+        Quad("Wall", backWall, new Vector3(0f, 1.75f, 5f), 5f, 3.5f, Vector3.back, wall);
 
         Transform frontWall = NewGroup("Front Wall", parent);
-        Box("Left Section", frontWall, new Vector3(-1.4375f, 1.75f, -5f), new Vector3(2.125f, 3.5f, wallThickness), wall);
-        Box("Right Section", frontWall, new Vector3(1.4375f, 1.75f, -5f), new Vector3(2.125f, 3.5f, wallThickness), wall);
-        Box("Below Source Opening", frontWall, new Vector3(0f, 1.0625f, -5f), new Vector3(0.75f, 2.125f, wallThickness), wall);
-        Box("Above Source Opening", frontWall, new Vector3(0f, 3.1875f, -5f), new Vector3(0.75f, 0.625f, wallThickness), wall);
-        Box("Source Frame Left", frontWall, new Vector3(-0.625f, 2.5f, -5f), new Vector3(0.5f, 1.75f, 0.15f), wall);
-        Box("Source Frame Right", frontWall, new Vector3(0.625f, 2.5f, -5f), new Vector3(0.5f, 1.75f, 0.15f), wall);
+        Quad("Right Section", frontWall, new Vector3(-1.4375f, 1.75f, -5f), 2.125f, 3.5f, Vector3.forward, wall);
+        Quad("Left Section", frontWall, new Vector3(1.4375f, 1.75f, -5f), 2.125f, 3.5f, Vector3.forward, wall);
+        Quad("Below Source Opening", frontWall, new Vector3(0f, 1.0625f, -5f), 0.75f, 2.125f, Vector3.forward, wall);
+        Quad("Above Source Opening", frontWall, new Vector3(0f, 3.1875f, -5f), 0.75f, 0.625f, Vector3.forward, wall);
+        Box("Source Frame Right", frontWall, new Vector3(-0.625f, 2.5f, -5f), new Vector3(0.5f, 1.75f, 0.15f), wall);
+        Box("Source Frame Left", frontWall, new Vector3(0.625f, 2.5f, -5f), new Vector3(0.5f, 1.75f, 0.15f), wall);
         Box("Source Frame Bottom", frontWall, new Vector3(0f, 1.875f, -5f), new Vector3(0.75f, 0.5f, 0.15f), wall);
         Box("Source Frame Top", frontWall, new Vector3(0f, 3.125f, -5f), new Vector3(0.75f, 0.5f, 0.15f), wall);
 
-        Box("Floor", parent, new Vector3(0f, -0.025f, 0f), new Vector3(5f, 0.05f, 10f), floor);
-        Box("Roof", parent, new Vector3(0f, 3.525f, 0f), new Vector3(5f, 0.05f, 10f), wall);
+        Quad("Floor", parent, new Vector3(0f, 0f, 0f), 5f, 10f, Vector3.up, floor);
+        Quad("Ceiling", parent, new Vector3(0f, 3.5f, 0f), 5f, 10f, Vector3.down, wall);
     }
 
     private static void BuildLightingFixtures(Transform parent, Material stand, Material dark, Material lightPanel)
@@ -176,7 +177,7 @@ public static class ChamberSceneBuilder
         }
 
         Transform floodStand = NewGroup("Flood Light Stand", parent);
-        floodStand.localPosition = new Vector3(1.5f, 0f, 2f);
+        floodStand.localPosition = MirrorPosition(new Vector3(1.5f, 0f, 2f));
         Cylinder("Pole", floodStand, new Vector3(0f, 0.7f, 0f), 0.025f, 1.4f, stand);
 
         Vector3 legStart = new(0f, 0.28f, 0f);
@@ -186,12 +187,15 @@ public static class ChamberSceneBuilder
         Box("Crossbar", floodStand, new Vector3(0f, 1.38f, 0f), new Vector3(0.04f, 0.04f, 0.8f), stand);
 
         Transform heads = NewGroup("Fixed Flood Heads", parent);
-        heads.localPosition = new Vector3(1.5f, 1.5f, 2f);
-        heads.rotation = Quaternion.LookRotation(new Vector3(0f, 1.925f, 2.9f) - heads.position, Vector3.up);
+        Vector3 sourceHeadPosition = new(1.5f, 1.5f, 2f);
+        Vector3 sourceHeadTarget = new(0f, 1.925f, 2.9f);
+        heads.localPosition = MirrorPosition(sourceHeadPosition);
+        heads.localRotation = MirrorRotation(
+            Quaternion.LookRotation(sourceHeadTarget - sourceHeadPosition, Vector3.up));
         foreach (float x in new[] { -0.22f, 0.22f })
         {
-            Transform head = NewGroup(x < 0 ? "Left Head" : "Right Head", heads);
-            head.localPosition = new Vector3(x, 0f, 0f);
+            Transform head = NewGroup(x < 0 ? "Right Head" : "Left Head", heads);
+            head.localPosition = MirrorPosition(new Vector3(x, 0f, 0f));
             Box("Frame", head, Vector3.zero, new Vector3(0.32f, 0.22f, 0.07f), dark);
             Box("Panel", head, new Vector3(0f, 0f, 0.041f), new Vector3(0.26f, 0.16f, 0.012f), lightPanel);
         }
@@ -215,7 +219,7 @@ public static class ChamberSceneBuilder
 
         const float liftHeight = 0.2f;
         Transform heightAssembly = NewGroup("Height Assembly", positioner);
-        heightAssembly.localPosition = new Vector3(0f, liftHeight, 0f);
+        heightAssembly.localPosition = MirrorPosition(new Vector3(0f, liftHeight, 0f));
         Box("Scissor Lift Top", heightAssembly, new Vector3(0f, 0.65f, 3.9f), new Vector3(0.75f, 0.1f, 1.5f), lift);
         BuildScissorForks(positioner, lift, liftHeight);
         BuildHousing(heightAssembly, housing);
@@ -250,7 +254,7 @@ public static class ChamberSceneBuilder
 
         foreach (float x in new[] { -sideX, sideX })
         {
-            string side = x < 0f ? "Left Housing" : "Right Housing";
+            string side = x < 0f ? "Right Housing" : "Left Housing";
             Transform housing = NewGroup(side, parent);
             Box("Base", housing,
                 new Vector3(x, baseY + HousingBackHeight / 2f, 3f + HousingBaseDepth / 2f),
@@ -272,7 +276,7 @@ public static class ChamberSceneBuilder
     private static void BuildTurntable(Transform parent, Material purple, Material orange, Material yellow)
     {
         Transform turntable = NewGroup("Turntable", parent);
-        turntable.localPosition = new Vector3(0f, TiltAxisZeroLiftHeight, 3f);
+        turntable.localPosition = MirrorPosition(new Vector3(0f, TiltAxisZeroLiftHeight, 3f));
         Transform tiltAssembly = NewGroup("Tilt Assembly", turntable);
 
         float leftHousingOuterFaceX = -HousingOverallWidth / 2f;
@@ -289,7 +293,8 @@ public static class ChamberSceneBuilder
             TurnShaftDiameter / 2f, shaftRight - shaftLeft, orange, Quaternion.Euler(0f, 0f, 90f));
 
         Transform panAssembly = NewGroup("Pan Assembly", tiltAssembly);
-        panAssembly.localPosition = new Vector3(0f, PanDiskTopAboveTiltAxis - PanDiskThickness / 2f, 0f);
+        panAssembly.localPosition = MirrorPosition(
+            new Vector3(0f, PanDiskTopAboveTiltAxis - PanDiskThickness / 2f, 0f));
         Cylinder("Turning Surface", panAssembly, Vector3.zero, PanDiskDiameter / 2f, PanDiskThickness, purple);
         BuildAutMount(panAssembly, purple);
         BuildAntennaUnderTest(panAssembly, yellow);
@@ -298,9 +303,9 @@ public static class ChamberSceneBuilder
     private static void BuildAutMount(Transform parent, Material material)
     {
         Transform mount = NewGroup("AUT Mount", parent);
-        mount.localPosition = new Vector3(0f,
+        mount.localPosition = MirrorPosition(new Vector3(0f,
             PanDiskThickness / 2f + AutMountClearance + AutMountHeight / 2f,
-            AutMountBackOffset);
+            AutMountBackOffset));
 
         const float memberThickness = 0.02f;
         float plateY = (AutMountHeight - memberThickness) / 2f;
@@ -324,9 +329,9 @@ public static class ChamberSceneBuilder
     private static void BuildAntennaUnderTest(Transform parent, Material material)
     {
         Transform aut = NewGroup("Antenna Under Test", parent);
-        aut.localPosition = new Vector3(0f,
+        aut.localPosition = MirrorPosition(new Vector3(0f,
             PanDiskThickness / 2f + AutMountClearance + AutMountHeight,
-            AutMountBackOffset);
+            AutMountBackOffset));
 
         const float height = 0.2f;
         const float depth = 0.2f;
@@ -334,7 +339,7 @@ public static class ChamberSceneBuilder
         Box("Stem", aut, new Vector3(0f, height / 2f, 0f), new Vector3(tube, height, tube), material);
         Box("Arm", aut, new Vector3(0f, height - tube / 2f, -depth / 2f), new Vector3(tube, tube, depth), material);
         Transform pivot = NewGroup("Antenna Pivot", aut);
-        pivot.localPosition = new Vector3(0f, height - tube / 2f, -depth);
+        pivot.localPosition = MirrorPosition(new Vector3(0f, height - tube / 2f, -depth));
         Box("Patch Antenna", pivot, new Vector3(0f, 0f, -0.01f), new Vector3(0.1f, 0.1f, 0.02f), material);
     }
 
@@ -343,15 +348,18 @@ public static class ChamberSceneBuilder
         Camera camera = Object.FindFirstObjectByType<Camera>();
         if (camera != null)
         {
-            camera.transform.position = new Vector3(-1.8f, 1.7f, -3.8f);
-            camera.transform.rotation = Quaternion.LookRotation(new Vector3(0f, 1.25f, 3.2f) - camera.transform.position);
+            Vector3 sourcePosition = new(-1.8f, 1.7f, -3.8f);
+            Vector3 sourceTarget = new(0f, 1.25f, 3.2f);
+            camera.transform.position = MirrorPosition(sourcePosition);
+            camera.transform.rotation = MirrorRotation(
+                Quaternion.LookRotation(sourceTarget - sourcePosition, Vector3.up));
             camera.nearClipPlane = 0.05f;
         }
 
         Light directional = Object.FindFirstObjectByType<Light>();
         if (directional != null)
         {
-            directional.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
+            directional.transform.rotation = MirrorRotation(Quaternion.Euler(50f, -30f, 0f));
             directional.intensity = 1.2f;
         }
     }
@@ -367,6 +375,23 @@ public static class ChamberSceneBuilder
     {
         GameObject gameObject = GameObject.CreatePrimitive(PrimitiveType.Cube);
         SetPrimitive(gameObject, name, parent, position, Quaternion.identity, size, material);
+        return gameObject;
+    }
+
+    private static GameObject Quad(
+        string name,
+        Transform parent,
+        Vector3 position,
+        float width,
+        float height,
+        Vector3 inwardNormal,
+        Material material)
+    {
+        GameObject gameObject = GameObject.CreatePrimitive(PrimitiveType.Quad);
+        Mesh mesh = gameObject.GetComponent<MeshFilter>().sharedMesh;
+        Vector3 primitiveNormal = mesh.normals.Length > 0 ? mesh.normals[0].normalized : Vector3.back;
+        Quaternion rotation = Quaternion.FromToRotation(primitiveNormal, inwardNormal.normalized);
+        SetPrimitive(gameObject, name, parent, position, rotation, new Vector3(width, height, 1f), material);
         return gameObject;
     }
 
@@ -424,13 +449,24 @@ public static class ChamberSceneBuilder
     {
         gameObject.name = name;
         gameObject.transform.SetParent(parent, false);
-        gameObject.transform.localPosition = position;
-        gameObject.transform.localRotation = rotation;
+        gameObject.transform.localPosition = MirrorPosition(position);
+        gameObject.transform.localRotation = MirrorRotation(rotation);
         gameObject.transform.localScale = scale;
         Renderer renderer = gameObject.GetComponent<Renderer>();
         renderer.sharedMaterial = material;
         renderer.shadowCastingMode = ShadowCastingMode.On;
         renderer.receiveShadows = true;
+    }
+
+    private static Vector3 MirrorPosition(Vector3 position)
+    {
+        return new Vector3(-position.x, position.y, position.z);
+    }
+
+    private static Quaternion MirrorRotation(Quaternion rotation)
+    {
+        // For reflection S = diag(-1, 1, 1), the mirrored rotation is S * R * S.
+        return new Quaternion(rotation.x, -rotation.y, -rotation.z, rotation.w);
     }
 
     private static Material GetMaterial(
@@ -453,6 +489,8 @@ public static class ChamberSceneBuilder
         if (material.HasProperty("_BaseColor")) material.SetColor("_BaseColor", color);
         if (material.HasProperty("_Metallic")) material.SetFloat("_Metallic", metallic);
         if (material.HasProperty("_Smoothness")) material.SetFloat("_Smoothness", smoothness);
+        if (material.HasProperty("_Cull")) material.SetFloat("_Cull", (float)CullMode.Back);
+        material.doubleSidedGI = false;
         if (emissive)
         {
             material.EnableKeyword("_EMISSION");
