@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -221,27 +222,47 @@ public static class ChamberSceneBuilder
         Transform heightAssembly = NewGroup("Height Assembly", positioner);
         heightAssembly.localPosition = MirrorPosition(new Vector3(0f, liftHeight, 0f));
         Box("Scissor Lift Top", heightAssembly, new Vector3(0f, 0.65f, 3.9f), new Vector3(0.75f, 0.1f, 1.5f), lift);
-        BuildScissorForks(positioner, lift, liftHeight);
+        BuildScissorForks(positioner, lift, liftHeight,
+            out Transform[] risingForwardForks,
+            out Transform[] risingBackwardForks);
         BuildHousing(heightAssembly, housing);
-        BuildTurntable(heightAssembly, purple, orange, yellow);
+        BuildTurntable(
+            heightAssembly,
+            purple,
+            orange,
+            yellow,
+            risingForwardForks,
+            risingBackwardForks);
     }
 
-    private static void BuildScissorForks(Transform parent, Material material, float height)
+    private static void BuildScissorForks(
+        Transform parent,
+        Material material,
+        float height,
+        out Transform[] risingForwardForks,
+        out Transform[] risingBackwardForks)
     {
         Transform forks = NewGroup("Scissor Forks", parent);
         float horizontalSpan = Mathf.Sqrt(Mathf.Max(0.05f * 0.05f, 1.2f * 1.2f - height * height));
         float halfZ = horizontalSpan / 2f;
+        List<Transform> forwardForks = new();
+        List<Transform> backwardForks = new();
         foreach (float sideX in new[] { -0.3f, 0.3f })
         {
-            Rod("Rising Forward", forks,
+            GameObject forward = Rod("Rising Forward", forks,
                 new Vector3(sideX - 0.015f, 0.6f, 3.9f - halfZ),
                 new Vector3(sideX - 0.015f, 0.6f + height, 3.9f + halfZ),
                 0.025f, material, true);
-            Rod("Rising Backward", forks,
+            GameObject backward = Rod("Rising Backward", forks,
                 new Vector3(sideX + 0.015f, 0.6f, 3.9f + halfZ),
                 new Vector3(sideX + 0.015f, 0.6f + height, 3.9f - halfZ),
                 0.025f, material, true);
+            forwardForks.Add(forward.transform);
+            backwardForks.Add(backward.transform);
         }
+
+        risingForwardForks = forwardForks.ToArray();
+        risingBackwardForks = backwardForks.ToArray();
     }
 
     private static void BuildHousing(Transform parent, Material material)
@@ -273,7 +294,13 @@ public static class ChamberSceneBuilder
             new Vector3(HousingOverallWidth, HousingConnectorHeight, HousingBaseDepth), material);
     }
 
-    private static void BuildTurntable(Transform parent, Material purple, Material orange, Material yellow)
+    private static void BuildTurntable(
+        Transform parent,
+        Material purple,
+        Material orange,
+        Material yellow,
+        Transform[] risingForwardForks,
+        Transform[] risingBackwardForks)
     {
         Transform turntable = NewGroup("Turntable", parent);
         turntable.localPosition = MirrorPosition(new Vector3(0f, TiltAxisZeroLiftHeight, 3f));
@@ -298,6 +325,14 @@ public static class ChamberSceneBuilder
         Cylinder("Turning Surface", panAssembly, Vector3.zero, PanDiskDiameter / 2f, PanDiskThickness, purple);
         BuildAutMount(panAssembly, purple);
         BuildAntennaUnderTest(panAssembly, yellow);
+
+        TurntableController controller = turntable.gameObject.AddComponent<TurntableController>();
+        controller.Configure(
+            panAssembly,
+            tiltAssembly,
+            parent,
+            risingForwardForks,
+            risingBackwardForks);
     }
 
     private static void BuildAutMount(Transform parent, Material material)
