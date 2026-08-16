@@ -267,12 +267,12 @@ public static class ChamberSceneBuilder
             new Vector3(wallThickness, 3.5f, 7f), wall, shellRenderers);
         ShellBox("Above Door", doorWall, new Vector3(2.5f + halfThickness, 2.75f, 2.5f),
             new Vector3(wallThickness, 1.5f, 1f), wall, shellRenderers);
-        ShellBox("Door Frame Front Jamb", doorWall, new Vector3(2.5f + halfThickness, 1f, 1.75f),
-            new Vector3(wallThickness, 2f, 0.5f), wall, shellRenderers);
-        ShellBox("Door Frame Rear Jamb", doorWall, new Vector3(2.5f + halfThickness, 1f, 3.25f),
-            new Vector3(wallThickness, 2f, 0.5f), wall, shellRenderers);
-        ShellBox("Door Frame Header", doorWall, new Vector3(2.5f + halfThickness, 2.25f, 2.5f),
-            new Vector3(wallThickness, 0.5f, 2f), wall, shellRenderers);
+        Box("Door Frame Front Jamb", doorWall, new Vector3(2.5f + halfThickness, 1f, 1.75f),
+            new Vector3(wallThickness, 2f, 0.5f), wall);
+        Box("Door Frame Rear Jamb", doorWall, new Vector3(2.5f + halfThickness, 1f, 3.25f),
+            new Vector3(wallThickness, 2f, 0.5f), wall);
+        Box("Door Frame Header", doorWall, new Vector3(2.5f + halfThickness, 2.25f, 2.5f),
+            new Vector3(wallThickness, 0.5f, 2f), wall);
 
         Transform solidWall = NewGroup("Right Wall - Solid", parent);
         ShellBox("Wall", solidWall, new Vector3(-2.5f - halfThickness, 1.75f, 0f),
@@ -292,14 +292,14 @@ public static class ChamberSceneBuilder
             new Vector3(0.75f, 2.125f, wallThickness), wall, shellRenderers);
         ShellBox("Above Source Opening", frontWall, new Vector3(0f, 3.1875f, frontCenterZ),
             new Vector3(0.75f, 0.625f, wallThickness), wall, shellRenderers);
-        ShellBox("Source Frame Right", frontWall, new Vector3(-0.625f, 2.5f, frontCenterZ),
-            new Vector3(0.5f, 1.75f, wallThickness), wall, shellRenderers);
-        ShellBox("Source Frame Left", frontWall, new Vector3(0.625f, 2.5f, frontCenterZ),
-            new Vector3(0.5f, 1.75f, wallThickness), wall, shellRenderers);
-        ShellBox("Source Frame Bottom", frontWall, new Vector3(0f, 1.875f, frontCenterZ),
-            new Vector3(0.75f, 0.5f, wallThickness), wall, shellRenderers);
-        ShellBox("Source Frame Top", frontWall, new Vector3(0f, 3.125f, frontCenterZ),
-            new Vector3(0.75f, 0.5f, wallThickness), wall, shellRenderers);
+        Box("Source Frame Right", frontWall, new Vector3(-0.625f, 2.5f, frontCenterZ),
+            new Vector3(0.5f, 1.75f, wallThickness), wall);
+        Box("Source Frame Left", frontWall, new Vector3(0.625f, 2.5f, frontCenterZ),
+            new Vector3(0.5f, 1.75f, wallThickness), wall);
+        Box("Source Frame Bottom", frontWall, new Vector3(0f, 1.875f, frontCenterZ),
+            new Vector3(0.75f, 0.5f, wallThickness), wall);
+        Box("Source Frame Top", frontWall, new Vector3(0f, 3.125f, frontCenterZ),
+            new Vector3(0.75f, 0.5f, wallThickness), wall);
 
         ShellBox("Floor", parent, new Vector3(0f, -halfThickness, 0f),
             new Vector3(5f, wallThickness, 10f), floor, shellRenderers);
@@ -313,13 +313,6 @@ public static class ChamberSceneBuilder
             new Vector3(2.5f, 1.75f, -1.5f), 7f, 3.5f, Vector3.left, wall, cutawayRenderers);
         CutawayQuad("Door Wall Above Door", cutaway,
             new Vector3(2.5f, 2.75f, 2.5f), 1f, 1.5f, Vector3.left, wall, cutawayRenderers);
-        CutawayQuad("Door Frame Front Jamb", cutaway,
-            new Vector3(2.5f, 1f, 1.75f), 0.5f, 2f, Vector3.left, wall, cutawayRenderers);
-        CutawayQuad("Door Frame Rear Jamb", cutaway,
-            new Vector3(2.5f, 1f, 3.25f), 0.5f, 2f, Vector3.left, wall, cutawayRenderers);
-        CutawayQuad("Door Frame Header", cutaway,
-            new Vector3(2.5f, 2.25f, 2.5f), 2f, 0.5f, Vector3.left, wall, cutawayRenderers);
-
         CutawayQuad("Right Wall", cutaway,
             new Vector3(-2.5f, 1.75f, 0f), 10f, 3.5f, Vector3.right, wall, cutawayRenderers);
         CutawayQuad("Back Wall", cutaway,
@@ -333,15 +326,6 @@ public static class ChamberSceneBuilder
             new Vector3(0f, 1.0625f, -5f), 0.75f, 2.125f, Vector3.forward, wall, cutawayRenderers);
         CutawayQuad("Above Source Opening", cutaway,
             new Vector3(0f, 3.1875f, -5f), 0.75f, 0.625f, Vector3.forward, wall, cutawayRenderers);
-        CutawayQuad("Source Frame Right", cutaway,
-            new Vector3(-0.625f, 2.5f, -5f), 0.5f, 1.75f, Vector3.forward, wall, cutawayRenderers);
-        CutawayQuad("Source Frame Left", cutaway,
-            new Vector3(0.625f, 2.5f, -5f), 0.5f, 1.75f, Vector3.forward, wall, cutawayRenderers);
-        CutawayQuad("Source Frame Bottom", cutaway,
-            new Vector3(0f, 1.875f, -5f), 0.75f, 0.5f, Vector3.forward, wall, cutawayRenderers);
-        CutawayQuad("Source Frame Top", cutaway,
-            new Vector3(0f, 3.125f, -5f), 0.75f, 0.5f, Vector3.forward, wall, cutawayRenderers);
-
         CutawayQuad("Floor", cutaway,
             new Vector3(0f, 0f, 0f), 5f, 10f, Vector3.up, floor, cutawayRenderers);
         CutawayQuad("Ceiling", cutaway,
