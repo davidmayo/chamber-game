@@ -54,6 +54,7 @@ public static class ChamberSceneBuilder
     private static readonly Color DarkColor = Hex(0x151719);
     private static readonly Color SourceColor = Hex(0x2ecc71);
     private static readonly Color ConcreteColor = Hex(0x8a8d91);
+    private static readonly Color PlayerColor = Hex(0x2d8cff);
 
     static ChamberSceneBuilder()
     {
@@ -111,6 +112,12 @@ public static class ChamberSceneBuilder
         bool preserveCutawayView = false;
         if (existing != null)
         {
+            Camera existingCamera = Object.FindFirstObjectByType<Camera>();
+            if (existingCamera != null && existingCamera.transform.IsChildOf(existing.transform))
+            {
+                existingCamera.transform.SetParent(null, true);
+            }
+
             ChamberShellVisibilityController existingController =
                 existing.GetComponent<ChamberShellVisibilityController>();
             preserveCutawayView = existingController != null && existingController.CutawayView;
@@ -130,6 +137,7 @@ public static class ChamberSceneBuilder
         Material dark = GetMaterial("FixtureDark", DarkColor, 0.35f, 0.35f);
         Material source = GetMaterial("SourceGreen", SourceColor, 0.15f, 0.5f);
         Material concrete = GetMaterial("Concrete", ConcreteColor, 0f, 0.05f);
+        Material playerMaterial = GetMaterial("Player", PlayerColor, 0f, 0.25f);
         Material lightPanel = GetMaterial("LightPanel", Color.white, 0f, 0.75f, true, 8f);
 
         Transform root = NewGroup(RootName, null);
@@ -146,6 +154,12 @@ public static class ChamberSceneBuilder
         shellController.Configure(shellRenderers.ToArray(), cutawayRenderers.ToArray());
         shellController.SetCutawayView(preserveCutawayView);
         ConfigureSceneCameraAndLight();
+        FirstPersonPlayerController playerController =
+            BuildPlayer(NewGroup("Player", root), playerMaterial);
+        TurntableController tableController = root.GetComponentInChildren<TurntableController>();
+        GameControlModeController controlModeController =
+            root.gameObject.AddComponent<GameControlModeController>();
+        controlModeController.Configure(playerController, tableController);
 
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
@@ -544,6 +558,42 @@ public static class ChamberSceneBuilder
         Transform pivot = NewGroup("Antenna Pivot", aut);
         pivot.localPosition = MirrorPosition(new Vector3(0f, height - tube / 2f, -depth));
         Box("Patch Antenna", pivot, new Vector3(0f, 0f, -0.01f), new Vector3(0.1f, 0.1f, 0.02f), material);
+    }
+
+    private static FirstPersonPlayerController BuildPlayer(Transform player, Material material)
+    {
+        Camera camera = Object.FindFirstObjectByType<Camera>();
+        if (camera == null)
+        {
+            throw new System.InvalidOperationException("The main scene requires a Camera for the player.");
+        }
+
+        Vector3 eyePosition = camera.transform.position;
+        Vector3 planarForward = Vector3.ProjectOnPlane(camera.transform.forward, Vector3.up).normalized;
+        player.position = new Vector3(eyePosition.x, 0f, eyePosition.z);
+        player.rotation = Quaternion.LookRotation(planarForward, Vector3.up);
+
+        GameObject body = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+        SetPrimitive(body, "Capsule Body", player, new Vector3(0f, 0.9f, 0f),
+            Quaternion.identity, new Vector3(0.6f, 0.9f, 0.6f), material);
+        Collider bodyCollider = body.GetComponent<Collider>();
+        if (bodyCollider != null)
+        {
+            Object.DestroyImmediate(bodyCollider);
+        }
+
+        CharacterController characterController = player.gameObject.AddComponent<CharacterController>();
+        characterController.center = new Vector3(0f, 0.9f, 0f);
+        characterController.height = 1.8f;
+        characterController.radius = 0.3f;
+        characterController.stepOffset = 0.3f;
+        characterController.skinWidth = 0.05f;
+
+        camera.transform.SetParent(player, true);
+        FirstPersonPlayerController controller =
+            player.gameObject.AddComponent<FirstPersonPlayerController>();
+        controller.Configure(camera);
+        return controller;
     }
 
     private static void ConfigureSceneCameraAndLight()

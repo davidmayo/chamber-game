@@ -51,3 +51,7 @@ Useful commands include `editor_state`, `refresh`, `save_scene`, `rebuild_chambe
 ## Controls
 
 - In Edit Mode, use `Window > Chamber Tools` for chamber visualization controls.
+- The debug control-mode UI switches between player and table input; `Tab` is a shortcut.
+- Player mode uses `WASD` movement and mouse look. `Escape` releases the captured mouse.
+- Table mode uses `A`/`D` for pan, `W`/`S` for tilt, and `Q`/`E` for height.
+- `V` toggles opaque/cutaway shell visualization in Play Mode.
