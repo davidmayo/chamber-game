@@ -76,6 +76,18 @@ public static class ChamberSceneBuilder
         BuildScene(scene);
     }
 
+    public static void RebuildActiveMainSceneFromBridge()
+    {
+        Scene scene = SceneManager.GetActiveScene();
+        if (scene.path != MainScenePath)
+        {
+            throw new System.InvalidOperationException(
+                $"The active scene must be {MainScenePath}, but it is {scene.path}.");
+        }
+
+        BuildScene(scene);
+    }
+
     private static void BuildNewProjectSceneIfNeeded()
     {
         if (Application.isBatchMode)
