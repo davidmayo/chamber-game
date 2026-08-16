@@ -9,6 +9,13 @@ This is a Unity 6.3 LTS project using URP. Keep changes small, readable, and fri
 - Graphics and gameplay should remain intentionally simple.
 - The player can walk around the space and interact with equipment or other objects.
 
+## Author info
+
+- The project author (David Mayo) is not a game developer. He has some experience with Unity, but it is quite out of date.
+- He has decent understanding of game dev concepts and graphics concepts, but NOT jargon.
+- He is a strong software developer in general with a fair amount of C# experience.
+- He is an operator who works in the actual chamber being modeled herein.
+
 ## Project layout
 
 - Put project-owned assets under `Assets/_Project/`.
@@ -43,8 +50,4 @@ Useful commands include `editor_state`, `refresh`, `save_scene`, `rebuild_chambe
 
 ## Controls
 
-- `A` / `D`: pan right / left.
-- `W` / `S`: tilt up / down.
-- `Q` / `E`: lower / raise the height assembly.
-- `V`: toggle opaque/cutaway shell visualization in Play Mode.
 - In Edit Mode, use `Window > Chamber Tools` for chamber visualization controls.
