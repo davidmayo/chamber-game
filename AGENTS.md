@@ -59,7 +59,7 @@ Use the local bridge instead of launching a second Unity instance:
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\unity-bridge.ps1 <command>
 ```
 
-Useful commands include `editor_state`, `refresh`, `save_scene`, `rebuild_chamber`, `hierarchy`, `capture_game_view`, `enter_play_mode`, `exit_play_mode`, and `get_logs`.
+Useful commands include `editor_state`, `refresh`, `save_scene`, `rebuild_chamber`, `hierarchy`, `capture_game_view`, `capture_scene_view`, `enter_play_mode`, `exit_play_mode`, and `get_logs`.
 
 - Save an intentionally dirty scene before rebuilding; do not force away the user's Editor changes.
 - After changing C# code, run `refresh` and resolve all compiler diagnostics.

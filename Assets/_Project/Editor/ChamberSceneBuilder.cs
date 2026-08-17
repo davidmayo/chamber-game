@@ -275,7 +275,18 @@ public static class ChamberSceneBuilder
             analyzerGray,
             analyzerScreen,
             out GameObject consoleInteractionZone,
-            out Transform seatedCameraPose);
+            out Transform seatedCameraPose,
+            out Transform signalGeneratorCablePort,
+            out Transform spectrumAnalyzerCablePort);
+        BuildSourceFeedHose(
+            NewGroup("Source Feed Hose", root),
+            signalGeneratorCablePort,
+            sourceAntennaController.transform,
+            dark);
+        BuildSpectrumAnalyzerFeedHose(
+            NewGroup("Spectrum Analyzer Feed Hose", root),
+            spectrumAnalyzerCablePort,
+            dark);
         BuildExteriorDisplays(
             NewGroup("Exterior Camera Displays", root),
             dark,
@@ -689,7 +700,9 @@ public static class ChamberSceneBuilder
         Material analyzerMaterial,
         Material analyzerScreenMaterial,
         out GameObject interactionZone,
-        out Transform seatedCameraPose)
+        out Transform seatedCameraPose,
+        out Transform signalGeneratorCablePort,
+        out Transform spectrumAnalyzerCablePort)
     {
         // Source-coordinate placement before the project's YZ-plane reflection.
         // The console sits outside and parallel to the door-side frustum wall.
@@ -790,7 +803,20 @@ public static class ChamberSceneBuilder
             tabletopY,
             computerMaterial,
             analyzerMaterial,
-            analyzerScreenMaterial);
+            analyzerScreenMaterial,
+            out spectrumAnalyzerCablePort);
+
+        BuildSignalGeneratorTable(
+            parent,
+            tableLength,
+            tableDepth,
+            tableHeight,
+            tableTopThickness,
+            legThickness,
+            tableMaterial,
+            analyzerMaterial,
+            computerMaterial,
+            out signalGeneratorCablePort);
 
         interactionZone = AcquireObject(
             "Interaction Zone", parent, () => new GameObject("Interaction Zone"));
@@ -810,12 +836,201 @@ public static class ChamberSceneBuilder
             Quaternion.LookRotation(seatedTarget - seatedPosition, Vector3.up));
     }
 
+    private static void BuildSignalGeneratorTable(
+        Transform parent,
+        float tableLength,
+        float tableDepth,
+        float tableHeight,
+        float tableTopThickness,
+        float legThickness,
+        Material tableMaterial,
+        Material signalGeneratorMaterial,
+        Material standMaterial,
+        out Transform cablePort)
+    {
+        const float tableGap = 6f * MetersPerInch;
+        Transform signalTable = NewGroup("Signal Generator Table", parent);
+        signalTable.localPosition = MirrorPosition(
+            new Vector3(tableLength + tableGap, 0f, 0f));
+
+        float topCenterY = tableHeight - tableTopThickness / 2f;
+        Box("Tabletop", signalTable, new Vector3(0f, topCenterY, 0f),
+            new Vector3(tableLength, tableTopThickness, tableDepth), tableMaterial);
+
+        float legHeight = tableHeight - tableTopThickness;
+        float legCenterY = legHeight / 2f;
+        float legX = tableLength / 2f - 0.08f;
+        float legZ = tableDepth / 2f - 0.08f;
+        Box("Front Left Leg", signalTable, new Vector3(-legX, legCenterY, legZ),
+            new Vector3(legThickness, legHeight, legThickness), tableMaterial);
+        Box("Front Right Leg", signalTable, new Vector3(legX, legCenterY, legZ),
+            new Vector3(legThickness, legHeight, legThickness), tableMaterial);
+        Box("Rear Left Leg", signalTable, new Vector3(-legX, legCenterY, -legZ),
+            new Vector3(legThickness, legHeight, legThickness), tableMaterial);
+        Box("Rear Right Leg", signalTable, new Vector3(legX, legCenterY, -legZ),
+            new Vector3(legThickness, legHeight, legThickness), tableMaterial);
+
+        const float bodyWidth = 0.40f;
+        const float bodyHeight = 0.20f;
+        const float bodyDepth = 0.60f;
+        const float generatorX = 0.34f;
+        const float generatorYawDegrees = -20f;
+        const float tiltDegrees = -20f / 3f;
+        float tiltRadians = Mathf.Abs(tiltDegrees) * Mathf.Deg2Rad;
+        float projectedHalfHeight =
+            Mathf.Cos(tiltRadians) * bodyHeight / 2f
+            + Mathf.Sin(tiltRadians) * bodyDepth / 2f;
+
+        Transform stand = NewGroup("Signal Generator Stand", signalTable);
+        stand.localPosition = MirrorPosition(new Vector3(generatorX, 0f, 0f));
+        Box("Left Rail", stand, new Vector3(-0.15f, tableHeight + 0.012f, 0f),
+            new Vector3(0.025f, 0.024f, 0.52f), standMaterial);
+        Box("Right Rail", stand, new Vector3(0.15f, tableHeight + 0.012f, 0f),
+            new Vector3(0.025f, 0.024f, 0.52f), standMaterial);
+        Rod("Rear Prop", stand,
+            new Vector3(0f, tableHeight + 0.02f, -0.23f),
+            new Vector3(0f, tableHeight + 0.18f, -0.10f),
+            0.012f,
+            standMaterial,
+            true);
+
+        Transform signalGenerator = NewGroup("Signal Generator", signalTable);
+        signalGenerator.localPosition = MirrorPosition(new Vector3(
+            generatorX,
+            tableHeight + projectedHalfHeight + 0.02f,
+            0f));
+        signalGenerator.localRotation = MirrorRotation(
+            Quaternion.Euler(tiltDegrees, generatorYawDegrees, 0f));
+        Box("Chassis", signalGenerator, Vector3.zero,
+            new Vector3(bodyWidth, bodyHeight, bodyDepth), signalGeneratorMaterial);
+
+        // This is the future anchor for the flexible source-antenna feed hose.
+        GameObject port = Cylinder("Rear Cable Port", signalGenerator,
+            new Vector3(0f, 0f, -bodyDepth / 2f - 0.012f),
+            0.018f,
+            0.024f,
+            standMaterial,
+            Quaternion.Euler(90f, 0f, 0f));
+        cablePort = port.transform;
+    }
+
+    private static void BuildSourceFeedHose(
+        Transform parent,
+        Transform signalGeneratorCablePort,
+        Transform sourceAntenna,
+        Material material)
+    {
+        Vector3 start = signalGeneratorCablePort.position;
+        Vector3 end = sourceAntenna.TransformPoint(new Vector3(0f, 0f, -0.065f));
+        Vector3 exitDirection =
+            signalGeneratorCablePort.parent.TransformDirection(Vector3.back).normalized;
+
+        // A long, deliberately under-supported route makes this read as a loose,
+        // heavy RF hose rather than a taut wire.
+        Vector3[] worldControlPoints =
+        {
+            start,
+            start + exitDirection * 0.28f + Vector3.down * 0.16f,
+            Vector3.Lerp(start, end, 0.36f)
+                + exitDirection * 0.18f
+                + Vector3.down * 0.92f,
+            Vector3.Lerp(start, end, 0.72f) + Vector3.down * 0.58f,
+            end + Vector3.down * 0.18f + Vector3.back * 0.08f,
+            end,
+        };
+        Vector3[] localControlPoints = new Vector3[worldControlPoints.Length];
+        for (int index = 0; index < worldControlPoints.Length; index++)
+        {
+            localControlPoints[index] = parent.InverseTransformPoint(worldControlPoints[index]);
+        }
+        TubeAlongCatmullRom(
+            "Loose Source Feed Hose",
+            parent,
+            localControlPoints,
+            0.01f,
+            12,
+            8,
+            material);
+    }
+
+    private static void BuildSpectrumAnalyzerFeedHose(
+        Transform parent,
+        Transform spectrumAnalyzerCablePort,
+        Material material)
+    {
+        const float containingRoomFloor = -0.3f;
+        Vector3 start = spectrumAnalyzerCablePort.position;
+        Transform analyzer = spectrumAnalyzerCablePort.parent;
+        Transform console = analyzer.parent;
+        Vector3 end = new(2.65f, containingRoomFloor + 0.5f, 2.5f);
+
+        Vector3[] worldControlPoints =
+        {
+            start,
+            // Come forward and down from the lower-front connector.
+            analyzer.TransformPoint(new Vector3(0.05f, -0.145f, 0.28f)),
+            // Fold across the front toward the viewed-left side of the analyzer.
+            analyzer.TransformPoint(new Vector3(0.14f, -0.17f, 0.30f)),
+            analyzer.TransformPoint(new Vector3(0.27f, -0.18f, 0.24f)),
+            // Wrap around that side and continue behind the chassis.
+            analyzer.TransformPoint(new Vector3(0.31f, -0.12f, 0.05f)),
+            analyzer.TransformPoint(new Vector3(0.31f, 0.02f, -0.20f)),
+            analyzer.TransformPoint(new Vector3(0.31f, 0.04f, -0.30f)),
+            // Rest on the tabletop before rounding over its rear edge.
+            console.TransformPoint(new Vector3(-0.10f, 0.755f, -0.395f)),
+            console.TransformPoint(new Vector3(-0.10f, 0.69f, -0.46f)),
+            // Once clear of the edge, fall freely toward the under-chamber run.
+            console.TransformPoint(new Vector3(-0.10f, 0.20f, -0.52f)),
+            new(-1.55f, -0.12f, -2.15f),
+            // Cross beneath the forward/frustum portion of the chamber.
+            new(-1.05f, -0.22f, -1.75f),
+            new(0.00f, -0.22f, -1.20f),
+            new(1.15f, -0.22f, -0.75f),
+            new(2.10f, -0.20f, -0.35f),
+            // Emerge on the exterior left side near the frustum transition.
+            new(2.52f, -0.08f, -0.05f),
+            new(2.82f, 0.06f, 0.20f),
+            // Hang visibly and loosely along the left side of the room.
+            new(3.02f, 0.12f, 0.75f),
+            new(3.05f, 0.14f, 1.45f),
+            new(2.98f, 0.17f, 2.10f),
+            new(2.82f, 0.20f, 2.55f),
+            new(2.68f, 0.20f, 2.62f),
+            end,
+        };
+        Vector3[] localControlPoints = new Vector3[worldControlPoints.Length];
+        for (int index = 0; index < worldControlPoints.Length; index++)
+        {
+            localControlPoints[index] = parent.InverseTransformPoint(worldControlPoints[index]);
+        }
+
+        TubeAlongCatmullRom(
+            "Loose Spectrum Analyzer Feed Hose",
+            parent,
+            localControlPoints,
+            0.01f,
+            12,
+            8,
+            material);
+
+        // The endpoint is a fixed feedthrough on the chamber's exterior left wall.
+        Cylinder(
+            "Left Wall Feedthrough",
+            parent,
+            new Vector3(-2.67f, containingRoomFloor + 0.5f, 2.5f),
+            0.025f,
+            0.04f,
+            material,
+            Quaternion.Euler(0f, 0f, 90f));
+    }
+
     private static void BuildSpectrumAnalyzer(
         Transform parent,
         float tabletopY,
         Material darkMaterial,
         Material bodyMaterial,
-        Material screenMaterial)
+        Material screenMaterial,
+        out Transform cablePort)
     {
         const float bodyWidth = 0.48f;
         const float bodyHeight = 0.27f;
@@ -886,6 +1101,16 @@ public static class ChamberSceneBuilder
         displayController.Configure(
             rasterScreen.GetComponent<Renderer>(),
             screenMaterial.GetTexture("_BaseMap"));
+
+        GameObject port = Cylinder(
+            "Front Cable Port",
+            analyzer,
+            new Vector3(-0.05f, -0.105f, bodyDepth / 2f + 0.025f),
+            0.018f,
+            0.035f,
+            darkMaterial,
+            Quaternion.Euler(90f, 0f, 0f));
+        cablePort = port.transform;
     }
 
     private static void BuildScissorLiftControl(
@@ -1622,6 +1847,147 @@ public static class ChamberSceneBuilder
         mesh.RecalculateBounds();
         EditorUtility.SetDirty(mesh);
         return mesh;
+    }
+
+    private static GameObject TubeAlongCatmullRom(
+        string name,
+        Transform parent,
+        Vector3[] controlPoints,
+        float radius,
+        int radialSegments,
+        int samplesPerSpan,
+        Material material)
+    {
+        List<Vector3> centerline = new();
+        for (int span = 0; span < controlPoints.Length - 1; span++)
+        {
+            Vector3 p1 = controlPoints[span];
+            Vector3 p2 = controlPoints[span + 1];
+            Vector3 p0 = span > 0
+                ? controlPoints[span - 1]
+                : p1 + (p1 - p2);
+            Vector3 p3 = span + 2 < controlPoints.Length
+                ? controlPoints[span + 2]
+                : p2 + (p2 - p1);
+            for (int sample = 0; sample < samplesPerSpan; sample++)
+            {
+                centerline.Add(CatmullRom(
+                    p0,
+                    p1,
+                    p2,
+                    p3,
+                    sample / (float)samplesPerSpan));
+            }
+        }
+        centerline.Add(controlPoints[controlPoints.Length - 1]);
+
+        List<Vector3> vertices = new(centerline.Count * radialSegments + 2);
+        Vector3 previousNormal = Vector3.zero;
+        for (int ring = 0; ring < centerline.Count; ring++)
+        {
+            Vector3 tangent;
+            if (ring == 0)
+            {
+                tangent = centerline[1] - centerline[0];
+            }
+            else if (ring == centerline.Count - 1)
+            {
+                tangent = centerline[ring] - centerline[ring - 1];
+            }
+            else
+            {
+                tangent = centerline[ring + 1] - centerline[ring - 1];
+            }
+            tangent.Normalize();
+
+            Vector3 ringNormal = previousNormal - tangent * Vector3.Dot(previousNormal, tangent);
+            if (ringNormal.sqrMagnitude < 0.0001f)
+            {
+                Vector3 reference = Mathf.Abs(Vector3.Dot(tangent, Vector3.up)) > 0.9f
+                    ? Vector3.right
+                    : Vector3.up;
+                ringNormal = Vector3.Cross(tangent, reference);
+            }
+            ringNormal.Normalize();
+            Vector3 ringBinormal = Vector3.Cross(tangent, ringNormal).normalized;
+            previousNormal = ringNormal;
+
+            for (int side = 0; side < radialSegments; side++)
+            {
+                float angle = side * Mathf.PI * 2f / radialSegments;
+                Vector3 offset =
+                    ringNormal * Mathf.Cos(angle) * radius
+                    + ringBinormal * Mathf.Sin(angle) * radius;
+                vertices.Add(centerline[ring] + offset);
+            }
+        }
+
+        List<int> triangles = new();
+        for (int ring = 0; ring < centerline.Count - 1; ring++)
+        {
+            int currentRing = ring * radialSegments;
+            int nextRing = (ring + 1) * radialSegments;
+            for (int side = 0; side < radialSegments; side++)
+            {
+                int nextSide = (side + 1) % radialSegments;
+                triangles.Add(currentRing + side);
+                triangles.Add(nextRing + nextSide);
+                triangles.Add(nextRing + side);
+                triangles.Add(currentRing + side);
+                triangles.Add(currentRing + nextSide);
+                triangles.Add(nextRing + nextSide);
+            }
+        }
+
+        int startCenter = vertices.Count;
+        vertices.Add(centerline[0]);
+        int endCenter = vertices.Count;
+        vertices.Add(centerline[centerline.Count - 1]);
+        int lastRing = (centerline.Count - 1) * radialSegments;
+        for (int side = 0; side < radialSegments; side++)
+        {
+            int nextSide = (side + 1) % radialSegments;
+            triangles.Add(startCenter);
+            triangles.Add(nextSide);
+            triangles.Add(side);
+            triangles.Add(endCenter);
+            triangles.Add(lastRing + side);
+            triangles.Add(lastRing + nextSide);
+        }
+
+        Mesh mesh = GetGeneratedMesh(
+            $"{name}_Tube",
+            vertices.ToArray(),
+            triangles.ToArray());
+        return MeshObject(name, parent, mesh, material, false);
+    }
+
+    private static Vector3 CatmullRom(
+        Vector3 p0,
+        Vector3 p1,
+        Vector3 p2,
+        Vector3 p3,
+        float t)
+    {
+        // Centripetal Catmull-Rom avoids the loops and cusps that uniform
+        // Catmull-Rom can produce when adjacent routing points are unevenly spaced.
+        float t0 = 0f;
+        float t1 = CatmullKnot(t0, p0, p1);
+        float t2 = CatmullKnot(t1, p1, p2);
+        float t3 = CatmullKnot(t2, p2, p3);
+        float knot = Mathf.Lerp(t1, t2, t);
+
+        Vector3 a1 = Vector3.LerpUnclamped(p0, p1, (knot - t0) / (t1 - t0));
+        Vector3 a2 = Vector3.LerpUnclamped(p1, p2, (knot - t1) / (t2 - t1));
+        Vector3 a3 = Vector3.LerpUnclamped(p2, p3, (knot - t2) / (t3 - t2));
+        Vector3 b1 = Vector3.LerpUnclamped(a1, a2, (knot - t0) / (t2 - t0));
+        Vector3 b2 = Vector3.LerpUnclamped(a2, a3, (knot - t1) / (t3 - t1));
+        return Vector3.LerpUnclamped(b1, b2, (knot - t1) / (t2 - t1));
+    }
+
+    private static float CatmullKnot(float previousKnot, Vector3 first, Vector3 second)
+    {
+        return previousKnot + Mathf.Sqrt(Vector3.Distance(first, second));
     }
 
     private static Light SpotLight(

@@ -198,6 +198,10 @@ public static class CodexEditorBridge
                 CaptureGameView(request);
                 return false;
 
+            case "capture_scene_view":
+                CaptureSceneView(request);
+                return false;
+
             case "rebuild_chamber":
                 RequireSafeEditState(request);
                 if (!request.force && SceneManager.GetActiveScene().isDirty)
@@ -393,6 +397,59 @@ public static class CodexEditorBridge
         finally
         {
             camera.targetTexture = previousTarget;
+            RenderTexture.active = previousActive;
+            UnityEngine.Object.DestroyImmediate(renderTexture);
+            UnityEngine.Object.DestroyImmediate(image);
+        }
+    }
+
+    private static void CaptureSceneView(BridgeRequest request)
+    {
+        SceneView sceneView = SceneView.lastActiveSceneView;
+        if (sceneView == null || sceneView.camera == null)
+        {
+            throw new InvalidOperationException("No active Scene View is available to capture.");
+        }
+
+        Camera camera = sceneView.camera;
+        bool captureTopView = string.Equals(
+            request.argument?.Trim(), "top", StringComparison.OrdinalIgnoreCase);
+        int width = request.width > 0 ? Mathf.Clamp(request.width, 64, 4096) : 1280;
+        int height = request.height > 0 ? Mathf.Clamp(request.height, 64, 4096) : 720;
+        RenderTexture renderTexture = new(width, height, 24, RenderTextureFormat.ARGB32);
+        Texture2D image = new(width, height, TextureFormat.RGB24, false);
+        RenderTexture previousActive = RenderTexture.active;
+        RenderTexture previousTarget = camera.targetTexture;
+        Vector3 previousPosition = camera.transform.position;
+        Quaternion previousRotation = camera.transform.rotation;
+        bool previousOrthographic = camera.orthographic;
+        float previousOrthographicSize = camera.orthographicSize;
+        try
+        {
+            if (captureTopView)
+            {
+                camera.transform.position = new Vector3(0f, 12f, 0f);
+                camera.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+                camera.orthographic = true;
+                camera.orthographicSize = 7f;
+            }
+            camera.targetTexture = renderTexture;
+            camera.Render();
+            RenderTexture.active = renderTexture;
+            image.ReadPixels(new Rect(0, 0, width, height), 0, 0);
+            image.Apply();
+            string artifactPath = Path.Combine(ArtifactFolder, $"{request.id}-scene.png");
+            File.WriteAllBytes(artifactPath, image.EncodeToPNG());
+            WriteResponse(request.id, request.command, true,
+                $"Captured {width}x{height} Scene View image.", artifactPath, sceneView.titleContent.text);
+        }
+        finally
+        {
+            camera.targetTexture = previousTarget;
+            camera.transform.position = previousPosition;
+            camera.transform.rotation = previousRotation;
+            camera.orthographic = previousOrthographic;
+            camera.orthographicSize = previousOrthographicSize;
             RenderTexture.active = previousActive;
             UnityEngine.Object.DestroyImmediate(renderTexture);
             UnityEngine.Object.DestroyImmediate(image);

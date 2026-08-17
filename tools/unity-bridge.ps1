@@ -8,6 +8,7 @@ param(
         'save_scene',
         'hierarchy',
         'capture_game_view',
+        'capture_scene_view',
         'rebuild_chamber',
         'enter_play_mode',
         'exit_play_mode',
