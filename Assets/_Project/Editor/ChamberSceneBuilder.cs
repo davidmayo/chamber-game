@@ -110,7 +110,8 @@ public static class ChamberSceneBuilder
     private static void BuildScene(Scene scene)
     {
         GameObject existing = GameObject.Find(RootName);
-        bool preserveCutawayView = false;
+        float preserveRoomOpacity = 100f;
+        float preserveChamberOpacity = 100f;
         if (existing != null)
         {
             Camera existingCamera = Object.FindFirstObjectByType<Camera>();
@@ -121,7 +122,11 @@ public static class ChamberSceneBuilder
 
             ChamberShellVisibilityController existingController =
                 existing.GetComponent<ChamberShellVisibilityController>();
-            preserveCutawayView = existingController != null && existingController.CutawayView;
+            if (existingController != null)
+            {
+                preserveRoomOpacity = existingController.RoomOpacityPercent;
+                preserveChamberOpacity = existingController.ChamberOpacityPercent;
+            }
             Object.DestroyImmediate(existing);
         }
 
@@ -139,22 +144,44 @@ public static class ChamberSceneBuilder
         Material dark = GetMaterial("FixtureDark", DarkColor, 0.35f, 0.35f);
         Material source = GetMaterial("SourceGreen", SourceColor, 0.15f, 0.5f);
         Material concrete = GetMaterial("Concrete", ConcreteColor, 0f, 0.05f);
+        Material roomConcreteTransparent = GetTransparentMaterial(
+            "RoomConcreteTransparent", ConcreteColor, 0f, 0.05f);
+        Material chamberWallTransparent = GetTransparentMaterial(
+            "ChamberWallTransparent", WallColor, 0f, 0f);
+        Material chamberFloorTransparent = GetTransparentMaterial(
+            "ChamberFloorTransparent", FloorColor, 0f, 0f);
         Material playerMaterial = GetMaterial("Player", PlayerColor, 0f, 0.25f);
         Material lightPanel = GetMaterial("LightPanel", Color.white, 0f, 0.75f, true, 8f);
 
         Transform root = NewGroup(RootName, null);
-        List<Renderer> shellRenderers = new();
-        List<Renderer> cutawayRenderers = new();
+        List<Renderer> roomPhysicalRenderers = new();
+        List<Renderer> roomCutawayRenderers = new();
+        List<Renderer> chamberPhysicalRenderers = new();
+        List<Renderer> chamberCutawayRenderers = new();
         BuildContainingRoom(NewGroup("Containing Room", root), concrete, lightPanel,
-            shellRenderers, cutawayRenderers);
+            roomPhysicalRenderers, roomCutawayRenderers);
         BuildArchitecture(NewGroup("Architecture", root), wall, floor,
-            shellRenderers, cutawayRenderers);
+            chamberPhysicalRenderers, chamberCutawayRenderers);
         BuildLightingFixtures(NewGroup("Lighting Fixtures", root), stand, dark, lightPanel);
         BuildEquipment(NewGroup("Equipment", root), table, lift, housing, purple, orange, yellow, source);
+        ShellVisualBinding[] roomVisuals = CreateCameraVisuals(
+            roomPhysicalRenderers, roomConcreteTransparent);
+        ShellVisualBinding[] chamberVisuals = CreateCameraVisuals(
+            chamberPhysicalRenderers,
+            chamberWallTransparent,
+            floor,
+            chamberFloorTransparent);
         ChamberShellVisibilityController shellController =
             root.gameObject.AddComponent<ChamberShellVisibilityController>();
-        shellController.Configure(shellRenderers.ToArray(), cutawayRenderers.ToArray());
-        shellController.SetCutawayView(preserveCutawayView);
+        shellController.Configure(
+            roomPhysicalRenderers.ToArray(),
+            roomVisuals,
+            roomCutawayRenderers.ToArray(),
+            chamberPhysicalRenderers.ToArray(),
+            chamberVisuals,
+            chamberCutawayRenderers.ToArray(),
+            preserveRoomOpacity,
+            preserveChamberOpacity);
         ConfigureSceneCameraAndLight();
         FirstPersonPlayerController playerController =
             BuildPlayer(NewGroup("Player", root), playerMaterial);
@@ -799,6 +826,51 @@ public static class ChamberSceneBuilder
         return gameObject;
     }
 
+    private static ShellVisualBinding[] CreateCameraVisuals(
+        List<Renderer> physicalRenderers,
+        Material defaultTransparentMaterial,
+        Material alternateOpaqueMaterial = null,
+        Material alternateTransparentMaterial = null)
+    {
+        List<ShellVisualBinding> cameraVisuals = new();
+        foreach (Renderer physicalRenderer in physicalRenderers)
+        {
+            if (physicalRenderer == null)
+            {
+                continue;
+            }
+
+            MeshFilter physicalMeshFilter = physicalRenderer.GetComponent<MeshFilter>();
+            if (physicalMeshFilter == null || physicalMeshFilter.sharedMesh == null)
+            {
+                continue;
+            }
+
+            Material opaqueMaterial = physicalRenderer.sharedMaterial;
+            Material transparentMaterial =
+                alternateOpaqueMaterial != null && opaqueMaterial == alternateOpaqueMaterial
+                    ? alternateTransparentMaterial
+                    : defaultTransparentMaterial;
+
+            GameObject cameraVisual = new("Camera Visual");
+            cameraVisual.transform.SetParent(physicalRenderer.transform, false);
+            MeshFilter meshFilter = cameraVisual.AddComponent<MeshFilter>();
+            meshFilter.sharedMesh = physicalMeshFilter.sharedMesh;
+            MeshRenderer renderer = cameraVisual.AddComponent<MeshRenderer>();
+            renderer.sharedMaterial = opaqueMaterial;
+            renderer.shadowCastingMode = ShadowCastingMode.Off;
+            renderer.receiveShadows = true;
+
+            physicalRenderer.shadowCastingMode = ShadowCastingMode.ShadowsOnly;
+            cameraVisuals.Add(new ShellVisualBinding(
+                renderer,
+                opaqueMaterial,
+                transparentMaterial));
+        }
+
+        return cameraVisuals.ToArray();
+    }
+
     private static Vector3[] OrientPolygon(Vector3[] corners, Vector3 desiredNormal)
     {
         Vector3[] oriented = (Vector3[])corners.Clone();
@@ -980,6 +1052,32 @@ public static class ChamberSceneBuilder
             material.DisableKeyword("_EMISSION");
             material.globalIlluminationFlags = MaterialGlobalIlluminationFlags.EmissiveIsBlack;
         }
+        EditorUtility.SetDirty(material);
+        return material;
+    }
+
+    private static Material GetTransparentMaterial(
+        string name,
+        Color color,
+        float metallic,
+        float smoothness)
+    {
+        Material material = GetMaterial(name, color, metallic, smoothness);
+        material.SetOverrideTag("RenderType", "Transparent");
+        if (material.HasProperty("_Surface")) material.SetFloat("_Surface", 1f);
+        if (material.HasProperty("_Blend")) material.SetFloat("_Blend", 0f);
+        if (material.HasProperty("_SrcBlend"))
+            material.SetFloat("_SrcBlend", (float)BlendMode.SrcAlpha);
+        if (material.HasProperty("_DstBlend"))
+            material.SetFloat("_DstBlend", (float)BlendMode.OneMinusSrcAlpha);
+        if (material.HasProperty("_SrcBlendAlpha"))
+            material.SetFloat("_SrcBlendAlpha", (float)BlendMode.One);
+        if (material.HasProperty("_DstBlendAlpha"))
+            material.SetFloat("_DstBlendAlpha", (float)BlendMode.OneMinusSrcAlpha);
+        if (material.HasProperty("_ZWrite")) material.SetFloat("_ZWrite", 0f);
+        material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        material.DisableKeyword("_ALPHATEST_ON");
+        material.renderQueue = (int)RenderQueue.Transparent;
         EditorUtility.SetDirty(material);
         return material;
     }

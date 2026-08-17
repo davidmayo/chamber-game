@@ -9,7 +9,7 @@ public sealed class ChamberToolsWindow : EditorWindow
     {
         ChamberToolsWindow window = GetWindow<ChamberToolsWindow>();
         window.titleContent = new GUIContent("Chamber Tools");
-        window.minSize = new Vector2(300f, 180f);
+        window.minSize = new Vector2(340f, 220f);
         window.Show();
     }
 
@@ -23,7 +23,9 @@ public sealed class ChamberToolsWindow : EditorWindow
             return;
         }
 
-        SetCutaway(controller, !controller.CutawayView);
+        RecordShellUndo(controller, "Toggle Chamber Shell Opacity");
+        controller.ToggleVisibility();
+        FinishShellChange(controller);
     }
 
     private void OnEnable()
@@ -60,38 +62,51 @@ public sealed class ChamberToolsWindow : EditorWindow
             return;
         }
 
-        bool cutaway = EditorGUILayout.ToggleLeft(
-            "Cutaway shell",
-            controller.CutawayView);
-        if (cutaway != controller.CutawayView)
+        float roomOpacity = EditorGUILayout.Slider(
+            "Room walls",
+            controller.RoomOpacityPercent,
+            0f,
+            100f);
+        if (!Mathf.Approximately(roomOpacity, controller.RoomOpacityPercent))
         {
-            SetCutaway(controller, cutaway);
+            RecordShellUndo(controller, "Change Room Wall Opacity");
+            controller.SetRoomOpacityPercent(roomOpacity);
+            FinishShellChange(controller);
         }
 
-        EditorGUILayout.Space(4f);
-        EditorGUILayout.LabelField(
-            "Current mode",
-            controller.CutawayView ? "Cutaway" : "Opaque");
+        float chamberOpacity = EditorGUILayout.Slider(
+            "Chamber walls",
+            controller.ChamberOpacityPercent,
+            0f,
+            100f);
+        if (!Mathf.Approximately(chamberOpacity, controller.ChamberOpacityPercent))
+        {
+            RecordShellUndo(controller, "Change Chamber Wall Opacity");
+            controller.SetChamberOpacityPercent(chamberOpacity);
+            FinishShellChange(controller);
+        }
+
+        EditorGUILayout.Space(6f);
         EditorGUILayout.HelpBox(
-            controller.CutawayView
-                ? "Near shell faces are camera-transparent. Inward-facing far surfaces remain visible. The volumetric shell still blocks light and movement."
-                : "The complete volumetric chamber and containing-room shells are visible.",
+            "Near walls use the selected opacity; far walls remain fully opaque. At 0% this is the one-sided cutaway view. Physical shells always block shadow-enabled lights and movement.",
             MessageType.Info);
         EditorGUILayout.EndVertical();
     }
 
-    private static void SetCutaway(
+    private static void RecordShellUndo(
         ChamberShellVisibilityController controller,
-        bool cutaway)
+        string description)
     {
         if (!Application.isPlaying)
         {
             Undo.RegisterFullObjectHierarchyUndo(
                 controller.gameObject,
-                "Change Chamber Shell Visualization");
+                description);
         }
+    }
 
-        controller.SetCutawayView(cutaway);
+    private static void FinishShellChange(ChamberShellVisibilityController controller)
+    {
         EditorUtility.SetDirty(controller);
         if (!Application.isPlaying)
         {

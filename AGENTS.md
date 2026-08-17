@@ -33,6 +33,7 @@ This is a Unity 6.3 LTS project using URP. Keep changes small, readable, and fri
 - The chamber has a full-size rectangular rear half (`z = 0..5`) and a rectangular frustum (`z = -5..0`) that converges on the source-end throat centered at `(0, 2.5, -5)`.
 - The throat is approximately 1 m wide by 1 m tall externally and retains the 0.75 m square source opening.
 - The shell uses closed volumetric shadow casters plus one-sided cutaway surfaces. Keep camera visibility, collision, and light/shadow behavior separate.
+- Containing-room and chamber camera opacity are independently adjustable. Opacity changes must never alter shell collision or shadow casting.
 - Door and source-window frames must remain opaque in both opaque and cutaway modes.
 
 ## Working with the open Unity Editor
@@ -56,4 +57,4 @@ Useful commands include `editor_state`, `refresh`, `save_scene`, `rebuild_chambe
 - The debug control-mode UI switches between player and table input; `Tab` is a shortcut.
 - Player mode uses `WASD` movement and mouse look. `Escape` releases the captured mouse.
 - Table mode uses `A`/`D` for pan, `W`/`S` for tilt, and `Q`/`E` for height.
-- `V` toggles opaque/cutaway shell visualization in Play Mode.
+- Wall visualization is editor-only and is controlled from `Window > Chamber Tools`.

@@ -1,106 +1,189 @@
+using System;
 using UnityEngine;
-using UnityEngine.InputSystem;
 using UnityEngine.Rendering;
 
+[Serializable]
+public struct ShellVisualBinding
+{
+    public Renderer renderer;
+    public Material opaqueMaterial;
+    public Material transparentMaterial;
+
+    public ShellVisualBinding(Renderer target, Material opaque, Material transparent)
+    {
+        renderer = target;
+        opaqueMaterial = opaque;
+        transparentMaterial = transparent;
+    }
+}
+
+[ExecuteAlways]
 public sealed class ChamberShellVisibilityController : MonoBehaviour
 {
-    [SerializeField] private Renderer[] volumeRenderers;
-    [SerializeField] private Renderer[] cutawayRenderers;
-    [SerializeField] private bool cutawayView;
-    [SerializeField] private bool showHud = true;
+    [Header("Containing room")]
+    [SerializeField] private Renderer[] roomPhysicalRenderers;
+    [SerializeField] private ShellVisualBinding[] roomVisuals;
+    [SerializeField] private Renderer[] roomCutawayRenderers;
+    [SerializeField, Range(0f, 100f)] private float roomOpacityPercent = -1f;
 
-    public bool CutawayView => cutawayView;
+    [Header("Chamber")]
+    [SerializeField] private Renderer[] chamberPhysicalRenderers;
+    [SerializeField] private ShellVisualBinding[] chamberVisuals;
+    [SerializeField] private Renderer[] chamberCutawayRenderers;
+    [SerializeField, Range(0f, 100f)] private float chamberOpacityPercent = -1f;
 
-    public void Configure(Renderer[] volumes, Renderer[] cutawaySurfaces)
+    [SerializeField, HideInInspector] private bool cutawayView;
+    public float RoomOpacityPercent => ResolveOpacity(roomOpacityPercent);
+    public float ChamberOpacityPercent => ResolveOpacity(chamberOpacityPercent);
+
+    public void Configure(
+        Renderer[] roomPhysical,
+        ShellVisualBinding[] roomCameraVisuals,
+        Renderer[] roomCutaway,
+        Renderer[] chamberPhysical,
+        ShellVisualBinding[] chamberCameraVisuals,
+        Renderer[] chamberCutaway,
+        float initialRoomOpacity,
+        float initialChamberOpacity)
     {
-        volumeRenderers = volumes;
-        cutawayRenderers = cutawaySurfaces;
+        roomPhysicalRenderers = roomPhysical;
+        roomVisuals = roomCameraVisuals;
+        roomCutawayRenderers = roomCutaway;
+        chamberPhysicalRenderers = chamberPhysical;
+        chamberVisuals = chamberCameraVisuals;
+        chamberCutawayRenderers = chamberCutaway;
+        roomOpacityPercent = Mathf.Clamp(initialRoomOpacity, 0f, 100f);
+        chamberOpacityPercent = Mathf.Clamp(initialChamberOpacity, 0f, 100f);
         ApplyVisibility();
     }
 
-    private void Awake()
+    private void OnEnable()
     {
         ApplyVisibility();
-    }
-
-    private void Update()
-    {
-        Keyboard keyboard = Keyboard.current;
-        if (keyboard != null && keyboard.vKey.wasPressedThisFrame)
-        {
-            ToggleVisibility();
-        }
     }
 
     public void ToggleVisibility()
     {
-        SetCutawayView(!cutawayView);
+        bool bothCutaway = RoomOpacityPercent <= 0.01f && ChamberOpacityPercent <= 0.01f;
+        float opacity = bothCutaway ? 100f : 0f;
+        roomOpacityPercent = opacity;
+        chamberOpacityPercent = opacity;
+        cutawayView = !bothCutaway;
+        ApplyVisibility();
     }
 
-    public void SetCutawayView(bool enabled)
+    public void SetRoomOpacityPercent(float opacity)
     {
-        cutawayView = enabled;
-        ApplyVisibility();
+        roomOpacityPercent = Mathf.Clamp(opacity, 0f, 100f);
+        UpdateLegacyCutawayState();
+        ApplyRoomVisibility();
+    }
+
+    public void SetChamberOpacityPercent(float opacity)
+    {
+        chamberOpacityPercent = Mathf.Clamp(opacity, 0f, 100f);
+        UpdateLegacyCutawayState();
+        ApplyChamberVisibility();
     }
 
     private void ApplyVisibility()
     {
-        if (volumeRenderers != null)
-        {
-            ShadowCastingMode volumeMode = cutawayView
-                ? ShadowCastingMode.ShadowsOnly
-                : ShadowCastingMode.On;
-
-            foreach (Renderer volumeRenderer in volumeRenderers)
-            {
-                if (volumeRenderer != null)
-                {
-                    volumeRenderer.shadowCastingMode = volumeMode;
-                }
-            }
-        }
-
-        if (cutawayRenderers == null)
-        {
-            return;
-        }
-
-        foreach (Renderer cutawayRenderer in cutawayRenderers)
-        {
-            if (cutawayRenderer != null)
-            {
-                cutawayRenderer.enabled = cutawayView;
-                cutawayRenderer.shadowCastingMode = ShadowCastingMode.Off;
-            }
-        }
+        ApplyRoomVisibility();
+        ApplyChamberVisibility();
     }
 
-    private void OnGUI()
+    private void ApplyRoomVisibility()
     {
-        if (!showHud)
+        ApplyGroup(roomPhysicalRenderers, roomVisuals, roomCutawayRenderers, RoomOpacityPercent);
+    }
+
+    private void ApplyChamberVisibility()
+    {
+        ApplyGroup(chamberPhysicalRenderers, chamberVisuals, chamberCutawayRenderers,
+            ChamberOpacityPercent);
+    }
+
+    private static void ApplyGroup(
+        Renderer[] physicalRenderers,
+        ShellVisualBinding[] cameraVisuals,
+        Renderer[] cutawayRenderers,
+        float opacityPercent)
+    {
+        SetPhysicalRenderers(physicalRenderers);
+        if (cutawayRenderers != null)
+        {
+            foreach (Renderer renderer in cutawayRenderers)
+            {
+                if (renderer == null) continue;
+                // These inward-facing surfaces make the far side fully opaque at every
+                // slider value. Back-face culling naturally hides the near side.
+                renderer.enabled = true;
+                renderer.shadowCastingMode = ShadowCastingMode.Off;
+            }
+        }
+
+        if (cameraVisuals == null)
         {
             return;
         }
 
-        Rect panel = new(16f, 180f, 250f, 38f);
-        Color previousColor = GUI.color;
-        GUI.color = new Color(0.025f, 0.035f, 0.05f, 0.88f);
-        GUI.DrawTexture(panel, Texture2D.whiteTexture);
-        GUI.color = Color.white;
-
-        GUIStyle style = new(GUI.skin.label)
+        float opacity = opacityPercent / 100f;
+        bool cutaway = opacityPercent <= 0.01f;
+        bool opaque = opacity >= 0.999f;
+        foreach (ShellVisualBinding binding in cameraVisuals)
         {
-            alignment = TextAnchor.MiddleCenter,
-            fontSize = 12,
-            fontStyle = FontStyle.Bold,
-            normal =
+            Renderer renderer = binding.renderer;
+            if (renderer == null) continue;
+            renderer.shadowCastingMode = ShadowCastingMode.Off;
+            renderer.enabled = !cutaway;
+            if (cutaway) continue;
+
+            renderer.sharedMaterial = opaque
+                ? binding.opaqueMaterial
+                : binding.transparentMaterial;
+            if (opaque)
             {
-                textColor = cutawayView
-                    ? new Color(1f, 0.82f, 0.45f)
-                    : new Color(0.72f, 0.86f, 1f),
-            },
-        };
-        GUI.Label(panel, cutawayView ? "V  SHELL: CUTAWAY" : "V  SHELL: OPAQUE", style);
-        GUI.color = previousColor;
+                renderer.SetPropertyBlock(null);
+            }
+            else
+            {
+                ApplyOpacity(renderer, binding.transparentMaterial, opacity);
+            }
+        }
     }
+
+    private static void SetPhysicalRenderers(Renderer[] renderers)
+    {
+        if (renderers == null) return;
+        foreach (Renderer renderer in renderers)
+        {
+            if (renderer == null) continue;
+            renderer.enabled = true;
+            renderer.shadowCastingMode = ShadowCastingMode.ShadowsOnly;
+        }
+    }
+
+    private static void ApplyOpacity(Renderer renderer, Material material, float opacity)
+    {
+        Color color = material != null && material.HasProperty("_BaseColor")
+            ? material.GetColor("_BaseColor")
+            : Color.white;
+        color.a = opacity;
+        MaterialPropertyBlock properties = new();
+        renderer.GetPropertyBlock(properties);
+        properties.SetColor("_BaseColor", color);
+        properties.SetColor("_Color", color);
+        renderer.SetPropertyBlock(properties);
+    }
+
+    private float ResolveOpacity(float serializedOpacity)
+    {
+        return serializedOpacity < 0f ? (cutawayView ? 0f : 100f) : serializedOpacity;
+    }
+
+    private void UpdateLegacyCutawayState()
+    {
+        cutawayView = RoomOpacityPercent <= 0.01f && ChamberOpacityPercent <= 0.01f;
+    }
+
 }
