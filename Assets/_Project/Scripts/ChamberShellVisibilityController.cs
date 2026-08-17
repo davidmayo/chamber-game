@@ -36,6 +36,21 @@ public sealed class ChamberShellVisibilityController : MonoBehaviour
     public float RoomOpacityPercent => ResolveOpacity(roomOpacityPercent);
     public float ChamberOpacityPercent => ResolveOpacity(chamberOpacityPercent);
 
+    private void Awake()
+    {
+#if !UNITY_EDITOR
+        ApplyStandaloneBuildDefaults();
+#endif
+    }
+
+    public void ApplyStandaloneBuildDefaults()
+    {
+        roomOpacityPercent = ChamberBuildDefaults.RoomOpacityPercent;
+        chamberOpacityPercent = ChamberBuildDefaults.ChamberOpacityPercent;
+        cutawayView = false;
+        ApplyVisibility();
+    }
+
     public void Configure(
         Renderer[] roomPhysical,
         ShellVisualBinding[] roomCameraVisuals,

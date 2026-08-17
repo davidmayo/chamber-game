@@ -37,6 +37,16 @@ public sealed class SourceAntennaController : MonoBehaviour
             return;
         }
 
+#if !UNITY_EDITOR
+        ApplyStandaloneBuildDefaults();
+#endif
+
+        ApplyPose();
+    }
+
+    public void ApplyStandaloneBuildDefaults()
+    {
+        polarityDegrees = ChamberBuildDefaults.PolarityDegrees;
         ApplyPose();
     }
 

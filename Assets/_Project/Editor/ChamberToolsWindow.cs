@@ -43,6 +43,10 @@ public sealed class ChamberToolsWindow : EditorWindow
         EditorGUILayout.Space(10f);
         EditorGUILayout.LabelField("CHAMBER TOOLS", EditorStyles.boldLabel);
         EditorGUILayout.Space(6f);
+        EditorGUILayout.HelpBox(
+            "Editor-only preview/debug controls. Standalone builds always start from ChamberBuildDefaults.",
+            MessageType.Info);
+        EditorGUILayout.Space(6f);
 
         DrawShellSection();
         EditorGUILayout.Space(6f);

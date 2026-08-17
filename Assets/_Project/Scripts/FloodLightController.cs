@@ -33,7 +33,15 @@ public sealed class FloodLightController : MonoBehaviour
 
     private void Awake()
     {
+#if !UNITY_EDITOR
+        ApplyStandaloneBuildDefaults();
+#endif
         SetLights(lightsOn);
+    }
+
+    public void ApplyStandaloneBuildDefaults()
+    {
+        SetLights(ChamberBuildDefaults.FloodLightsOn);
     }
 
     private void Update()

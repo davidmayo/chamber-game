@@ -58,10 +58,22 @@ public sealed class MotionSensitiveChamberLights : MonoBehaviour
             return;
         }
 
+#if !UNITY_EDITOR
+        ApplyStandaloneBuildDefaults();
+#endif
+
         previousPlayerPosition = player.position;
         previousPlayerRotation = player.rotation;
         remainingSeconds = shutoffDelaySeconds;
         ApplyMode();
+    }
+
+    public void ApplyStandaloneBuildDefaults()
+    {
+        mode = ChamberBuildDefaults.ChamberLights;
+        shutoffDelaySeconds = ChamberBuildDefaults.ChamberLightTimeoutSeconds;
+        remainingSeconds = shutoffDelaySeconds;
+        SetLights(true);
     }
 
     private void Update()

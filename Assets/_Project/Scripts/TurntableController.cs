@@ -62,6 +62,19 @@ public sealed class TurntableController : MonoBehaviour
             return;
         }
 
+#if !UNITY_EDITOR
+        ApplyStandaloneBuildDefaults();
+#endif
+
+        ClampPose();
+        ApplyPose();
+    }
+
+    public void ApplyStandaloneBuildDefaults()
+    {
+        panDegrees = ChamberBuildDefaults.PanDegrees;
+        tiltDegrees = ChamberBuildDefaults.TiltDegrees;
+        heightMeters = ChamberBuildDefaults.HeightMeters;
         ClampPose();
         ApplyPose();
     }

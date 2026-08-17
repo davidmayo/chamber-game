@@ -70,6 +70,7 @@ Useful commands include `editor_state`, `refresh`, `save_scene`, `rebuild_chambe
 
 - In Edit Mode, use `Window > Chamber Tools` for chamber visualization controls.
 - `Chamber Tools` also exposes chamber-light mode/timeout/status, floodlight state, and editable positioner pan/tilt/height. Generator rebuilds must preserve these values.
+- `Chamber Tools` is an editor-only visualization and debugging panel. Its saved values are useful for inspecting the scene and for Editor Play Mode, but standalone builds intentionally ignore them and start from `ChamberBuildDefaults`: opaque room/chamber walls, chamber lights Auto with a 30-second timer, floodlights off, pan/tilt/polarity at 0 degrees, and height at 0.2 m.
 - Player mode uses `WASD` movement and mouse look. `Escape` releases the captured mouse.
 - Near the computer console, `F` enters the seated console mode; `F` or `Escape` exits it.
 - Console mode uses `A`/`D` for pan, `W`/`S` for tilt, and `Q`/`E` for source-antenna polarity. It must never expose, display, or change positioner height.
