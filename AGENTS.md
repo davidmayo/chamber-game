@@ -33,6 +33,7 @@ This is a Unity 6.3 LTS project using URP. Keep changes small, readable, and fri
 - Preserve the chamber's mirrored X-axis convention and its established dimensions and openings unless the task explicitly changes them.
 - The chamber has a full-size rectangular rear half (`z = 0..5`) and a rectangular frustum (`z = -5..0`) that converges on the source-end throat centered at `(0, 2.5, -5)`.
 - The throat is approximately 1 m wide by 1 m tall externally and retains the 0.75 m square source opening.
+- The source antenna is a 15 cm by 5 cm rectangular pyramid/horn extending 10 cm into the throat. Its broad base faces into the chamber; its rotation about the chamber axis is called polarity, with the horizontally wide base defined as 0 degrees.
 - The shell uses closed volumetric shadow casters plus one-sided cutaway surfaces. Keep camera visibility, collision, and light/shadow behavior separate.
 - Containing-room and chamber camera opacity are independently adjustable. Opacity changes must never alter shell collision or shadow casting.
 - Door and source-window frames must remain opaque in both opaque and cutaway modes.
@@ -71,7 +72,7 @@ Useful commands include `editor_state`, `refresh`, `save_scene`, `rebuild_chambe
 - `Chamber Tools` also exposes chamber-light mode/timeout/status, floodlight state, and editable positioner pan/tilt/height. Generator rebuilds must preserve these values.
 - Player mode uses `WASD` movement and mouse look. `Escape` releases the captured mouse.
 - Near the computer console, `F` enters the seated console mode; `F` or `Escape` exits it.
-- Console mode uses `A`/`D` for pan and `W`/`S` for tilt. It must never expose, display, or change positioner height.
+- Console mode uses `A`/`D` for pan, `W`/`S` for tilt, and `Q`/`E` for source-antenna polarity. It must never expose, display, or change positioner height.
 - The red rear-wall control is the only player interface for positioner height: `F` enters its mode, `Q`/`E` lower or raise, and `F` or `Escape` exits.
 - The chamber's back-wall lights respond only to player motion inside the chamber and time out after 30 seconds. The floodlights start off and are toggled with `F` near their stand.
 - Wall visualization is editor-only and is controlled from `Window > Chamber Tools`.

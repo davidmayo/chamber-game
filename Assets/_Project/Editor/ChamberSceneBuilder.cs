@@ -141,6 +141,7 @@ public static class ChamberSceneBuilder
         float preservePanDegrees = 0f;
         float preserveTiltDegrees = 0f;
         float preserveHeightMeters = 0.2f;
+        float preservePolarityDegrees = 0f;
         if (existing != null)
         {
             Camera existingCamera = FindMainSceneCamera();
@@ -180,6 +181,12 @@ public static class ChamberSceneBuilder
                 preserveTiltDegrees = existingTable.TiltDegrees;
                 preserveHeightMeters = existingTable.HeightMeters;
             }
+            SourceAntennaController existingSourceAntenna =
+                existing.GetComponentInChildren<SourceAntennaController>(true);
+            if (existingSourceAntenna != null)
+            {
+                preservePolarityDegrees = existingSourceAntenna.PolarityDegrees;
+            }
             if (fullRebuild)
             {
                 Object.DestroyImmediate(existing);
@@ -204,6 +211,11 @@ public static class ChamberSceneBuilder
         Material stand = GetMaterial("FloodStandYellow", StandColor, 0.25f, 0.45f);
         Material dark = GetMaterial("FixtureDark", DarkColor, 0.35f, 0.35f);
         Material source = GetMaterial("SourceGreen", SourceColor, 0.15f, 0.5f);
+        Material analyzerGray = GetMaterial("SpectrumAnalyzerGray", Hex(0x777973), 0.05f, 0.25f);
+        Material analyzerScreen = GetMaterial(
+            "SpectrumAnalyzerScreen", Hex(0x001a0d), 0f, 0.2f, true, 0.3f);
+        Material analyzerGreen = GetMaterial(
+            "SpectrumAnalyzerGreen", Hex(0x19ff75), 0f, 0.15f, true, 3f);
         Material concrete = GetMaterial("Concrete", ConcreteColor, 0f, 0.05f);
         Material roomConcreteTransparent = GetTransparentMaterial(
             "RoomConcreteTransparent", ConcreteColor, 0f, 0.05f);
@@ -236,7 +248,17 @@ public static class ChamberSceneBuilder
             out GameObject floodInteractionZone,
             out Light[] floodLights,
             out Renderer[] floodPanels);
-        BuildEquipment(NewGroup("Equipment", root), table, lift, housing, purple, orange, yellow, source);
+        BuildEquipment(
+            NewGroup("Equipment", root),
+            table,
+            lift,
+            housing,
+            purple,
+            orange,
+            yellow,
+            source,
+            preservePolarityDegrees,
+            out SourceAntennaController sourceAntennaController);
         TurntableController tableController = root.GetComponentInChildren<TurntableController>();
         tableController.SetPose(
             preservePanDegrees,
@@ -250,6 +272,9 @@ public static class ChamberSceneBuilder
             NewGroup("Computer Console", root),
             table,
             dark,
+            analyzerGray,
+            analyzerScreen,
+            analyzerGreen,
             out GameObject consoleInteractionZone,
             out Transform seatedCameraPose);
         BuildExteriorDisplays(
@@ -284,6 +309,7 @@ public static class ChamberSceneBuilder
         consoleController.Configure(
             playerController,
             tableController,
+            sourceAntennaController,
             playerController.PlayerCamera,
             seatedCameraPose);
         MotionSensitiveChamberLights motionLights =
@@ -616,9 +642,24 @@ public static class ChamberSceneBuilder
         Material purple,
         Material orange,
         Material yellow,
-        Material source)
+        Material source,
+        float initialPolarityDegrees,
+        out SourceAntennaController sourceAntennaController)
     {
-        Sphere("Source Antenna", parent, new Vector3(0f, 2.5f, -5f), 0.125f, source);
+        Transform sourceAntenna = NewGroup("Source Antenna Assembly", parent);
+        sourceAntenna.localPosition = MirrorPosition(new Vector3(0f, 2.5f, -5f));
+        Transform polarityAssembly = NewGroup("Polarity Assembly", sourceAntenna);
+        Pyramid(
+            "Rectangular Horn",
+            polarityAssembly,
+            Vector3.zero,
+            0.15f,
+            0.05f,
+            0.10f,
+            source);
+        sourceAntennaController =
+            GetOrAddComponent<SourceAntennaController>(sourceAntenna.gameObject);
+        sourceAntennaController.Configure(polarityAssembly, initialPolarityDegrees);
 
         Transform positioner = NewGroup("Turntable Positioner", parent);
         Box("Fixed Turntable Table", positioner, new Vector3(0f, 0.25f, 3.9f), new Vector3(0.75f, 0.5f, 1.5f), table);
@@ -645,6 +686,9 @@ public static class ChamberSceneBuilder
         Transform parent,
         Material tableMaterial,
         Material computerMaterial,
+        Material analyzerMaterial,
+        Material analyzerScreenMaterial,
+        Material analyzerTraceMaterial,
         out GameObject interactionZone,
         out Transform seatedCameraPose)
     {
@@ -737,8 +781,16 @@ public static class ChamberSceneBuilder
             new Vector3(-0.08f, bodyY, monitorZ + bodyDepth / 2f + 0.008f),
             screenWidth * 0.92f,
             screenHeight * 0.86f,
-            "Use WASD to control\nturntable.\n\nHit ESC to stand up",
+            "WASD: turntable\nQ/E: source polarity\n\nESC: stand up",
             50);
+
+        BuildSpectrumAnalyzer(
+            parent,
+            tabletopY,
+            computerMaterial,
+            analyzerMaterial,
+            analyzerScreenMaterial,
+            analyzerTraceMaterial);
 
         interactionZone = AcquireObject(
             "Interaction Zone", parent, () => new GameObject("Interaction Zone"));
@@ -756,6 +808,106 @@ public static class ChamberSceneBuilder
         seatedCameraPose.localPosition = MirrorPosition(seatedPosition);
         seatedCameraPose.localRotation = MirrorRotation(
             Quaternion.LookRotation(seatedTarget - seatedPosition, Vector3.up));
+    }
+
+    private static void BuildSpectrumAnalyzer(
+        Transform parent,
+        float tabletopY,
+        Material darkMaterial,
+        Material bodyMaterial,
+        Material screenMaterial,
+        Material traceMaterial)
+    {
+        const float bodyWidth = 0.42f;
+        const float bodyHeight = 0.24f;
+        const float bodyDepth = 0.28f;
+        Transform stand = NewGroup("Spectrum Analyzer Stand", parent);
+        Box("Left Foot", stand, new Vector3(-0.50f, tabletopY + 0.012f, 0.02f),
+            new Vector3(0.025f, 0.024f, 0.30f), darkMaterial);
+        Box("Right Foot", stand, new Vector3(-0.18f, tabletopY + 0.012f, 0.02f),
+            new Vector3(0.025f, 0.024f, 0.30f), darkMaterial);
+        Rod("Rear Prop", stand,
+            new Vector3(-0.34f, tabletopY + 0.02f, -0.12f),
+            new Vector3(-0.34f, tabletopY + 0.16f, 0.01f),
+            0.012f,
+            darkMaterial,
+            true);
+
+        Transform analyzer = NewGroup("Spectrum Analyzer", parent);
+        analyzer.localPosition = MirrorPosition(new Vector3(-0.34f, tabletopY + 0.145f, 0.0f));
+        analyzer.localRotation = MirrorRotation(Quaternion.Euler(-12f, 0f, 0f));
+        Box("Chassis", analyzer, Vector3.zero,
+            new Vector3(bodyWidth, bodyHeight, bodyDepth), bodyMaterial);
+        Box("Front Bezel", analyzer, new Vector3(-0.045f, 0f, bodyDepth / 2f + 0.008f),
+            new Vector3(0.31f, 0.18f, 0.018f), darkMaterial);
+        Box("Screen Glass", analyzer, new Vector3(-0.055f, 0.005f, bodyDepth / 2f + 0.019f),
+            new Vector3(0.255f, 0.135f, 0.008f), screenMaterial);
+
+        Transform controls = NewGroup("Controls", analyzer);
+        foreach (float y in new[] { -0.065f, -0.02f, 0.025f, 0.07f })
+        {
+            Box("Button", controls, new Vector3(0.145f, y, bodyDepth / 2f + 0.021f),
+                new Vector3(0.045f, 0.024f, 0.012f), darkMaterial);
+        }
+        Cylinder("Tuning Knob", controls,
+            new Vector3(0.145f, -0.075f, bodyDepth / 2f + 0.035f),
+            0.028f,
+            0.025f,
+            darkMaterial,
+            Quaternion.Euler(90f, 0f, 0f));
+
+        Transform display = NewGroup("Display", analyzer);
+        const float displayZ = bodyDepth / 2f + 0.025f;
+        for (int index = -2; index <= 2; index++)
+        {
+            Box($"Grid Vertical {index + 3}", display,
+                new Vector3(-0.055f + index * 0.045f, -0.005f, displayZ),
+                new Vector3(0.0012f, 0.105f, 0.001f), traceMaterial);
+        }
+        for (int index = -1; index <= 1; index++)
+        {
+            Box($"Grid Horizontal {index + 2}", display,
+                new Vector3(-0.055f, -0.005f + index * 0.032f, displayZ),
+                new Vector3(0.225f, 0.0012f, 0.001f), traceMaterial);
+        }
+
+        GameObject traceObject = AcquireObject(
+            "Spectrum Trace", display, () => new GameObject("Spectrum Trace"));
+        traceObject.transform.localPosition = new Vector3(0f, 0f, displayZ);
+        traceObject.transform.localRotation = Quaternion.identity;
+        traceObject.transform.localScale = Vector3.one;
+        LineRenderer trace = GetOrAddComponent<LineRenderer>(traceObject);
+        trace.sharedMaterial = traceMaterial;
+        trace.useWorldSpace = false;
+        trace.loop = false;
+        trace.startWidth = 0.0025f;
+        trace.endWidth = 0.0025f;
+        trace.numCornerVertices = 2;
+        trace.numCapVertices = 2;
+
+        Text readout = CreateWorldDisplayText(
+            "Analyzer Readout",
+            display,
+            new Vector3(-0.055f, 0.005f, displayZ + 0.002f),
+            0.24f,
+            0.12f,
+            "CENTER 1.000 GHz\nSPAN 100 MHz",
+            20,
+            Hex(0x19ff75),
+            TextAnchor.UpperLeft);
+        SpectrumAnalyzerDisplay displayController =
+            GetOrAddComponent<SpectrumAnalyzerDisplay>(display.gameObject);
+        displayController.Configure(
+            readout,
+            trace,
+            new Vector2(0.22f, 0.075f),
+            new Vector3(-0.055f, -0.012f, 0.001f));
+        displayController.SetTrace(new[]
+        {
+            0.12f, 0.18f, 0.10f, 0.24f, 0.16f, 0.32f, 0.22f, 0.48f,
+            0.35f, 0.72f, 0.92f, 0.66f, 0.31f, 0.55f, 0.28f, 0.42f,
+            0.20f, 0.35f, 0.14f,
+        });
     }
 
     private static void BuildScissorLiftControl(
@@ -888,7 +1040,9 @@ public static class ChamberSceneBuilder
         float width,
         float height,
         string content,
-        int fontSize)
+        int fontSize,
+        Color? textColor = null,
+        TextAnchor alignment = TextAnchor.MiddleCenter)
     {
         const float canvasPixelWidth = 1000f;
         float canvasPixelHeight = canvasPixelWidth * height / width;
@@ -930,8 +1084,8 @@ public static class ChamberSceneBuilder
         Text text = textObject.GetComponent<Text>();
         text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         text.fontSize = fontSize;
-        text.alignment = TextAnchor.MiddleCenter;
-        text.color = Color.white;
+        text.alignment = alignment;
+        text.color = textColor ?? Color.white;
         text.text = content;
         text.horizontalOverflow = HorizontalWrapMode.Wrap;
         text.verticalOverflow = VerticalWrapMode.Overflow;
@@ -1521,6 +1675,40 @@ public static class ChamberSceneBuilder
             UniversalAdditionalLightData.AdditionalLightsShadowResolutionTierLow;
         serializedLightData.ApplyModifiedPropertiesWithoutUndo();
         return light;
+    }
+
+    private static GameObject Pyramid(
+        string name,
+        Transform parent,
+        Vector3 position,
+        float baseWidth,
+        float baseHeight,
+        float length,
+        Material material)
+    {
+        float halfWidth = baseWidth / 2f;
+        float halfHeight = baseHeight / 2f;
+        float halfLength = length / 2f;
+        Vector3[] vertices =
+        {
+            new(-halfWidth, -halfHeight, halfLength),
+            new(halfWidth, -halfHeight, halfLength),
+            new(halfWidth, halfHeight, halfLength),
+            new(-halfWidth, halfHeight, halfLength),
+            new(0f, 0f, -halfLength),
+        };
+        int[] triangles =
+        {
+            0, 1, 2, 0, 2, 3,
+            4, 1, 0,
+            4, 2, 1,
+            4, 3, 2,
+            4, 0, 3,
+        };
+        Mesh mesh = GetGeneratedMesh($"{name}_Pyramid", vertices, triangles);
+        GameObject gameObject = MeshObject(name, parent, mesh, material, true);
+        gameObject.transform.localPosition = MirrorPosition(position);
+        return gameObject;
     }
 
     private static GameObject Sphere(string name, Transform parent, Vector3 position, float radius, Material material)

@@ -14,6 +14,7 @@ public sealed class ComputerConsoleController : MonoBehaviour
 
     [SerializeField] private FirstPersonPlayerController playerController;
     [SerializeField] private TurntableController turntableController;
+    [SerializeField] private SourceAntennaController sourceAntennaController;
     [SerializeField] private Camera playerCamera;
     [SerializeField] private Transform seatedCameraPose;
     [SerializeField, Min(0.05f)] private float transitionSeconds = 0.65f;
@@ -34,11 +35,13 @@ public sealed class ComputerConsoleController : MonoBehaviour
     public void Configure(
         FirstPersonPlayerController player,
         TurntableController turntable,
+        SourceAntennaController sourceAntenna,
         Camera camera,
         Transform seatedPose)
     {
         playerController = player;
         turntableController = turntable;
+        sourceAntennaController = sourceAntenna;
         playerCamera = camera;
         seatedCameraPose = seatedPose;
         if (turntableController != null)
@@ -51,6 +54,7 @@ public sealed class ComputerConsoleController : MonoBehaviour
     {
         if (playerController == null
             || turntableController == null
+            || sourceAntennaController == null
             || playerCamera == null
             || seatedCameraPose == null)
         {
@@ -143,6 +147,8 @@ public sealed class ComputerConsoleController : MonoBehaviour
         float panInput = ButtonAxis(keyboard.dKey.isPressed, keyboard.aKey.isPressed);
         float tiltInput = ButtonAxis(keyboard.sKey.isPressed, keyboard.wKey.isPressed);
         turntableController.ApplyInput(panInput, tiltInput, Time.deltaTime);
+        float polarityInput = ButtonAxis(keyboard.qKey.isPressed, keyboard.eKey.isPressed);
+        sourceAntennaController.ApplyInput(polarityInput, Time.deltaTime);
     }
 
     private void BeginSittingDown()
