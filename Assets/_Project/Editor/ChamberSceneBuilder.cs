@@ -16,6 +16,7 @@ public static class ChamberSceneBuilder
     private const string MainScenePath = "Assets/_Project/Scenes/Main.unity";
     private const string RootName = "Chamber Geometry";
     private const string MaterialFolder = "Assets/_Project/Materials";
+    private const string MeshFolder = "Assets/_Project/Generated/Meshes";
 
     private const float MetersPerInch = 0.0254f;
     private const float PanDiskDiameter = 28f * MetersPerInch;
@@ -125,6 +126,7 @@ public static class ChamberSceneBuilder
         }
 
         EnsureFolder(MaterialFolder);
+        EnsureFolder(MeshFolder);
         Material wall = GetMaterial("Wall", WallColor, 0f, 0f);
         Material floor = GetMaterial("Floor", FloorColor, 0f, 0f);
         Material table = GetMaterial("Table", TableColor, 0.15f, 0.2f);
@@ -272,13 +274,14 @@ public static class ChamberSceneBuilder
         const float wallThickness = 0.15f;
         const float halfThickness = wallThickness / 2f;
 
-        // Closed wall slabs extend outward so the original 5 x 10 x 3.5 m
-        // interior dimensions and both openings remain unchanged.
+        // The full-size rectangular section occupies the rear half (z = 0..5).
+        // The front half is a rectangular frustum ending in a 1 x 1 m exterior
+        // throat centered on the source antenna at (0, 2.5, -5).
         Transform doorWall = NewGroup("Left Wall - Door", parent);
         ShellBox("Rear Section", doorWall, new Vector3(2.5f + halfThickness, 1.75f, 4f),
             new Vector3(wallThickness, 3.5f, 2f), wall, shellRenderers);
-        ShellBox("Front Section", doorWall, new Vector3(2.5f + halfThickness, 1.75f, -1.5f),
-            new Vector3(wallThickness, 3.5f, 7f), wall, shellRenderers);
+        ShellBox("Front Section", doorWall, new Vector3(2.5f + halfThickness, 1.75f, 1f),
+            new Vector3(wallThickness, 3.5f, 2f), wall, shellRenderers);
         ShellBox("Above Door", doorWall, new Vector3(2.5f + halfThickness, 2.75f, 2.5f),
             new Vector3(wallThickness, 1.5f, 1f), wall, shellRenderers);
         Box("Door Frame Front Jamb", doorWall, new Vector3(2.5f + halfThickness, 1f, 1.75f),
@@ -289,61 +292,83 @@ public static class ChamberSceneBuilder
             new Vector3(wallThickness, 0.5f, 2f), wall);
 
         Transform solidWall = NewGroup("Right Wall - Solid", parent);
-        ShellBox("Wall", solidWall, new Vector3(-2.5f - halfThickness, 1.75f, 0f),
-            new Vector3(wallThickness, 3.5f, 10f), wall, shellRenderers);
+        ShellBox("Wall", solidWall, new Vector3(-2.5f - halfThickness, 1.75f, 2.5f),
+            new Vector3(wallThickness, 3.5f, 5f), wall, shellRenderers);
 
         Transform backWall = NewGroup("Back Wall", parent);
         ShellBox("Wall", backWall, new Vector3(0f, 1.75f, 5f + halfThickness),
             new Vector3(5f, 3.5f, wallThickness), wall, shellRenderers);
 
-        Transform frontWall = NewGroup("Front Wall", parent);
-        float frontCenterZ = -5f - halfThickness;
-        ShellBox("Right Section", frontWall, new Vector3(-1.4375f, 1.75f, frontCenterZ),
-            new Vector3(2.125f, 3.5f, wallThickness), wall, shellRenderers);
-        ShellBox("Left Section", frontWall, new Vector3(1.4375f, 1.75f, frontCenterZ),
-            new Vector3(2.125f, 3.5f, wallThickness), wall, shellRenderers);
-        ShellBox("Below Source Opening", frontWall, new Vector3(0f, 1.0625f, frontCenterZ),
-            new Vector3(0.75f, 2.125f, wallThickness), wall, shellRenderers);
-        ShellBox("Above Source Opening", frontWall, new Vector3(0f, 3.1875f, frontCenterZ),
-            new Vector3(0.75f, 0.625f, wallThickness), wall, shellRenderers);
-        Box("Source Frame Right", frontWall, new Vector3(-0.625f, 2.5f, frontCenterZ),
-            new Vector3(0.5f, 1.75f, wallThickness), wall);
-        Box("Source Frame Left", frontWall, new Vector3(0.625f, 2.5f, frontCenterZ),
-            new Vector3(0.5f, 1.75f, wallThickness), wall);
-        Box("Source Frame Bottom", frontWall, new Vector3(0f, 1.875f, frontCenterZ),
-            new Vector3(0.75f, 0.5f, wallThickness), wall);
-        Box("Source Frame Top", frontWall, new Vector3(0f, 3.125f, frontCenterZ),
-            new Vector3(0.75f, 0.5f, wallThickness), wall);
+        Transform frustum = NewGroup("Frustum", parent);
+        Vector3[] leftFrustum =
+        {
+            new(-2.5f, 0f, 0f), new(-0.5f, 2f, -5f),
+            new(-0.5f, 3f, -5f), new(-2.5f, 3.5f, 0f),
+        };
+        Vector3[] rightFrustum =
+        {
+            new(2.5f, 0f, 0f), new(2.5f, 3.5f, 0f),
+            new(0.5f, 3f, -5f), new(0.5f, 2f, -5f),
+        };
+        Vector3[] floorFrustum =
+        {
+            new(-2.5f, 0f, 0f), new(2.5f, 0f, 0f),
+            new(0.5f, 2f, -5f), new(-0.5f, 2f, -5f),
+        };
+        Vector3[] ceilingFrustum =
+        {
+            new(-2.5f, 3.5f, 0f), new(-0.5f, 3f, -5f),
+            new(0.5f, 3f, -5f), new(2.5f, 3.5f, 0f),
+        };
+        FrustumSlab("Left Wall", frustum, leftFrustum, Vector3.right,
+            wallThickness, wall, shellRenderers);
+        FrustumSlab("Right Wall", frustum, rightFrustum, Vector3.left,
+            wallThickness, wall, shellRenderers);
+        FrustumSlab("Floor", frustum, floorFrustum, Vector3.up,
+            wallThickness, floor, shellRenderers);
+        FrustumSlab("Ceiling", frustum, ceilingFrustum, Vector3.down,
+            wallThickness, wall, shellRenderers);
 
-        ShellBox("Floor", parent, new Vector3(0f, -halfThickness, 0f),
-            new Vector3(5f, wallThickness, 10f), floor, shellRenderers);
-        ShellBox("Ceiling", parent, new Vector3(0f, 3.5f + halfThickness, 0f),
-            new Vector3(5f, wallThickness, 10f), wall, shellRenderers);
+        Transform throat = NewGroup("Throat", parent);
+        float throatCenterZ = -5f - halfThickness;
+        const float throatBorder = 0.125f;
+        Box("Source Frame Right", throat, new Vector3(-0.4375f, 2.5f, throatCenterZ),
+            new Vector3(throatBorder, 1f, wallThickness), wall);
+        Box("Source Frame Left", throat, new Vector3(0.4375f, 2.5f, throatCenterZ),
+            new Vector3(throatBorder, 1f, wallThickness), wall);
+        Box("Source Frame Bottom", throat, new Vector3(0f, 2.0625f, throatCenterZ),
+            new Vector3(0.75f, throatBorder, wallThickness), wall);
+        Box("Source Frame Top", throat, new Vector3(0f, 2.9375f, throatCenterZ),
+            new Vector3(0.75f, throatBorder, wallThickness), wall);
+
+        ShellBox("Floor", parent, new Vector3(0f, -halfThickness, 2.5f),
+            new Vector3(5f, wallThickness, 5f), floor, shellRenderers);
+        ShellBox("Ceiling", parent, new Vector3(0f, 3.5f + halfThickness, 2.5f),
+            new Vector3(5f, wallThickness, 5f), wall, shellRenderers);
 
         Transform cutaway = NewGroup("Cutaway Surfaces", parent);
         CutawayQuad("Door Wall Rear Section", cutaway,
             new Vector3(2.5f, 1.75f, 4f), 2f, 3.5f, Vector3.left, wall, cutawayRenderers);
         CutawayQuad("Door Wall Front Section", cutaway,
-            new Vector3(2.5f, 1.75f, -1.5f), 7f, 3.5f, Vector3.left, wall, cutawayRenderers);
+            new Vector3(2.5f, 1.75f, 1f), 2f, 3.5f, Vector3.left, wall, cutawayRenderers);
         CutawayQuad("Door Wall Above Door", cutaway,
             new Vector3(2.5f, 2.75f, 2.5f), 1f, 1.5f, Vector3.left, wall, cutawayRenderers);
         CutawayQuad("Right Wall", cutaway,
-            new Vector3(-2.5f, 1.75f, 0f), 10f, 3.5f, Vector3.right, wall, cutawayRenderers);
+            new Vector3(-2.5f, 1.75f, 2.5f), 5f, 3.5f, Vector3.right, wall, cutawayRenderers);
         CutawayQuad("Back Wall", cutaway,
             new Vector3(0f, 1.75f, 5f), 5f, 3.5f, Vector3.back, wall, cutawayRenderers);
-
-        CutawayQuad("Front Wall Right Section", cutaway,
-            new Vector3(-1.4375f, 1.75f, -5f), 2.125f, 3.5f, Vector3.forward, wall, cutawayRenderers);
-        CutawayQuad("Front Wall Left Section", cutaway,
-            new Vector3(1.4375f, 1.75f, -5f), 2.125f, 3.5f, Vector3.forward, wall, cutawayRenderers);
-        CutawayQuad("Below Source Opening", cutaway,
-            new Vector3(0f, 1.0625f, -5f), 0.75f, 2.125f, Vector3.forward, wall, cutawayRenderers);
-        CutawayQuad("Above Source Opening", cutaway,
-            new Vector3(0f, 3.1875f, -5f), 0.75f, 0.625f, Vector3.forward, wall, cutawayRenderers);
         CutawayQuad("Floor", cutaway,
-            new Vector3(0f, 0f, 0f), 5f, 10f, Vector3.up, floor, cutawayRenderers);
+            new Vector3(0f, 0f, 2.5f), 5f, 5f, Vector3.up, floor, cutawayRenderers);
         CutawayQuad("Ceiling", cutaway,
-            new Vector3(0f, 3.5f, 0f), 5f, 10f, Vector3.down, wall, cutawayRenderers);
+            new Vector3(0f, 3.5f, 2.5f), 5f, 5f, Vector3.down, wall, cutawayRenderers);
+        CutawayPolygon("Frustum Left Wall", cutaway, leftFrustum, Vector3.right,
+            wall, cutawayRenderers);
+        CutawayPolygon("Frustum Right Wall", cutaway, rightFrustum, Vector3.left,
+            wall, cutawayRenderers);
+        CutawayPolygon("Frustum Floor", cutaway, floorFrustum, Vector3.up,
+            floor, cutawayRenderers);
+        CutawayPolygon("Frustum Ceiling", cutaway, ceilingFrustum, Vector3.down,
+            wall, cutawayRenderers);
     }
 
     private static void BuildLightingFixtures(Transform parent, Material stand, Material dark, Material lightPanel)
@@ -601,8 +626,8 @@ public static class ChamberSceneBuilder
         Camera camera = Object.FindFirstObjectByType<Camera>();
         if (camera != null)
         {
-            Vector3 sourcePosition = new(-1.8f, 1.7f, -3.8f);
-            Vector3 sourceTarget = new(0f, 1.25f, 3.2f);
+            Vector3 sourcePosition = new(-1.8f, 1.7f, 0.8f);
+            Vector3 sourceTarget = new(0f, 2.5f, -5f);
             camera.transform.position = MirrorPosition(sourcePosition);
             camera.transform.rotation = MirrorRotation(
                 Quaternion.LookRotation(sourceTarget - sourcePosition, Vector3.up));
@@ -651,6 +676,46 @@ public static class ChamberSceneBuilder
         return gameObject;
     }
 
+    private static GameObject FrustumSlab(
+        string name,
+        Transform parent,
+        Vector3[] interiorCorners,
+        Vector3 desiredInwardNormal,
+        float thickness,
+        Material material,
+        List<Renderer> shellRenderers)
+    {
+        Vector3[] inner = OrientPolygon(interiorCorners, desiredInwardNormal);
+        Vector3 inwardNormal = Vector3.Cross(inner[1] - inner[0], inner[2] - inner[0]).normalized;
+        Vector3[] vertices = new Vector3[8];
+        for (int i = 0; i < 4; i++)
+        {
+            vertices[i] = inner[i];
+            vertices[i + 4] = inner[i] - inwardNormal * thickness;
+        }
+
+        List<int> triangles = new()
+        {
+            0, 1, 2, 0, 2, 3,
+            4, 6, 5, 4, 7, 6,
+        };
+        for (int i = 0; i < 4; i++)
+        {
+            int next = (i + 1) % 4;
+            triangles.Add(i);
+            triangles.Add(next + 4);
+            triangles.Add(next);
+            triangles.Add(i);
+            triangles.Add(i + 4);
+            triangles.Add(next + 4);
+        }
+
+        Mesh mesh = GetGeneratedMesh($"Frustum_{name}_Volume", vertices, triangles.ToArray());
+        GameObject gameObject = MeshObject(name, parent, mesh, material, true);
+        shellRenderers.Add(gameObject.GetComponent<Renderer>());
+        return gameObject;
+    }
+
     private static GameObject Quad(
         string name,
         Transform parent,
@@ -690,6 +755,82 @@ public static class ChamberSceneBuilder
         renderer.shadowCastingMode = ShadowCastingMode.Off;
         cutawayRenderers.Add(renderer);
         return gameObject;
+    }
+
+    private static GameObject CutawayPolygon(
+        string name,
+        Transform parent,
+        Vector3[] corners,
+        Vector3 desiredInwardNormal,
+        Material material,
+        List<Renderer> cutawayRenderers)
+    {
+        Vector3[] vertices = OrientPolygon(corners, desiredInwardNormal);
+        Mesh mesh = GetGeneratedMesh($"Frustum_{name}_Cutaway", vertices,
+            new[] { 0, 1, 2, 0, 2, 3 });
+        GameObject gameObject = MeshObject(name, parent, mesh, material, false);
+        Renderer renderer = gameObject.GetComponent<Renderer>();
+        renderer.enabled = false;
+        renderer.shadowCastingMode = ShadowCastingMode.Off;
+        cutawayRenderers.Add(renderer);
+        return gameObject;
+    }
+
+    private static GameObject MeshObject(
+        string name,
+        Transform parent,
+        Mesh mesh,
+        Material material,
+        bool addCollider)
+    {
+        GameObject gameObject = new(name);
+        gameObject.transform.SetParent(parent, false);
+        MeshFilter meshFilter = gameObject.AddComponent<MeshFilter>();
+        meshFilter.sharedMesh = mesh;
+        MeshRenderer renderer = gameObject.AddComponent<MeshRenderer>();
+        renderer.sharedMaterial = material;
+        renderer.shadowCastingMode = ShadowCastingMode.On;
+        renderer.receiveShadows = true;
+        if (addCollider)
+        {
+            MeshCollider collider = gameObject.AddComponent<MeshCollider>();
+            collider.sharedMesh = mesh;
+        }
+        return gameObject;
+    }
+
+    private static Vector3[] OrientPolygon(Vector3[] corners, Vector3 desiredNormal)
+    {
+        Vector3[] oriented = (Vector3[])corners.Clone();
+        Vector3 normal = Vector3.Cross(oriented[1] - oriented[0], oriented[2] - oriented[0]);
+        if (Vector3.Dot(normal, desiredNormal) < 0f)
+        {
+            (oriented[1], oriented[3]) = (oriented[3], oriented[1]);
+        }
+        return oriented;
+    }
+
+    private static Mesh GetGeneratedMesh(string name, Vector3[] vertices, int[] triangles)
+    {
+        string safeName = name.Replace(' ', '_');
+        string path = $"{MeshFolder}/{safeName}.asset";
+        Mesh mesh = AssetDatabase.LoadAssetAtPath<Mesh>(path);
+        if (mesh == null)
+        {
+            mesh = new Mesh { name = safeName };
+            AssetDatabase.CreateAsset(mesh, path);
+        }
+        else
+        {
+            mesh.Clear();
+        }
+
+        mesh.vertices = vertices;
+        mesh.triangles = triangles;
+        mesh.RecalculateNormals();
+        mesh.RecalculateBounds();
+        EditorUtility.SetDirty(mesh);
+        return mesh;
     }
 
     private static Light SpotLight(

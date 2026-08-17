@@ -30,6 +30,8 @@ This is a Unity 6.3 LTS project using URP. Keep changes small, readable, and fri
 - `Assets/_Project/Editor/ChamberSceneBuilder.cs` is the source of truth for generated chamber geometry, materials, fixtures, and controller wiring.
 - The builder replaces the `Chamber Geometry` hierarchy when it runs. Do not make durable manual edits beneath that object; update the builder instead.
 - Preserve the chamber's mirrored X-axis convention and its established dimensions and openings unless the task explicitly changes them.
+- The chamber has a full-size rectangular rear half (`z = 0..5`) and a rectangular frustum (`z = -5..0`) that converges on the source-end throat centered at `(0, 2.5, -5)`.
+- The throat is approximately 1 m wide by 1 m tall externally and retains the 0.75 m square source opening.
 - The shell uses closed volumetric shadow casters plus one-sided cutaway surfaces. Keep camera visibility, collision, and light/shadow behavior separate.
 - Door and source-window frames must remain opaque in both opaque and cutaway modes.
 
