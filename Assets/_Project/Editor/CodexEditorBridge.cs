@@ -206,7 +206,7 @@ public static class CodexEditorBridge
                         "The active scene has unsaved changes. Save it first or send the request with force=true.");
                 }
                 ChamberSceneBuilder.RebuildActiveMainSceneFromBridge();
-                WriteResponse(request.id, request.command, true, "Chamber geometry rebuilt and Main.unity saved.",
+                WriteResponse(request.id, request.command, true, "Chamber geometry synchronized in place and Main.unity saved.",
                     string.Empty, EditorStateJson());
                 return false;
 

@@ -8,7 +8,7 @@ using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 /// <summary>
-/// Recreates the physical chamber model defined in msu_anechoic/web/static/3d.js.
+/// Synchronizes the physical chamber model defined in msu_anechoic/web/static/3d.js.
 /// Diagnostic arrows, axes, trails, and configured-camera helpers are intentionally omitted.
 /// </summary>
 [InitializeOnLoad]
@@ -59,12 +59,16 @@ public static class ChamberSceneBuilder
     private static readonly Color ConcreteColor = Hex(0x8a8d91);
     private static readonly Color PlayerColor = Hex(0x2d8cff);
 
+    private static GameObject syncRoot;
+    private static HashSet<GameObject> staleGeneratedObjects;
+    private static HashSet<GameObject> claimedGeneratedObjects;
+
     static ChamberSceneBuilder()
     {
         EditorApplication.delayCall += BuildNewProjectSceneIfNeeded;
     }
 
-    [MenuItem("Tools/Chamber/Rebuild Main Scene Geometry")]
+    [MenuItem("Tools/Chamber/Sync Main Scene Geometry")]
     public static void RebuildMainScene()
     {
         if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
@@ -73,14 +77,31 @@ public static class ChamberSceneBuilder
         }
 
         Scene scene = EditorSceneManager.OpenScene(MainScenePath, OpenSceneMode.Single);
-        BuildScene(scene);
+        BuildScene(scene, false);
+    }
+
+    [MenuItem("Tools/Chamber/Full Rebuild Main Scene Geometry")]
+    public static void FullRebuildMainScene()
+    {
+        if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()
+            || !EditorUtility.DisplayDialog(
+                "Full chamber rebuild",
+                "This deletes and recreates the complete generated Chamber Geometry hierarchy. Use it only for structural changes that the normal sync cannot reconcile.",
+                "Full Rebuild",
+                "Cancel"))
+        {
+            return;
+        }
+
+        Scene scene = EditorSceneManager.OpenScene(MainScenePath, OpenSceneMode.Single);
+        BuildScene(scene, true);
     }
 
     // Entry point for headless verification.
     public static void RebuildMainSceneFromCommandLine()
     {
         Scene scene = EditorSceneManager.OpenScene(MainScenePath, OpenSceneMode.Single);
-        BuildScene(scene);
+        BuildScene(scene, false);
     }
 
     public static void RebuildActiveMainSceneFromBridge()
@@ -92,7 +113,7 @@ public static class ChamberSceneBuilder
                 $"The active scene must be {MainScenePath}, but it is {scene.path}.");
         }
 
-        BuildScene(scene);
+        BuildScene(scene, false);
     }
 
     private static void BuildNewProjectSceneIfNeeded()
@@ -105,11 +126,11 @@ public static class ChamberSceneBuilder
         Scene scene = SceneManager.GetActiveScene();
         if (scene.path == MainScenePath && GameObject.Find(RootName) == null)
         {
-            BuildScene(scene);
+            BuildScene(scene, false);
         }
     }
 
-    private static void BuildScene(Scene scene)
+    private static void BuildScene(Scene scene, bool fullRebuild)
     {
         GameObject existing = GameObject.Find(RootName);
         float preserveRoomOpacity = 100f;
@@ -159,8 +180,14 @@ public static class ChamberSceneBuilder
                 preserveTiltDegrees = existingTable.TiltDegrees;
                 preserveHeightMeters = existingTable.HeightMeters;
             }
-            Object.DestroyImmediate(existing);
+            if (fullRebuild)
+            {
+                Object.DestroyImmediate(existing);
+                existing = null;
+            }
         }
+
+        BeginSync(existing);
 
         EnsureFolder(MaterialFolder);
         EnsureFolder(MeshFolder);
@@ -238,7 +265,7 @@ public static class ChamberSceneBuilder
             floor,
             chamberFloorTransparent);
         ChamberShellVisibilityController shellController =
-            root.gameObject.AddComponent<ChamberShellVisibilityController>();
+            GetOrAddComponent<ChamberShellVisibilityController>(root.gameObject);
         shellController.Configure(
             roomPhysicalRenderers.ToArray(),
             roomVisuals,
@@ -253,14 +280,14 @@ public static class ChamberSceneBuilder
             BuildPlayer(NewGroup("Player", root), playerMaterial);
         tableController.enabled = false;
         ComputerConsoleController consoleController =
-            consoleInteractionZone.AddComponent<ComputerConsoleController>();
+            GetOrAddComponent<ComputerConsoleController>(consoleInteractionZone);
         consoleController.Configure(
             playerController,
             tableController,
             playerController.PlayerCamera,
             seatedCameraPose);
         MotionSensitiveChamberLights motionLights =
-            root.gameObject.AddComponent<MotionSensitiveChamberLights>();
+            GetOrAddComponent<MotionSensitiveChamberLights>(root.gameObject);
         motionLights.Configure(
             playerController.transform,
             chamberWallLights,
@@ -270,7 +297,7 @@ public static class ChamberSceneBuilder
             preserveChamberLightMode,
             preserveChamberLightTimeout);
         FloodLightController floodController =
-            floodInteractionZone.AddComponent<FloodLightController>();
+            GetOrAddComponent<FloodLightController>(floodInteractionZone);
         floodController.Configure(
             playerController,
             floodLights,
@@ -279,14 +306,17 @@ public static class ChamberSceneBuilder
             dark,
             preserveFloodLightsOn);
         ScissorLiftStationController liftController =
-            liftInteractionZone.AddComponent<ScissorLiftStationController>();
+            GetOrAddComponent<ScissorLiftStationController>(liftInteractionZone);
         liftController.Configure(playerController, tableController);
         BuildWallCamera(NewGroup("Chamber Wall Camera", root), cameraWhite, dark, monitorView);
 
+        FinishSync();
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
         AssetDatabase.SaveAssets();
-        Debug.Log("Built chamber geometry from the Three.js reference into Main.unity.");
+        Debug.Log(fullRebuild
+            ? "Fully rebuilt chamber geometry in Main.unity."
+            : "Synchronized chamber geometry in Main.unity while preserving stable scene objects.");
     }
 
     private static void BuildContainingRoom(
@@ -533,13 +563,13 @@ public static class ChamberSceneBuilder
         Rod("Foot Left", floodStand, legStart, new Vector3(-0.5f, 0.02f, 0f), 0.018f, stand);
         Box("Crossbar", floodStand, new Vector3(0f, 1.38f, 0f), new Vector3(0.04f, 0.04f, 0.8f), stand);
 
-        floodInteractionZone = new GameObject("Interaction Zone");
-        floodInteractionZone.transform.SetParent(floodStand, false);
+        floodInteractionZone = AcquireObject(
+            "Interaction Zone", floodStand, () => new GameObject("Interaction Zone"));
         floodInteractionZone.transform.localPosition = new Vector3(0f, 1f, 0f);
-        BoxCollider floodTrigger = floodInteractionZone.AddComponent<BoxCollider>();
+        BoxCollider floodTrigger = GetOrAddComponent<BoxCollider>(floodInteractionZone);
         floodTrigger.size = new Vector3(1.5f, 2f, 1.5f);
         floodTrigger.isTrigger = true;
-        Rigidbody floodTriggerBody = floodInteractionZone.AddComponent<Rigidbody>();
+        Rigidbody floodTriggerBody = GetOrAddComponent<Rigidbody>(floodInteractionZone);
         floodTriggerBody.isKinematic = true;
         floodTriggerBody.useGravity = false;
 
@@ -710,13 +740,13 @@ public static class ChamberSceneBuilder
             "Use WASD to control\nturntable.\n\nHit ESC to stand up",
             50);
 
-        interactionZone = new GameObject("Interaction Zone");
-        interactionZone.transform.SetParent(parent, false);
+        interactionZone = AcquireObject(
+            "Interaction Zone", parent, () => new GameObject("Interaction Zone"));
         interactionZone.transform.localPosition = MirrorPosition(new Vector3(-0.08f, 0.9f, 0.75f));
-        BoxCollider trigger = interactionZone.AddComponent<BoxCollider>();
+        BoxCollider trigger = GetOrAddComponent<BoxCollider>(interactionZone);
         trigger.size = new Vector3(1.2f, 1.8f, 0.9f);
         trigger.isTrigger = true;
-        Rigidbody triggerBody = interactionZone.AddComponent<Rigidbody>();
+        Rigidbody triggerBody = GetOrAddComponent<Rigidbody>(interactionZone);
         triggerBody.isKinematic = true;
         triggerBody.useGravity = false;
 
@@ -737,13 +767,13 @@ public static class ChamberSceneBuilder
         Box("Red Lift Control", parent, controlPosition,
             new Vector3(0.2f, 0.2f, 0.2f), controlMaterial);
 
-        interactionZone = new GameObject("Interaction Zone");
-        interactionZone.transform.SetParent(parent, false);
+        interactionZone = AcquireObject(
+            "Interaction Zone", parent, () => new GameObject("Interaction Zone"));
         interactionZone.transform.localPosition = MirrorPosition(new Vector3(2f, 1f, 4.25f));
-        BoxCollider trigger = interactionZone.AddComponent<BoxCollider>();
+        BoxCollider trigger = GetOrAddComponent<BoxCollider>(interactionZone);
         trigger.size = new Vector3(1.2f, 2f, 1.25f);
         trigger.isTrigger = true;
-        Rigidbody triggerBody = interactionZone.AddComponent<Rigidbody>();
+        Rigidbody triggerBody = GetOrAddComponent<Rigidbody>(interactionZone);
         triggerBody.isKinematic = true;
         triggerBody.useGravity = false;
     }
@@ -778,7 +808,7 @@ public static class ChamberSceneBuilder
 
         Transform view = NewGroup("Camera View", parent);
         view.localPosition = new Vector3(0f, 0f, housingLength + 0.012f);
-        Camera camera = view.gameObject.AddComponent<Camera>();
+        Camera camera = GetOrAddComponent<Camera>(view.gameObject);
         camera.targetTexture = targetTexture;
         camera.clearFlags = CameraClearFlags.SolidColor;
         camera.backgroundColor = Color.black;
@@ -845,7 +875,7 @@ public static class ChamberSceneBuilder
                     "Pan: 0° / Tilt: 0°",
                     58);
                 TurntableReadoutDisplay readoutDisplay =
-                    display.gameObject.AddComponent<TurntableReadoutDisplay>();
+                    GetOrAddComponent<TurntableReadoutDisplay>(display.gameObject);
                 readoutDisplay.Configure(turntableController, readout);
             }
         }
@@ -862,13 +892,15 @@ public static class ChamberSceneBuilder
     {
         const float canvasPixelWidth = 1000f;
         float canvasPixelHeight = canvasPixelWidth * height / width;
-        GameObject canvasObject = new(
+        GameObject canvasObject = AcquireObject(
             name,
-            typeof(RectTransform),
-            typeof(Canvas),
-            typeof(CanvasScaler));
+            parent,
+            () => new GameObject(
+                name,
+                typeof(RectTransform),
+                typeof(Canvas),
+                typeof(CanvasScaler)));
         RectTransform canvasTransform = canvasObject.GetComponent<RectTransform>();
-        canvasTransform.SetParent(parent, false);
         canvasTransform.localPosition = MirrorPosition(position);
         canvasTransform.localRotation = MirrorRotation(Quaternion.Euler(0f, 180f, 0f));
         canvasTransform.localScale = Vector3.one * (width / canvasPixelWidth);
@@ -881,13 +913,15 @@ public static class ChamberSceneBuilder
         CanvasScaler scaler = canvasObject.GetComponent<CanvasScaler>();
         scaler.dynamicPixelsPerUnit = 2f;
 
-        GameObject textObject = new(
+        GameObject textObject = AcquireObject(
             "Text",
-            typeof(RectTransform),
-            typeof(CanvasRenderer),
-            typeof(Text));
+            canvasTransform,
+            () => new GameObject(
+                "Text",
+                typeof(RectTransform),
+                typeof(CanvasRenderer),
+                typeof(Text)));
         RectTransform textTransform = textObject.GetComponent<RectTransform>();
-        textTransform.SetParent(canvasTransform, false);
         textTransform.anchorMin = Vector2.zero;
         textTransform.anchorMax = Vector2.one;
         textTransform.offsetMin = new Vector2(24f, 18f);
@@ -995,7 +1029,7 @@ public static class ChamberSceneBuilder
         BuildAutMount(panAssembly, purple);
         BuildAntennaUnderTest(panAssembly, yellow);
 
-        TurntableController controller = turntable.gameObject.AddComponent<TurntableController>();
+        TurntableController controller = GetOrAddComponent<TurntableController>(turntable.gameObject);
         controller.Configure(
             panAssembly,
             tiltAssembly,
@@ -1060,7 +1094,8 @@ public static class ChamberSceneBuilder
         player.position = new Vector3(eyePosition.x, 0f, eyePosition.z);
         player.rotation = Quaternion.LookRotation(planarForward, Vector3.up);
 
-        GameObject body = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+        GameObject body = AcquireObject(
+            "Capsule Body", player, () => GameObject.CreatePrimitive(PrimitiveType.Capsule));
         SetPrimitive(body, "Capsule Body", player, new Vector3(0f, 0.9f, 0f),
             Quaternion.identity, new Vector3(0.6f, 0.9f, 0.6f), material);
         Collider bodyCollider = body.GetComponent<Collider>();
@@ -1069,7 +1104,7 @@ public static class ChamberSceneBuilder
             Object.DestroyImmediate(bodyCollider);
         }
 
-        CharacterController characterController = player.gameObject.AddComponent<CharacterController>();
+        CharacterController characterController = GetOrAddComponent<CharacterController>(player.gameObject);
         characterController.center = new Vector3(0f, 0.9f, 0f);
         characterController.height = 1.8f;
         characterController.radius = 0.3f;
@@ -1077,8 +1112,9 @@ public static class ChamberSceneBuilder
         characterController.skinWidth = 0.05f;
 
         camera.transform.SetParent(player, true);
+        camera.transform.localScale = Vector3.one;
         FirstPersonPlayerController controller =
-            player.gameObject.AddComponent<FirstPersonPlayerController>();
+            GetOrAddComponent<FirstPersonPlayerController>(player.gameObject);
         controller.Configure(camera);
         return controller;
     }
@@ -1118,10 +1154,92 @@ public static class ChamberSceneBuilder
         return namedCamera != null ? namedCamera.GetComponent<Camera>() : null;
     }
 
+    private static void BeginSync(GameObject existingRoot)
+    {
+        syncRoot = existingRoot;
+        staleGeneratedObjects = new HashSet<GameObject>();
+        claimedGeneratedObjects = new HashSet<GameObject>();
+        if (existingRoot == null)
+        {
+            return;
+        }
+
+        foreach (Transform transform in existingRoot.GetComponentsInChildren<Transform>(true))
+        {
+            if (transform != existingRoot.transform)
+            {
+                staleGeneratedObjects.Add(transform.gameObject);
+            }
+        }
+    }
+
+    private static void FinishSync()
+    {
+        if (staleGeneratedObjects != null)
+        {
+            foreach (GameObject staleObject in staleGeneratedObjects)
+            {
+                if (staleObject != null)
+                {
+                    Object.DestroyImmediate(staleObject);
+                }
+            }
+        }
+
+        syncRoot = null;
+        staleGeneratedObjects = null;
+        claimedGeneratedObjects = null;
+    }
+
+    private static GameObject AcquireObject(
+        string name,
+        Transform parent,
+        System.Func<GameObject> create)
+    {
+        GameObject gameObject = null;
+        if (parent == null && syncRoot != null && syncRoot.name == name
+            && !claimedGeneratedObjects.Contains(syncRoot))
+        {
+            gameObject = syncRoot;
+        }
+        else if (parent != null)
+        {
+            for (int index = 0; index < parent.childCount; index++)
+            {
+                GameObject candidate = parent.GetChild(index).gameObject;
+                if (candidate.name == name && !claimedGeneratedObjects.Contains(candidate))
+                {
+                    gameObject = candidate;
+                    break;
+                }
+            }
+        }
+
+        if (gameObject == null)
+        {
+            gameObject = create();
+        }
+
+        gameObject.name = name;
+        gameObject.transform.SetParent(parent, false);
+        gameObject.SetActive(true);
+        claimedGeneratedObjects.Add(gameObject);
+        staleGeneratedObjects.Remove(gameObject);
+        return gameObject;
+    }
+
+    private static T GetOrAddComponent<T>(GameObject gameObject) where T : Component
+    {
+        T component = gameObject.GetComponent<T>();
+        return component != null ? component : gameObject.AddComponent<T>();
+    }
+
     private static Transform NewGroup(string name, Transform parent)
     {
-        GameObject group = new(name);
-        group.transform.SetParent(parent, false);
+        GameObject group = AcquireObject(name, parent, () => new GameObject(name));
+        group.transform.localPosition = Vector3.zero;
+        group.transform.localRotation = Quaternion.identity;
+        group.transform.localScale = Vector3.one;
         return group.transform;
     }
 
@@ -1133,7 +1251,8 @@ public static class ChamberSceneBuilder
         Material material,
         Quaternion? rotation = null)
     {
-        GameObject gameObject = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        GameObject gameObject = AcquireObject(
+            name, parent, () => GameObject.CreatePrimitive(PrimitiveType.Cube));
         SetPrimitive(gameObject, name, parent, position, rotation ?? Quaternion.identity, size, material);
         return gameObject;
     }
@@ -1200,7 +1319,8 @@ public static class ChamberSceneBuilder
         Vector3 inwardNormal,
         Material material)
     {
-        GameObject gameObject = GameObject.CreatePrimitive(PrimitiveType.Quad);
+        GameObject gameObject = AcquireObject(
+            name, parent, () => GameObject.CreatePrimitive(PrimitiveType.Quad));
         Mesh mesh = gameObject.GetComponent<MeshFilter>().sharedMesh;
         Vector3 primitiveNormal = mesh.normals.Length > 0 ? mesh.normals[0].normalized : Vector3.back;
         Quaternion rotation = Quaternion.FromToRotation(primitiveNormal, inwardNormal.normalized);
@@ -1258,18 +1378,28 @@ public static class ChamberSceneBuilder
         Material material,
         bool addCollider)
     {
-        GameObject gameObject = new(name);
-        gameObject.transform.SetParent(parent, false);
-        MeshFilter meshFilter = gameObject.AddComponent<MeshFilter>();
+        GameObject gameObject = AcquireObject(name, parent, () => new GameObject(name));
+        gameObject.transform.localPosition = Vector3.zero;
+        gameObject.transform.localRotation = Quaternion.identity;
+        gameObject.transform.localScale = Vector3.one;
+        MeshFilter meshFilter = GetOrAddComponent<MeshFilter>(gameObject);
         meshFilter.sharedMesh = mesh;
-        MeshRenderer renderer = gameObject.AddComponent<MeshRenderer>();
+        MeshRenderer renderer = GetOrAddComponent<MeshRenderer>(gameObject);
         renderer.sharedMaterial = material;
         renderer.shadowCastingMode = ShadowCastingMode.On;
         renderer.receiveShadows = true;
         if (addCollider)
         {
-            MeshCollider collider = gameObject.AddComponent<MeshCollider>();
+            MeshCollider collider = GetOrAddComponent<MeshCollider>(gameObject);
             collider.sharedMesh = mesh;
+        }
+        else
+        {
+            MeshCollider collider = gameObject.GetComponent<MeshCollider>();
+            if (collider != null)
+            {
+                Object.DestroyImmediate(collider);
+            }
         }
         return gameObject;
     }
@@ -1300,11 +1430,16 @@ public static class ChamberSceneBuilder
                     ? alternateTransparentMaterial
                     : defaultTransparentMaterial;
 
-            GameObject cameraVisual = new("Camera Visual");
-            cameraVisual.transform.SetParent(physicalRenderer.transform, false);
-            MeshFilter meshFilter = cameraVisual.AddComponent<MeshFilter>();
+            GameObject cameraVisual = AcquireObject(
+                "Camera Visual",
+                physicalRenderer.transform,
+                () => new GameObject("Camera Visual"));
+            cameraVisual.transform.localPosition = Vector3.zero;
+            cameraVisual.transform.localRotation = Quaternion.identity;
+            cameraVisual.transform.localScale = Vector3.one;
+            MeshFilter meshFilter = GetOrAddComponent<MeshFilter>(cameraVisual);
             meshFilter.sharedMesh = physicalMeshFilter.sharedMesh;
-            MeshRenderer renderer = cameraVisual.AddComponent<MeshRenderer>();
+            MeshRenderer renderer = GetOrAddComponent<MeshRenderer>(cameraVisual);
             renderer.sharedMaterial = opaqueMaterial;
             renderer.shadowCastingMode = ShadowCastingMode.Off;
             renderer.receiveShadows = true;
@@ -1365,12 +1500,11 @@ public static class ChamberSceneBuilder
         float innerAngle,
         bool castShadows)
     {
-        GameObject gameObject = new(name);
-        gameObject.transform.SetParent(parent, false);
+        GameObject gameObject = AcquireObject(name, parent, () => new GameObject(name));
         gameObject.transform.localPosition = localPosition;
         gameObject.transform.localRotation = Quaternion.LookRotation(localDirection, Vector3.forward);
 
-        Light light = gameObject.AddComponent<Light>();
+        Light light = GetOrAddComponent<Light>(gameObject);
         light.type = LightType.Spot;
         light.color = color;
         light.intensity = intensity;
@@ -1381,7 +1515,7 @@ public static class ChamberSceneBuilder
         light.shadowStrength = 0.85f;
         UniversalAdditionalLightData lightData =
             gameObject.GetComponent<UniversalAdditionalLightData>()
-            ?? gameObject.AddComponent<UniversalAdditionalLightData>();
+            ?? GetOrAddComponent<UniversalAdditionalLightData>(gameObject);
         SerializedObject serializedLightData = new(lightData);
         serializedLightData.FindProperty("m_AdditionalLightsShadowResolutionTier").intValue =
             UniversalAdditionalLightData.AdditionalLightsShadowResolutionTierLow;
@@ -1391,7 +1525,8 @@ public static class ChamberSceneBuilder
 
     private static GameObject Sphere(string name, Transform parent, Vector3 position, float radius, Material material)
     {
-        GameObject gameObject = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        GameObject gameObject = AcquireObject(
+            name, parent, () => GameObject.CreatePrimitive(PrimitiveType.Sphere));
         SetPrimitive(gameObject, name, parent, position, Quaternion.identity, Vector3.one * (radius * 2f), material);
         return gameObject;
     }
@@ -1405,7 +1540,8 @@ public static class ChamberSceneBuilder
         Material material,
         Quaternion? rotation = null)
     {
-        GameObject gameObject = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        GameObject gameObject = AcquireObject(
+            name, parent, () => GameObject.CreatePrimitive(PrimitiveType.Cylinder));
         Vector3 scale = new(radius * 2f, height / 2f, radius * 2f);
         SetPrimitive(gameObject, name, parent, position, rotation ?? Quaternion.identity, scale, material);
         return gameObject;
@@ -1503,9 +1639,12 @@ public static class ChamberSceneBuilder
         bool square = false)
     {
         Vector3 direction = end - start;
-        GameObject gameObject = square
-            ? GameObject.CreatePrimitive(PrimitiveType.Cube)
-            : GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        GameObject gameObject = AcquireObject(
+            name,
+            parent,
+            () => square
+                ? GameObject.CreatePrimitive(PrimitiveType.Cube)
+                : GameObject.CreatePrimitive(PrimitiveType.Cylinder));
         Vector3 scale = square
             ? new Vector3(radius * 2f, direction.magnitude, radius * 2f)
             : new Vector3(radius * 2f, direction.magnitude / 2f, radius * 2f);

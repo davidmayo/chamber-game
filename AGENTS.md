@@ -28,7 +28,8 @@ This is a Unity 6.3 LTS project using URP. Keep changes small, readable, and fri
 ## Generated chamber scene
 
 - `Assets/_Project/Editor/ChamberSceneBuilder.cs` is the source of truth for generated chamber geometry, materials, fixtures, and controller wiring.
-- The builder replaces the `Chamber Geometry` hierarchy when it runs. Do not make durable manual edits beneath that object; update the builder instead.
+- The normal builder command synchronizes the `Chamber Geometry` hierarchy in place by stable parent/name paths, preserving Unity file IDs and keeping scene diffs small. Do not make durable manual edits beneath that object; unrecognized generated children are removed by the next sync, so update the builder instead.
+- Use `Tools > Chamber > Sync Main Scene Geometry` for ordinary generator changes. `Tools > Chamber > Full Rebuild Main Scene Geometry` is an explicit destructive fallback for major structural/type changes that cannot be reconciled safely in place.
 - Preserve the chamber's mirrored X-axis convention and its established dimensions and openings unless the task explicitly changes them.
 - The chamber has a full-size rectangular rear half (`z = 0..5`) and a rectangular frustum (`z = -5..0`) that converges on the source-end throat centered at `(0, 2.5, -5)`.
 - The throat is approximately 1 m wide by 1 m tall externally and retains the 0.75 m square source opening.
@@ -61,7 +62,7 @@ Useful commands include `editor_state`, `refresh`, `save_scene`, `rebuild_chambe
 
 - Save an intentionally dirty scene before rebuilding; do not force away the user's Editor changes.
 - After changing C# code, run `refresh` and resolve all compiler diagnostics.
-- After generator changes, run `rebuild_chamber` and inspect the hierarchy or a captured Game view as appropriate.
+- After generator changes, run `rebuild_chamber` (the bridge's normal in-place sync) and inspect the hierarchy or a captured Game view as appropriate. Do not use the full rebuild for routine script or geometry changes.
 - For runtime changes, perform a short Play Mode smoke test and check logs. Exit Play Mode when finished.
 
 ## Controls
