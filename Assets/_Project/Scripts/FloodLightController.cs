@@ -13,24 +13,27 @@ public sealed class FloodLightController : MonoBehaviour
 
     private bool playerNearby;
 
+    public bool LightsOn => lightsOn;
+
     public void Configure(
         FirstPersonPlayerController player,
         Light[] controlledLights,
         Renderer[] panels,
         Material illuminatedMaterial,
-        Material darkMaterial)
+        Material darkMaterial,
+        bool initialLightsOn)
     {
         playerController = player;
         lights = controlledLights;
         illuminatedPanels = panels;
         onMaterial = illuminatedMaterial;
         offMaterial = darkMaterial;
-        SetLights(false);
+        SetLights(initialLightsOn);
     }
 
     private void Awake()
     {
-        SetLights(false);
+        SetLights(lightsOn);
     }
 
     private void Update()
@@ -38,8 +41,13 @@ public sealed class FloodLightController : MonoBehaviour
         Keyboard keyboard = Keyboard.current;
         if (playerNearby && keyboard != null && keyboard.fKey.wasPressedThisFrame)
         {
-            SetLights(!lightsOn);
+            SetLightsOn(!lightsOn);
         }
+    }
+
+    public void SetLightsOn(bool enabledState)
+    {
+        SetLights(enabledState);
     }
 
     private void SetLights(bool enabledState)

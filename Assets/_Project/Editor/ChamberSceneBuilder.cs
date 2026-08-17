@@ -114,6 +114,12 @@ public static class ChamberSceneBuilder
         GameObject existing = GameObject.Find(RootName);
         float preserveRoomOpacity = 100f;
         float preserveChamberOpacity = 100f;
+        ChamberLightMode preserveChamberLightMode = ChamberLightMode.Auto;
+        float preserveChamberLightTimeout = 30f;
+        bool preserveFloodLightsOn = false;
+        float preservePanDegrees = 0f;
+        float preserveTiltDegrees = 0f;
+        float preserveHeightMeters = 0.2f;
         if (existing != null)
         {
             Camera existingCamera = FindMainSceneCamera();
@@ -128,6 +134,30 @@ public static class ChamberSceneBuilder
             {
                 preserveRoomOpacity = existingController.RoomOpacityPercent;
                 preserveChamberOpacity = existingController.ChamberOpacityPercent;
+            }
+
+            MotionSensitiveChamberLights existingMotionLights =
+                existing.GetComponent<MotionSensitiveChamberLights>();
+            if (existingMotionLights != null)
+            {
+                preserveChamberLightMode = existingMotionLights.Mode;
+                preserveChamberLightTimeout = existingMotionLights.TimeoutSeconds;
+            }
+
+            FloodLightController existingFloodLights =
+                existing.GetComponentInChildren<FloodLightController>(true);
+            if (existingFloodLights != null)
+            {
+                preserveFloodLightsOn = existingFloodLights.LightsOn;
+            }
+
+            TurntableController existingTable =
+                existing.GetComponentInChildren<TurntableController>(true);
+            if (existingTable != null)
+            {
+                preservePanDegrees = existingTable.PanDegrees;
+                preserveTiltDegrees = existingTable.TiltDegrees;
+                preserveHeightMeters = existingTable.HeightMeters;
             }
             Object.DestroyImmediate(existing);
         }
@@ -181,6 +211,10 @@ public static class ChamberSceneBuilder
             out Renderer[] floodPanels);
         BuildEquipment(NewGroup("Equipment", root), table, lift, housing, purple, orange, yellow, source);
         TurntableController tableController = root.GetComponentInChildren<TurntableController>();
+        tableController.SetPose(
+            preservePanDegrees,
+            preserveTiltDegrees,
+            preserveHeightMeters);
         BuildScissorLiftControl(
             NewGroup("Scissor Lift Wall Control", root),
             controlRed,
@@ -232,7 +266,9 @@ public static class ChamberSceneBuilder
             chamberWallLights,
             chamberWallPanels,
             lightPanel,
-            dark);
+            dark,
+            preserveChamberLightMode,
+            preserveChamberLightTimeout);
         FloodLightController floodController =
             floodInteractionZone.AddComponent<FloodLightController>();
         floodController.Configure(
@@ -240,7 +276,8 @@ public static class ChamberSceneBuilder
             floodLights,
             floodPanels,
             lightPanel,
-            dark);
+            dark,
+            preserveFloodLightsOn);
         ScissorLiftStationController liftController =
             liftInteractionZone.AddComponent<ScissorLiftStationController>();
         liftController.Configure(playerController, tableController);

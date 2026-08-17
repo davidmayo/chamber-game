@@ -1,5 +1,12 @@
 using UnityEngine;
 
+public enum ChamberLightMode
+{
+    Auto,
+    On,
+    Off,
+}
+
 public sealed class MotionSensitiveChamberLights : MonoBehaviour
 {
     [SerializeField] private Transform player;
@@ -7,27 +14,39 @@ public sealed class MotionSensitiveChamberLights : MonoBehaviour
     [SerializeField] private Renderer[] illuminatedPanels;
     [SerializeField] private Material onMaterial;
     [SerializeField] private Material offMaterial;
+    [SerializeField] private ChamberLightMode mode = ChamberLightMode.Auto;
     [SerializeField, Min(0f)] private float shutoffDelaySeconds = 30f;
+    [SerializeField] private bool lightsOn = true;
 
     private Vector3 previousPlayerPosition;
     private Quaternion previousPlayerRotation;
     private float remainingSeconds;
-    private bool lightsOn;
+
+    public ChamberLightMode Mode => mode;
+    public float TimeoutSeconds => shutoffDelaySeconds;
+    public float RemainingSeconds => Application.isPlaying
+        ? Mathf.Max(0f, remainingSeconds)
+        : shutoffDelaySeconds;
+    public bool LightsOn => lightsOn;
 
     public void Configure(
         Transform playerTransform,
         Light[] controlledLights,
         Renderer[] panels,
         Material illuminatedMaterial,
-        Material darkMaterial)
+        Material darkMaterial,
+        ChamberLightMode initialMode,
+        float initialTimeoutSeconds)
     {
         player = playerTransform;
         lights = controlledLights;
         illuminatedPanels = panels;
         onMaterial = illuminatedMaterial;
         offMaterial = darkMaterial;
+        mode = initialMode;
+        shutoffDelaySeconds = Mathf.Clamp(initialTimeoutSeconds, 1f, 120f);
         remainingSeconds = shutoffDelaySeconds;
-        SetLights(true);
+        ApplyMode();
     }
 
     private void Awake()
@@ -42,13 +61,20 @@ public sealed class MotionSensitiveChamberLights : MonoBehaviour
         previousPlayerPosition = player.position;
         previousPlayerRotation = player.rotation;
         remainingSeconds = shutoffDelaySeconds;
-        SetLights(true);
+        ApplyMode();
     }
 
     private void Update()
     {
         Vector3 currentPosition = player.position;
         Quaternion currentRotation = player.rotation;
+        if (mode != ChamberLightMode.Auto)
+        {
+            previousPlayerPosition = currentPosition;
+            previousPlayerRotation = currentRotation;
+            return;
+        }
+
         bool playerMoved = (currentPosition - previousPlayerPosition).sqrMagnitude > 0.000001f
             || Quaternion.Angle(currentRotation, previousPlayerRotation) > 0.05f;
 
@@ -70,6 +96,39 @@ public sealed class MotionSensitiveChamberLights : MonoBehaviour
         previousPlayerRotation = currentRotation;
     }
 
+    public void SetMode(ChamberLightMode newMode)
+    {
+        mode = newMode;
+        remainingSeconds = shutoffDelaySeconds;
+        ApplyMode();
+    }
+
+    public void SetTimeoutSeconds(float seconds)
+    {
+        shutoffDelaySeconds = Mathf.Clamp(seconds, 1f, 120f);
+        remainingSeconds = shutoffDelaySeconds;
+        if (mode == ChamberLightMode.Auto)
+        {
+            SetLights(true);
+        }
+    }
+
+    private void ApplyMode()
+    {
+        switch (mode)
+        {
+            case ChamberLightMode.On:
+                SetLights(true);
+                break;
+            case ChamberLightMode.Off:
+                SetLights(false);
+                break;
+            default:
+                SetLights(true);
+                break;
+        }
+    }
+
     private static bool IsInsideChamber(Vector3 position)
     {
         if (position.z < -5f || position.z > 5f)
@@ -85,11 +144,6 @@ public sealed class MotionSensitiveChamberLights : MonoBehaviour
 
     private void SetLights(bool enabledState)
     {
-        if (lightsOn == enabledState && Application.isPlaying)
-        {
-            return;
-        }
-
         lightsOn = enabledState;
         if (lights != null)
         {

@@ -67,6 +67,7 @@ Useful commands include `editor_state`, `refresh`, `save_scene`, `rebuild_chambe
 ## Controls
 
 - In Edit Mode, use `Window > Chamber Tools` for chamber visualization controls.
+- `Chamber Tools` also exposes chamber-light mode/timeout/status, floodlight state, and editable positioner pan/tilt/height. Generator rebuilds must preserve these values.
 - Player mode uses `WASD` movement and mouse look. `Escape` releases the captured mouse.
 - Near the computer console, `F` enters the seated console mode; `F` or `Escape` exits it.
 - Console mode uses `A`/`D` for pan and `W`/`S` for tilt. It must never expose, display, or change positioner height.

@@ -30,6 +30,9 @@ public sealed class TurntableController : MonoBehaviour
     public float PanDegrees => panDegrees;
     public float TiltDegrees => tiltDegrees;
     public float HeightMeters => heightMeters;
+    public Vector2 PanLimitsDegrees => panLimitsDegrees;
+    public Vector2 TiltLimitsDegrees => tiltLimitsDegrees;
+    public Vector2 HeightLimitsMeters => heightLimitsMeters;
 
     private GUIStyle hudTitleStyle;
     private GUIStyle hudValueStyle;
@@ -90,6 +93,30 @@ public sealed class TurntableController : MonoBehaviour
         heightMeters += Mathf.Clamp(heightInput, -1f, 1f) * heightSpeedMetersPerSecond * deltaTime;
         ClampPose();
         ApplyPose();
+    }
+
+    public void SetPose(float pan, float tilt, float height)
+    {
+        panDegrees = pan;
+        tiltDegrees = tilt;
+        heightMeters = height;
+        ClampPose();
+        ApplyPose();
+    }
+
+    public void SetPanDegrees(float degrees)
+    {
+        SetPose(degrees, tiltDegrees, heightMeters);
+    }
+
+    public void SetTiltDegrees(float degrees)
+    {
+        SetPose(panDegrees, degrees, heightMeters);
+    }
+
+    public void SetHeightMeters(float meters)
+    {
+        SetPose(panDegrees, tiltDegrees, meters);
     }
 
     [ContextMenu("Reset Pose")]
