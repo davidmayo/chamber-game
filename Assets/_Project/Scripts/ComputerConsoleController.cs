@@ -90,6 +90,11 @@ public sealed class ComputerConsoleController : MonoBehaviour
 
     private void UpdateStanding(Keyboard keyboard)
     {
+        if (!playerController.enabled)
+        {
+            return;
+        }
+
         if (playerNearby && keyboard.fKey.wasPressedThisFrame)
         {
             BeginSittingDown();

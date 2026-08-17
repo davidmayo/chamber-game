@@ -69,4 +69,6 @@ Useful commands include `editor_state`, `refresh`, `save_scene`, `rebuild_chambe
 - Player mode uses `WASD` movement and mouse look. `Escape` releases the captured mouse.
 - Near the computer console, `F` enters the seated console mode; `F` or `Escape` exits it.
 - Console mode uses `A`/`D` for pan and `W`/`S` for tilt. It must never expose, display, or change positioner height.
+- The red rear-wall control is the only player interface for positioner height: `F` enters its mode, `Q`/`E` lower or raise, and `F` or `Escape` exits.
+- The chamber's back-wall lights respond only to player motion inside the chamber and time out after 30 seconds. The floodlights start off and are toggled with `F` near their stand.
 - Wall visualization is editor-only and is controlled from `Window > Chamber Tools`.

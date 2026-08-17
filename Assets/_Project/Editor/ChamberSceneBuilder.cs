@@ -157,6 +157,7 @@ public static class ChamberSceneBuilder
         Material playerMaterial = GetMaterial("Player", PlayerColor, 0f, 0.25f);
         Material lightPanel = GetMaterial("LightPanel", Color.white, 0f, 0.75f, true, 8f);
         Material cameraWhite = GetMaterial("CameraWhite", Color.white, 0f, 0.3f);
+        Material controlRed = GetMaterial("ControlRed", Hex(0xc62828), 0.1f, 0.3f);
         Material monitorScreen = GetMonitorDisplayMaterial("MonitorScreen", monitorView);
 
         Transform root = NewGroup(RootName, null);
@@ -168,9 +169,22 @@ public static class ChamberSceneBuilder
             roomPhysicalRenderers, roomCutawayRenderers);
         BuildArchitecture(NewGroup("Architecture", root), wall, floor,
             chamberPhysicalRenderers, chamberCutawayRenderers);
-        BuildLightingFixtures(NewGroup("Lighting Fixtures", root), stand, dark, lightPanel);
+        BuildLightingFixtures(
+            NewGroup("Lighting Fixtures", root),
+            stand,
+            dark,
+            lightPanel,
+            out Light[] chamberWallLights,
+            out Renderer[] chamberWallPanels,
+            out GameObject floodInteractionZone,
+            out Light[] floodLights,
+            out Renderer[] floodPanels);
         BuildEquipment(NewGroup("Equipment", root), table, lift, housing, purple, orange, yellow, source);
         TurntableController tableController = root.GetComponentInChildren<TurntableController>();
+        BuildScissorLiftControl(
+            NewGroup("Scissor Lift Wall Control", root),
+            controlRed,
+            out GameObject liftInteractionZone);
         BuildComputerConsole(
             NewGroup("Computer Console", root),
             table,
@@ -211,6 +225,25 @@ public static class ChamberSceneBuilder
             tableController,
             playerController.PlayerCamera,
             seatedCameraPose);
+        MotionSensitiveChamberLights motionLights =
+            root.gameObject.AddComponent<MotionSensitiveChamberLights>();
+        motionLights.Configure(
+            playerController.transform,
+            chamberWallLights,
+            chamberWallPanels,
+            lightPanel,
+            dark);
+        FloodLightController floodController =
+            floodInteractionZone.AddComponent<FloodLightController>();
+        floodController.Configure(
+            playerController,
+            floodLights,
+            floodPanels,
+            lightPanel,
+            dark);
+        ScissorLiftStationController liftController =
+            liftInteractionZone.AddComponent<ScissorLiftStationController>();
+        liftController.Configure(playerController, tableController);
         BuildWallCamera(NewGroup("Chamber Wall Camera", root), cameraWhite, dark, monitorView);
 
         EditorSceneManager.MarkSceneDirty(scene);
@@ -421,15 +454,36 @@ public static class ChamberSceneBuilder
             wall, cutawayRenderers);
     }
 
-    private static void BuildLightingFixtures(Transform parent, Material stand, Material dark, Material lightPanel)
+    private static void BuildLightingFixtures(
+        Transform parent,
+        Material stand,
+        Material dark,
+        Material lightPanel,
+        out Light[] chamberWallLights,
+        out Renderer[] chamberWallPanels,
+        out GameObject floodInteractionZone,
+        out Light[] floodLights,
+        out Renderer[] floodPanels)
     {
+        List<Light> wallLightList = new();
+        List<Renderer> wallPanelList = new();
         Transform backFixtures = NewGroup("Back Wall Fixtures", parent);
         foreach (float x in new[] { -1.5f, 1.5f })
         {
             GameObject fixture = Box("Light Fixture", backFixtures,
                 new Vector3(x, 2.5f, 4.915f), new Vector3(0.1f, 0.3f, 0.02f), lightPanel);
-            SpotLight("Illumination", fixture.transform, new Vector3(0f, 0f, -0.03f), Vector3.back,
-                Color.white, 10f, 10f, 100f, 70f, true);
+            wallPanelList.Add(fixture.GetComponent<Renderer>());
+            wallLightList.Add(SpotLight(
+                "Illumination",
+                fixture.transform,
+                new Vector3(0f, 0f, -0.03f),
+                Vector3.back,
+                Color.white,
+                10f,
+                10f,
+                100f,
+                70f,
+                true));
         }
 
         Transform floodStand = NewGroup("Flood Light Stand", parent);
@@ -442,6 +496,18 @@ public static class ChamberSceneBuilder
         Rod("Foot Left", floodStand, legStart, new Vector3(-0.5f, 0.02f, 0f), 0.018f, stand);
         Box("Crossbar", floodStand, new Vector3(0f, 1.38f, 0f), new Vector3(0.04f, 0.04f, 0.8f), stand);
 
+        floodInteractionZone = new GameObject("Interaction Zone");
+        floodInteractionZone.transform.SetParent(floodStand, false);
+        floodInteractionZone.transform.localPosition = new Vector3(0f, 1f, 0f);
+        BoxCollider floodTrigger = floodInteractionZone.AddComponent<BoxCollider>();
+        floodTrigger.size = new Vector3(1.5f, 2f, 1.5f);
+        floodTrigger.isTrigger = true;
+        Rigidbody floodTriggerBody = floodInteractionZone.AddComponent<Rigidbody>();
+        floodTriggerBody.isKinematic = true;
+        floodTriggerBody.useGravity = false;
+
+        List<Light> floodLightList = new();
+        List<Renderer> floodPanelList = new();
         Transform heads = NewGroup("Fixed Flood Heads", parent);
         Vector3 sourceHeadPosition = new(1.5f, 1.5f, 2f);
         Vector3 sourceHeadTarget = new(0f, 1.925f, 2.9f);
@@ -453,10 +519,26 @@ public static class ChamberSceneBuilder
             Transform head = NewGroup(x < 0 ? "Right Head" : "Left Head", heads);
             head.localPosition = MirrorPosition(new Vector3(x, 0f, 0f));
             Box("Frame", head, Vector3.zero, new Vector3(0.32f, 0.22f, 0.07f), dark);
-            Box("Panel", head, new Vector3(0f, 0f, 0.041f), new Vector3(0.26f, 0.16f, 0.012f), lightPanel);
-            SpotLight("Illumination", head, new Vector3(0f, 0f, 0.055f), Vector3.forward,
-                Color.white, 14f, 10f, 60f, 42f, true);
+            GameObject panel = Box("Panel", head, new Vector3(0f, 0f, 0.041f),
+                new Vector3(0.26f, 0.16f, 0.012f), lightPanel);
+            floodPanelList.Add(panel.GetComponent<Renderer>());
+            floodLightList.Add(SpotLight(
+                "Illumination",
+                head,
+                new Vector3(0f, 0f, 0.055f),
+                Vector3.forward,
+                Color.white,
+                14f,
+                10f,
+                60f,
+                42f,
+                true));
         }
+
+        chamberWallLights = wallLightList.ToArray();
+        chamberWallPanels = wallPanelList.ToArray();
+        floodLights = floodLightList.ToArray();
+        floodPanels = floodPanelList.ToArray();
     }
 
     private static void BuildEquipment(
@@ -537,6 +619,15 @@ public static class ChamberSceneBuilder
             }
         }
 
+        Transform stool = NewGroup("Stool", parent);
+        Vector3 stoolCenter = new(-0.08f, 0f, 0.72f);
+        Cylinder("Floor Base", stool, stoolCenter + new Vector3(0f, 0.025f, 0f),
+            0.18f, 0.05f, tableMaterial);
+        Cylinder("Trunk", stool, stoolCenter + new Vector3(0f, 0.25f, 0f),
+            0.035f, 0.45f, tableMaterial);
+        Cylinder("Seat", stool, stoolCenter + new Vector3(0f, 0.49f, 0f),
+            0.2f, 0.07f, tableMaterial);
+
         Transform computer = NewGroup("Computer", parent);
         float tabletopY = tableHeight;
 
@@ -598,6 +689,26 @@ public static class ChamberSceneBuilder
         seatedCameraPose.localPosition = MirrorPosition(seatedPosition);
         seatedCameraPose.localRotation = MirrorRotation(
             Quaternion.LookRotation(seatedTarget - seatedPosition, Vector3.up));
+    }
+
+    private static void BuildScissorLiftControl(
+        Transform parent,
+        Material controlMaterial,
+        out GameObject interactionZone)
+    {
+        Vector3 controlPosition = new(-2f, 1.2f, 4.88f);
+        Box("Red Lift Control", parent, controlPosition,
+            new Vector3(0.2f, 0.2f, 0.2f), controlMaterial);
+
+        interactionZone = new GameObject("Interaction Zone");
+        interactionZone.transform.SetParent(parent, false);
+        interactionZone.transform.localPosition = MirrorPosition(new Vector3(-2f, 1f, 4.25f));
+        BoxCollider trigger = interactionZone.AddComponent<BoxCollider>();
+        trigger.size = new Vector3(1.2f, 2f, 1.25f);
+        trigger.isTrigger = true;
+        Rigidbody triggerBody = interactionZone.AddComponent<Rigidbody>();
+        triggerBody.isKinematic = true;
+        triggerBody.useGravity = false;
     }
 
     private static void BuildWallCamera(
