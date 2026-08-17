@@ -720,8 +720,8 @@ public static class ChamberSceneBuilder
         float tiltDiskInnerFaceX = leftHousingOuterFaceX - TiltDiskHousingClearance;
         float tiltDiskOuterFaceX = tiltDiskInnerFaceX - TiltDiskThickness;
         float tiltDiskX = (tiltDiskInnerFaceX + tiltDiskOuterFaceX) / 2f;
-        Cylinder("Tilt Disk", tiltAssembly, new Vector3(tiltDiskX, 0f, 0f), TiltDiskDiameter / 2f,
-            TiltDiskThickness, orange, Quaternion.Euler(0f, 0f, 90f));
+        HalfCylinder("Tilt Disk", tiltAssembly, new Vector3(tiltDiskX, 0f, 0f),
+            TiltDiskDiameter / 2f, TiltDiskThickness, orange);
         Box("Tilt Housing", tiltAssembly, new Vector3(0f, -0.1f, 0f), new Vector3(0.6f, 0.2f, 0.4f), orange);
 
         float shaftRight = HousingOverallWidth / 2f + TurnShaftEndExtension;
@@ -1148,6 +1148,88 @@ public static class ChamberSceneBuilder
         GameObject gameObject = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
         Vector3 scale = new(radius * 2f, height / 2f, radius * 2f);
         SetPrimitive(gameObject, name, parent, position, rotation ?? Quaternion.identity, scale, material);
+        return gameObject;
+    }
+
+    private static GameObject HalfCylinder(
+        string name,
+        Transform parent,
+        Vector3 position,
+        float radius,
+        float thickness,
+        Material material)
+    {
+        const int arcSegments = 32;
+        float halfThickness = thickness / 2f;
+        List<Vector3> vertices = new();
+        List<int> triangles = new();
+
+        int negativeCenter = vertices.Count;
+        vertices.Add(new Vector3(-halfThickness, 0f, 0f));
+        int negativeArc = vertices.Count;
+        for (int index = 0; index <= arcSegments; index++)
+        {
+            float angle = Mathf.PI * index / arcSegments;
+            vertices.Add(new Vector3(
+                -halfThickness,
+                -Mathf.Sin(angle) * radius,
+                Mathf.Cos(angle) * radius));
+        }
+
+        int positiveCenter = vertices.Count;
+        vertices.Add(new Vector3(halfThickness, 0f, 0f));
+        int positiveArc = vertices.Count;
+        for (int index = 0; index <= arcSegments; index++)
+        {
+            float angle = Mathf.PI * index / arcSegments;
+            vertices.Add(new Vector3(
+                halfThickness,
+                -Mathf.Sin(angle) * radius,
+                Mathf.Cos(angle) * radius));
+        }
+
+        for (int index = 0; index < arcSegments; index++)
+        {
+            int negativeCurrent = negativeArc + index;
+            int negativeNext = negativeCurrent + 1;
+            int positiveCurrent = positiveArc + index;
+            int positiveNext = positiveCurrent + 1;
+
+            // End caps.
+            triangles.Add(negativeCenter);
+            triangles.Add(negativeNext);
+            triangles.Add(negativeCurrent);
+            triangles.Add(positiveCenter);
+            triangles.Add(positiveCurrent);
+            triangles.Add(positiveNext);
+
+            // Curved outer edge.
+            triangles.Add(negativeCurrent);
+            triangles.Add(negativeNext);
+            triangles.Add(positiveNext);
+            triangles.Add(negativeCurrent);
+            triangles.Add(positiveNext);
+            triangles.Add(positiveCurrent);
+        }
+
+        // Horizontal flat face along the diameter at y = 0. The arc hangs below it.
+        int negativeTop = negativeArc;
+        int negativeBottom = negativeArc + arcSegments;
+        int positiveTop = positiveArc;
+        int positiveBottom = positiveArc + arcSegments;
+        triangles.Add(negativeTop);
+        triangles.Add(positiveTop);
+        triangles.Add(positiveBottom);
+        triangles.Add(negativeTop);
+        triangles.Add(positiveBottom);
+        triangles.Add(negativeBottom);
+
+        Mesh mesh = GetGeneratedMesh(
+            $"{name}_HalfCylinder",
+            vertices.ToArray(),
+            triangles.ToArray());
+        GameObject gameObject = MeshObject(name, parent, mesh, material, true);
+        gameObject.transform.localPosition = MirrorPosition(position);
         return gameObject;
     }
 
