@@ -66,7 +66,7 @@ Useful commands include `editor_state`, `refresh`, `save_scene`, `rebuild_chambe
 ## Controls
 
 - In Edit Mode, use `Window > Chamber Tools` for chamber visualization controls.
-- The debug control-mode UI switches between player and table input; `Tab` is a shortcut.
 - Player mode uses `WASD` movement and mouse look. `Escape` releases the captured mouse.
-- Table mode uses `A`/`D` for pan, `W`/`S` for tilt, and `Q`/`E` for height.
+- Near the computer console, `F` enters the seated console mode; `F` or `Escape` exits it.
+- Console mode uses `A`/`D` for pan and `W`/`S` for tilt. It must never expose, display, or change positioner height.
 - Wall visualization is editor-only and is controlled from `Window > Chamber Tools`.

@@ -14,6 +14,8 @@ public sealed class FirstPersonPlayerController : MonoBehaviour
     private float pitchDegrees;
     private float verticalSpeed;
 
+    public Camera PlayerCamera => playerCamera;
+
     public void Configure(Camera camera)
     {
         playerCamera = camera;

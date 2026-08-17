@@ -5,6 +5,7 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
 /// <summary>
 /// Recreates the physical chamber model defined in msu_anechoic/web/static/3d.js.
@@ -169,8 +170,18 @@ public static class ChamberSceneBuilder
             chamberPhysicalRenderers, chamberCutawayRenderers);
         BuildLightingFixtures(NewGroup("Lighting Fixtures", root), stand, dark, lightPanel);
         BuildEquipment(NewGroup("Equipment", root), table, lift, housing, purple, orange, yellow, source);
-        BuildComputerConsole(NewGroup("Computer Console", root), table, dark, monitorScreen);
-        BuildExteriorDisplays(NewGroup("Exterior Camera Displays", root), dark, monitorScreen);
+        TurntableController tableController = root.GetComponentInChildren<TurntableController>();
+        BuildComputerConsole(
+            NewGroup("Computer Console", root),
+            table,
+            dark,
+            out GameObject consoleInteractionZone,
+            out Transform seatedCameraPose);
+        BuildExteriorDisplays(
+            NewGroup("Exterior Camera Displays", root),
+            dark,
+            monitorScreen,
+            tableController);
         ShellVisualBinding[] roomVisuals = CreateCameraVisuals(
             roomPhysicalRenderers, roomConcreteTransparent);
         ShellVisualBinding[] chamberVisuals = CreateCameraVisuals(
@@ -192,10 +203,14 @@ public static class ChamberSceneBuilder
         ConfigureSceneCameraAndLight();
         FirstPersonPlayerController playerController =
             BuildPlayer(NewGroup("Player", root), playerMaterial);
-        TurntableController tableController = root.GetComponentInChildren<TurntableController>();
-        GameControlModeController controlModeController =
-            root.gameObject.AddComponent<GameControlModeController>();
-        controlModeController.Configure(playerController, tableController);
+        tableController.enabled = false;
+        ComputerConsoleController consoleController =
+            consoleInteractionZone.AddComponent<ComputerConsoleController>();
+        consoleController.Configure(
+            playerController,
+            tableController,
+            playerController.PlayerCamera,
+            seatedCameraPose);
         BuildWallCamera(NewGroup("Chamber Wall Camera", root), cameraWhite, dark, monitorView);
 
         EditorSceneManager.MarkSceneDirty(scene);
@@ -481,7 +496,8 @@ public static class ChamberSceneBuilder
         Transform parent,
         Material tableMaterial,
         Material computerMaterial,
-        Material screenMaterial)
+        out GameObject interactionZone,
+        out Transform seatedCameraPose)
     {
         // Source-coordinate placement before the project's YZ-plane reflection.
         // The console sits outside and parallel to the door-side frustum wall.
@@ -556,7 +572,32 @@ public static class ChamberSceneBuilder
             new Vector3(bodyWidth, bodyHeight, bodyDepth), computerMaterial);
         Box("Screen", monitor,
             new Vector3(-0.08f, bodyY, monitorZ + bodyDepth / 2f + 0.003f),
-            new Vector3(screenWidth, screenHeight, 0.006f), screenMaterial);
+            new Vector3(screenWidth, screenHeight, 0.006f), computerMaterial);
+        CreateWorldDisplayText(
+            "Console Instructions",
+            monitor,
+            new Vector3(-0.08f, bodyY, monitorZ + bodyDepth / 2f + 0.008f),
+            screenWidth * 0.92f,
+            screenHeight * 0.86f,
+            "Use WASD to control\nturntable.\n\nHit ESC to stand up",
+            50);
+
+        interactionZone = new GameObject("Interaction Zone");
+        interactionZone.transform.SetParent(parent, false);
+        interactionZone.transform.localPosition = MirrorPosition(new Vector3(-0.08f, 0.9f, 0.75f));
+        BoxCollider trigger = interactionZone.AddComponent<BoxCollider>();
+        trigger.size = new Vector3(1.2f, 1.8f, 0.9f);
+        trigger.isTrigger = true;
+        Rigidbody triggerBody = interactionZone.AddComponent<Rigidbody>();
+        triggerBody.isKinematic = true;
+        triggerBody.useGravity = false;
+
+        seatedCameraPose = NewGroup("Seated Camera Pose", parent);
+        Vector3 seatedPosition = new(-0.08f, 1.15f, 0.62f);
+        Vector3 seatedTarget = new(-0.08f, 1.05f, monitorZ);
+        seatedCameraPose.localPosition = MirrorPosition(seatedPosition);
+        seatedCameraPose.localRotation = MirrorRotation(
+            Quaternion.LookRotation(seatedTarget - seatedPosition, Vector3.up));
     }
 
     private static void BuildWallCamera(
@@ -607,7 +648,8 @@ public static class ChamberSceneBuilder
     private static void BuildExteriorDisplays(
         Transform parent,
         Material bodyMaterial,
-        Material screenMaterial)
+        Material cameraScreenMaterial,
+        TurntableController turntableController)
     {
         const float roomFloorY = -0.3f;
         const float displayCenterAboveFloor = 1.75f;
@@ -641,8 +683,77 @@ public static class ChamberSceneBuilder
             Box("Body", display, Vector3.zero,
                 new Vector3(bodyWidth, bodyHeight, bodyDepth), bodyMaterial);
             Box("Screen", display, new Vector3(0f, 0f, bodyDepth / 2f + 0.003f),
-                new Vector3(screenWidth, screenHeight, 0.006f), screenMaterial);
+                new Vector3(screenWidth, screenHeight, 0.006f),
+                index == 0 ? cameraScreenMaterial : bodyMaterial);
+
+            if (index == 1)
+            {
+                Text readout = CreateWorldDisplayText(
+                    "Pan Tilt Readout",
+                    display,
+                    new Vector3(0f, 0f, bodyDepth / 2f + 0.008f),
+                    screenWidth * 0.94f,
+                    screenHeight * 0.88f,
+                    "Pan: 0° / Tilt: 0°",
+                    58);
+                TurntableReadoutDisplay readoutDisplay =
+                    display.gameObject.AddComponent<TurntableReadoutDisplay>();
+                readoutDisplay.Configure(turntableController, readout);
+            }
         }
+    }
+
+    private static Text CreateWorldDisplayText(
+        string name,
+        Transform parent,
+        Vector3 position,
+        float width,
+        float height,
+        string content,
+        int fontSize)
+    {
+        const float canvasPixelWidth = 1000f;
+        float canvasPixelHeight = canvasPixelWidth * height / width;
+        GameObject canvasObject = new(
+            name,
+            typeof(RectTransform),
+            typeof(Canvas),
+            typeof(CanvasScaler));
+        RectTransform canvasTransform = canvasObject.GetComponent<RectTransform>();
+        canvasTransform.SetParent(parent, false);
+        canvasTransform.localPosition = MirrorPosition(position);
+        canvasTransform.localRotation = MirrorRotation(Quaternion.Euler(0f, 180f, 0f));
+        canvasTransform.localScale = Vector3.one * (width / canvasPixelWidth);
+        canvasTransform.sizeDelta = new Vector2(canvasPixelWidth, canvasPixelHeight);
+
+        Canvas canvas = canvasObject.GetComponent<Canvas>();
+        canvas.renderMode = RenderMode.WorldSpace;
+        canvas.overrideSorting = true;
+        canvas.sortingOrder = 10;
+        CanvasScaler scaler = canvasObject.GetComponent<CanvasScaler>();
+        scaler.dynamicPixelsPerUnit = 2f;
+
+        GameObject textObject = new(
+            "Text",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Text));
+        RectTransform textTransform = textObject.GetComponent<RectTransform>();
+        textTransform.SetParent(canvasTransform, false);
+        textTransform.anchorMin = Vector2.zero;
+        textTransform.anchorMax = Vector2.one;
+        textTransform.offsetMin = new Vector2(24f, 18f);
+        textTransform.offsetMax = new Vector2(-24f, -18f);
+
+        Text text = textObject.GetComponent<Text>();
+        text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        text.fontSize = fontSize;
+        text.alignment = TextAnchor.MiddleCenter;
+        text.color = Color.white;
+        text.text = content;
+        text.horizontalOverflow = HorizontalWrapMode.Wrap;
+        text.verticalOverflow = VerticalWrapMode.Overflow;
+        return text;
     }
 
     private static void BuildScissorForks(
