@@ -19,7 +19,7 @@ public sealed class ComputerConsoleController : MonoBehaviour
     [SerializeField, Min(0.05f)] private float transitionSeconds = 0.65f;
     [SerializeField, Min(0f)] private float mouseSensitivity = 0.1f;
     [SerializeField] private Vector2 azimuthLimitsDegrees = new(-30f, 30f);
-    [SerializeField] private Vector2 elevationLimitsDegrees = new(-15f, 15f);
+    [SerializeField] private Vector2 elevationLimitsDegrees = new(-30f, 15f);
 
     private InteractionState state = InteractionState.Standing;
     private bool playerNearby;
