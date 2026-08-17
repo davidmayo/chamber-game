@@ -17,6 +17,7 @@ public static class ChamberSceneBuilder
     private const string RootName = "Chamber Geometry";
     private const string MaterialFolder = "Assets/_Project/Materials";
     private const string MeshFolder = "Assets/_Project/Generated/Meshes";
+    private const string RenderTextureFolder = "Assets/_Project/Generated/RenderTextures";
 
     private const float MetersPerInch = 0.0254f;
     private const float PanDiskDiameter = 28f * MetersPerInch;
@@ -114,7 +115,7 @@ public static class ChamberSceneBuilder
         float preserveChamberOpacity = 100f;
         if (existing != null)
         {
-            Camera existingCamera = Object.FindFirstObjectByType<Camera>();
+            Camera existingCamera = FindMainSceneCamera();
             if (existingCamera != null && existingCamera.transform.IsChildOf(existing.transform))
             {
                 existingCamera.transform.SetParent(null, true);
@@ -132,6 +133,8 @@ public static class ChamberSceneBuilder
 
         EnsureFolder(MaterialFolder);
         EnsureFolder(MeshFolder);
+        EnsureFolder(RenderTextureFolder);
+        RenderTexture monitorView = GetRenderTexture("ChamberWallCamera", 1280, 720);
         Material wall = GetMaterial("Wall", WallColor, 0f, 0f);
         Material floor = GetMaterial("Floor", FloorColor, 0f, 0f);
         Material table = GetMaterial("Table", TableColor, 0.15f, 0.2f);
@@ -152,6 +155,8 @@ public static class ChamberSceneBuilder
             "ChamberFloorTransparent", FloorColor, 0f, 0f);
         Material playerMaterial = GetMaterial("Player", PlayerColor, 0f, 0.25f);
         Material lightPanel = GetMaterial("LightPanel", Color.white, 0f, 0.75f, true, 8f);
+        Material cameraWhite = GetMaterial("CameraWhite", Color.white, 0f, 0.3f);
+        Material monitorScreen = GetMonitorDisplayMaterial("MonitorScreen", monitorView);
 
         Transform root = NewGroup(RootName, null);
         List<Renderer> roomPhysicalRenderers = new();
@@ -164,6 +169,8 @@ public static class ChamberSceneBuilder
             chamberPhysicalRenderers, chamberCutawayRenderers);
         BuildLightingFixtures(NewGroup("Lighting Fixtures", root), stand, dark, lightPanel);
         BuildEquipment(NewGroup("Equipment", root), table, lift, housing, purple, orange, yellow, source);
+        BuildComputerConsole(NewGroup("Computer Console", root), table, dark, monitorScreen);
+        BuildExteriorDisplays(NewGroup("Exterior Camera Displays", root), dark, monitorScreen);
         ShellVisualBinding[] roomVisuals = CreateCameraVisuals(
             roomPhysicalRenderers, roomConcreteTransparent);
         ShellVisualBinding[] chamberVisuals = CreateCameraVisuals(
@@ -189,6 +196,7 @@ public static class ChamberSceneBuilder
         GameControlModeController controlModeController =
             root.gameObject.AddComponent<GameControlModeController>();
         controlModeController.Configure(playerController, tableController);
+        BuildWallCamera(NewGroup("Chamber Wall Camera", root), cameraWhite, dark, monitorView);
 
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
@@ -469,6 +477,174 @@ public static class ChamberSceneBuilder
             risingBackwardForks);
     }
 
+    private static void BuildComputerConsole(
+        Transform parent,
+        Material tableMaterial,
+        Material computerMaterial,
+        Material screenMaterial)
+    {
+        // Source-coordinate placement before the project's YZ-plane reflection.
+        // The console sits outside and parallel to the door-side frustum wall.
+        const float tableLength = 4f * 12f * MetersPerInch;
+        const float tableDepth = 2.5f * 12f * MetersPerInch;
+        const float tableHeight = 0.74f;
+        const float tableTopThickness = 0.045f;
+        const float legThickness = 0.055f;
+        const float containingRoomFloor = -0.3f;
+
+        Vector3 wallOutward = new Vector3(5f, 0f, -2f).normalized;
+        const float consoleZ = -2.4f;
+        float wallX = 2.5f + 0.4f * consoleZ;
+        Vector3 consolePosition = new(
+            wallX + wallOutward.x * (tableDepth / 2f + 0.18f),
+            containingRoomFloor,
+            consoleZ + wallOutward.z * (tableDepth / 2f + 0.18f));
+        Quaternion consoleRotation = Quaternion.LookRotation(wallOutward, Vector3.up);
+        parent.localPosition = MirrorPosition(consolePosition);
+        parent.localRotation = MirrorRotation(consoleRotation);
+
+        Transform desk = NewGroup("Table", parent);
+        float topCenterY = tableHeight - tableTopThickness / 2f;
+        Box("Tabletop", desk, new Vector3(0f, topCenterY, 0f),
+            new Vector3(tableLength, tableTopThickness, tableDepth), tableMaterial);
+
+        float legHeight = tableHeight - tableTopThickness;
+        float legCenterY = legHeight / 2f;
+        float legX = tableLength / 2f - 0.08f;
+        float legZ = tableDepth / 2f - 0.08f;
+        foreach (float x in new[] { -legX, legX })
+        {
+            foreach (float z in new[] { -legZ, legZ })
+            {
+                Box("Leg", desk, new Vector3(x, legCenterY, z),
+                    new Vector3(legThickness, legHeight, legThickness), tableMaterial);
+            }
+        }
+
+        Transform computer = NewGroup("Computer", parent);
+        float tabletopY = tableHeight;
+
+        // A compact desktop tower at one end of the table.
+        Box("PC", computer, new Vector3(0.49f, tabletopY + 0.18f, -0.12f),
+            new Vector3(0.18f, 0.36f, 0.34f), computerMaterial);
+
+        // A deliberately simple keyboard near the operator-facing edge.
+        Box("Keyboard", computer, new Vector3(-0.08f, tabletopY + 0.018f, 0.18f),
+            new Vector3(0.42f, 0.036f, 0.16f), computerMaterial,
+            Quaternion.Euler(-4f, 0f, 0f));
+
+        Transform monitor = NewGroup("23-inch LED Monitor", computer);
+        const float monitorDiagonal = 23f * MetersPerInch;
+        float screenHeight = monitorDiagonal / Mathf.Sqrt(16f * 16f + 9f * 9f) * 9f;
+        float screenWidth = screenHeight * 16f / 9f;
+        const float bodyDepth = 0.055f;
+        const float bezel = 0.022f;
+        const float baseHeight = 0.025f;
+        const float standHeight = 0.18f;
+        const float monitorZ = -0.18f;
+        float bodyWidth = screenWidth + bezel * 2f;
+        float bodyHeight = screenHeight + bezel * 2f;
+        float baseY = tabletopY + baseHeight / 2f;
+        float standY = tabletopY + baseHeight + standHeight / 2f;
+        float bodyY = tabletopY + baseHeight + standHeight + bodyHeight / 2f;
+
+        Cylinder("Base", monitor, new Vector3(-0.08f, baseY, monitorZ),
+            0.12f, baseHeight, computerMaterial);
+        Cylinder("Stand", monitor, new Vector3(-0.08f, standY, monitorZ),
+            0.02f, standHeight, computerMaterial);
+        Box("Body", monitor, new Vector3(-0.08f, bodyY, monitorZ),
+            new Vector3(bodyWidth, bodyHeight, bodyDepth), computerMaterial);
+        Box("Screen", monitor,
+            new Vector3(-0.08f, bodyY, monitorZ + bodyDepth / 2f + 0.003f),
+            new Vector3(screenWidth, screenHeight, 0.006f), screenMaterial);
+    }
+
+    private static void BuildWallCamera(
+        Transform parent,
+        Material housingMaterial,
+        Material lensMaterial,
+        RenderTexture targetTexture)
+    {
+        float panDiskCenterY =
+            0.2f
+            + TiltAxisZeroLiftHeight
+            + PanDiskTopAboveTiltAxis
+            - PanDiskThickness / 2f;
+        Vector3 cameraPosition = new(-2.5f, 1.5f, 2.5f);
+        Vector3 targetPosition = new(0f, panDiskCenterY, 3f);
+        parent.localPosition = MirrorPosition(cameraPosition);
+        parent.localRotation = MirrorRotation(
+            Quaternion.LookRotation(targetPosition - cameraPosition, Vector3.up));
+
+        const float housingLength = 0.3f;
+        const float housingRadius = 0.05f;
+        Cylinder("White Camera Housing", parent,
+            new Vector3(0f, 0f, housingLength / 2f),
+            housingRadius,
+            housingLength,
+            housingMaterial,
+            Quaternion.Euler(90f, 0f, 0f));
+        Cylinder("Lens", parent, new Vector3(0f, 0f, housingLength + 0.003f),
+            0.04f, 0.006f, lensMaterial, Quaternion.Euler(90f, 0f, 0f));
+
+        Transform view = NewGroup("Camera View", parent);
+        view.localPosition = new Vector3(0f, 0f, housingLength + 0.012f);
+        Camera camera = view.gameObject.AddComponent<Camera>();
+        camera.targetTexture = targetTexture;
+        camera.clearFlags = CameraClearFlags.SolidColor;
+        camera.backgroundColor = Color.black;
+        camera.fieldOfView = 55f;
+        camera.nearClipPlane = 0.03f;
+        camera.farClipPlane = 30f;
+        camera.allowHDR = true;
+        camera.allowMSAA = true;
+
+        UniversalAdditionalCameraData cameraData =
+            camera.GetUniversalAdditionalCameraData();
+        cameraData.renderPostProcessing = false;
+    }
+
+    private static void BuildExteriorDisplays(
+        Transform parent,
+        Material bodyMaterial,
+        Material screenMaterial)
+    {
+        const float roomFloorY = -0.3f;
+        const float displayCenterAboveFloor = 1.75f;
+        const float diagonal = 40f * MetersPerInch;
+        const float bezel = 0.025f;
+        const float bodyDepth = 0.06f;
+        const float displayGap = 5f * MetersPerInch;
+        const float wallThickness = 0.15f;
+
+        float screenHeight = diagonal / Mathf.Sqrt(16f * 16f + 9f * 9f) * 9f;
+        float screenWidth = screenHeight * 16f / 9f;
+        float bodyWidth = screenWidth + bezel * 2f;
+        float bodyHeight = screenHeight + bezel * 2f;
+        float centerY = roomFloorY + displayCenterAboveFloor;
+
+        Vector3 wallOutward = new Vector3(5f, 0f, -2f).normalized;
+        const float centerZ = -2.4f;
+        float wallX = 2.5f + 0.4f * centerZ;
+        Vector3 displayCenter = new(wallX, centerY, centerZ);
+        displayCenter += wallOutward * (wallThickness + bodyDepth / 2f + 0.01f);
+        Quaternion displayRotation = Quaternion.LookRotation(wallOutward, Vector3.up);
+        parent.localPosition = MirrorPosition(displayCenter);
+        parent.localRotation = MirrorRotation(displayRotation);
+
+        float centerOffset = (bodyWidth + displayGap) / 2f;
+        for (int index = 0; index < 2; index++)
+        {
+            float x = index == 0 ? -centerOffset : centerOffset;
+            Transform display = NewGroup($"40-inch TV {index + 1}", parent);
+            display.localPosition = MirrorPosition(new Vector3(x, 0f, 0f));
+            Box("Body", display, Vector3.zero,
+                new Vector3(bodyWidth, bodyHeight, bodyDepth), bodyMaterial);
+            Box("Screen", display, new Vector3(0f, 0f, bodyDepth / 2f + 0.003f),
+                new Vector3(screenWidth, screenHeight, 0.006f), screenMaterial);
+        }
+    }
+
     private static void BuildScissorForks(
         Transform parent,
         Material material,
@@ -614,7 +790,7 @@ public static class ChamberSceneBuilder
 
     private static FirstPersonPlayerController BuildPlayer(Transform player, Material material)
     {
-        Camera camera = Object.FindFirstObjectByType<Camera>();
+        Camera camera = FindMainSceneCamera();
         if (camera == null)
         {
             throw new System.InvalidOperationException("The main scene requires a Camera for the player.");
@@ -650,7 +826,7 @@ public static class ChamberSceneBuilder
 
     private static void ConfigureSceneCameraAndLight()
     {
-        Camera camera = Object.FindFirstObjectByType<Camera>();
+        Camera camera = FindMainSceneCamera();
         if (camera != null)
         {
             Vector3 sourcePosition = new(-1.8f, 1.7f, 0.8f);
@@ -668,6 +844,18 @@ public static class ChamberSceneBuilder
             light.intensity = 1.2f;
             break;
         }
+    }
+
+    private static Camera FindMainSceneCamera()
+    {
+        Camera camera = Camera.main;
+        if (camera != null)
+        {
+            return camera;
+        }
+
+        GameObject namedCamera = GameObject.Find("Main Camera");
+        return namedCamera != null ? namedCamera.GetComponent<Camera>() : null;
     }
 
     private static Transform NewGroup(string name, Transform parent)
@@ -1080,6 +1268,66 @@ public static class ChamberSceneBuilder
         material.renderQueue = (int)RenderQueue.Transparent;
         EditorUtility.SetDirty(material);
         return material;
+    }
+
+    private static Material GetMonitorDisplayMaterial(
+        string name,
+        RenderTexture monitorView)
+    {
+        string path = $"{MaterialFolder}/{name}.mat";
+        Material material = AssetDatabase.LoadAssetAtPath<Material>(path);
+        Shader shader = Shader.Find("Universal Render Pipeline/Unlit")
+            ?? Shader.Find("Unlit/Texture");
+        if (material == null)
+        {
+            material = new Material(shader) { name = name };
+            AssetDatabase.CreateAsset(material, path);
+        }
+        else if (shader != null && material.shader != shader)
+        {
+            material.shader = shader;
+        }
+
+        material.color = Color.white;
+        material.mainTexture = monitorView;
+        if (material.HasProperty("_BaseColor"))
+            material.SetColor("_BaseColor", Color.white);
+        if (material.HasProperty("_BaseMap"))
+            material.SetTexture("_BaseMap", monitorView);
+        if (material.HasProperty("_Cull"))
+            material.SetFloat("_Cull", (float)CullMode.Back);
+        material.renderQueue = (int)RenderQueue.Geometry;
+        EditorUtility.SetDirty(material);
+        return material;
+    }
+
+    private static RenderTexture GetRenderTexture(string name, int width, int height)
+    {
+        string path = $"{RenderTextureFolder}/{name}.renderTexture";
+        RenderTexture renderTexture = AssetDatabase.LoadAssetAtPath<RenderTexture>(path);
+        if (renderTexture == null)
+        {
+            renderTexture = new RenderTexture(width, height, 24, RenderTextureFormat.ARGB32)
+            {
+                name = name,
+            };
+            AssetDatabase.CreateAsset(renderTexture, path);
+        }
+        else if (renderTexture.width != width || renderTexture.height != height)
+        {
+            renderTexture.Release();
+            renderTexture.width = width;
+            renderTexture.height = height;
+        }
+
+        renderTexture.depth = 24;
+        renderTexture.antiAliasing = 1;
+        renderTexture.useMipMap = false;
+        renderTexture.autoGenerateMips = false;
+        renderTexture.wrapMode = TextureWrapMode.Clamp;
+        renderTexture.filterMode = FilterMode.Bilinear;
+        EditorUtility.SetDirty(renderTexture);
+        return renderTexture;
     }
 
     private static void EnsureFolder(string path)

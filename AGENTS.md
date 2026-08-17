@@ -36,6 +36,18 @@ This is a Unity 6.3 LTS project using URP. Keep changes small, readable, and fri
 - Containing-room and chamber camera opacity are independently adjustable. Opacity changes must never alter shell collision or shadow casting.
 - Door and source-window frames must remain opaque in both opaque and cutaway modes.
 
+## Chamber coordinate system
+
+Use directions from the table's point of view when discussing or placing chamber objects:
+
+- **Forward** points from the table toward the throat/source antenna: world `-Z`.
+- **Backward** points away from the throat: world `+Z`.
+- **Right** points from the table toward the chamber door: world `-X`.
+- **Left** points away from the door: world `+X`.
+- **Up** is world `+Y`; **down** is world `-Y`.
+
+This project-facing meaning of left/right intentionally reflects Unity's usual X-axis intuition because the imported chamber geometry is mirrored across the YZ plane.
+
 ## Working with the open Unity Editor
 
 Use the local bridge instead of launching a second Unity instance:
