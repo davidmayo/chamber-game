@@ -696,13 +696,13 @@ public static class ChamberSceneBuilder
         Material controlMaterial,
         out GameObject interactionZone)
     {
-        Vector3 controlPosition = new(-2f, 1.2f, 4.88f);
+        Vector3 controlPosition = new(2f, 1.2f, 4.88f);
         Box("Red Lift Control", parent, controlPosition,
             new Vector3(0.2f, 0.2f, 0.2f), controlMaterial);
 
         interactionZone = new GameObject("Interaction Zone");
         interactionZone.transform.SetParent(parent, false);
-        interactionZone.transform.localPosition = MirrorPosition(new Vector3(-2f, 1f, 4.25f));
+        interactionZone.transform.localPosition = MirrorPosition(new Vector3(2f, 1f, 4.25f));
         BoxCollider trigger = interactionZone.AddComponent<BoxCollider>();
         trigger.size = new Vector3(1.2f, 2f, 1.25f);
         trigger.isTrigger = true;
@@ -1051,8 +1051,9 @@ public static class ChamberSceneBuilder
         Camera camera = FindMainSceneCamera();
         if (camera != null)
         {
-            Vector3 sourcePosition = new(-1.8f, 1.7f, 0.8f);
-            Vector3 sourceTarget = new(0f, 2.5f, -5f);
+            // Start just outside the door (world -X) and look into the chamber.
+            Vector3 sourcePosition = new(3f, 1.7f, 2.5f);
+            Vector3 sourceTarget = new(0f, 1.5f, 2.5f);
             camera.transform.position = MirrorPosition(sourcePosition);
             camera.transform.rotation = MirrorRotation(
                 Quaternion.LookRotation(sourceTarget - sourcePosition, Vector3.up));

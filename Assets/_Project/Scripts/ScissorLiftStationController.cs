@@ -34,6 +34,7 @@ public sealed class ScissorLiftStationController : MonoBehaviour
                 controllingLift = true;
                 playerController.enabled = false;
                 turntableController.enabled = false;
+                SetCursorCaptured(true);
             }
             return;
         }
@@ -42,6 +43,7 @@ public sealed class ScissorLiftStationController : MonoBehaviour
         {
             controllingLift = false;
             playerController.enabled = true;
+            SetCursorCaptured(true);
             return;
         }
 
@@ -89,6 +91,12 @@ public sealed class ScissorLiftStationController : MonoBehaviour
     private static float ButtonAxis(bool negativePressed, bool positivePressed)
     {
         return (positivePressed ? 1f : 0f) - (negativePressed ? 1f : 0f);
+    }
+
+    private static void SetCursorCaptured(bool captured)
+    {
+        Cursor.lockState = captured ? CursorLockMode.Locked : CursorLockMode.None;
+        Cursor.visible = !captured;
     }
 
     private static void DrawPrompt(string message)

@@ -35,6 +35,7 @@ This is a Unity 6.3 LTS project using URP. Keep changes small, readable, and fri
 - The shell uses closed volumetric shadow casters plus one-sided cutaway surfaces. Keep camera visibility, collision, and light/shadow behavior separate.
 - Containing-room and chamber camera opacity are independently adjustable. Opacity changes must never alter shell collision or shadow casting.
 - Door and source-window frames must remain opaque in both opaque and cutaway modes.
+- The player starts just outside the door, centered in its opening and facing into the chamber.
 
 ## Chamber coordinate system
 
