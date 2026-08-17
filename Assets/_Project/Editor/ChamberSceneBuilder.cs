@@ -782,7 +782,7 @@ public static class ChamberSceneBuilder
             new Vector3(0f, bodyY, monitorZ + bodyDepth / 2f + 0.008f),
             screenWidth * 0.92f,
             screenHeight * 0.86f,
-            "WASD: turntable\nQ/E: source polarity\n\nESC: stand up",
+            "WASD: turntable\nQ/E: source polarity\nWheel: zoom\n\nESC: stand up",
             50);
 
         BuildSpectrumAnalyzer(

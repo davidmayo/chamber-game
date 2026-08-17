@@ -2816,8 +2816,11 @@ MonoBehaviour:
 
     Q/E: source polarity
 
+    Wheel: zoom
 
-    ESC: stand up'
+
+    ESC:
+    stand up'
 --- !u!222 &272840624
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -17810,6 +17813,10 @@ MonoBehaviour:
   mouseSensitivity: 0.1
   azimuthLimitsDegrees: {x: -30, y: 30}
   elevationLimitsDegrees: {x: -30, y: 15}
+  seatedDefaultFieldOfView: 75
+  seatedZoomLimits: {x: 25, y: 75}
+  scrollZoomDegreesPerUnit: 0.05
+  zoomSmoothing: 12
 --- !u!54 &1771811538
 Rigidbody:
   m_ObjectHideFlags: 0

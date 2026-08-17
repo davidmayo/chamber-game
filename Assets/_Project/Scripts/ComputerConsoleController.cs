@@ -21,6 +21,10 @@ public sealed class ComputerConsoleController : MonoBehaviour
     [SerializeField, Min(0f)] private float mouseSensitivity = 0.1f;
     [SerializeField] private Vector2 azimuthLimitsDegrees = new(-30f, 30f);
     [SerializeField] private Vector2 elevationLimitsDegrees = new(-30f, 15f);
+    [SerializeField, Range(25f, 100f)] private float seatedDefaultFieldOfView = 75f;
+    [SerializeField] private Vector2 seatedZoomLimits = new(25f, 75f);
+    [SerializeField, Min(0f)] private float scrollZoomDegreesPerUnit = 0.05f;
+    [SerializeField, Min(0f)] private float zoomSmoothing = 12f;
 
     private InteractionState state = InteractionState.Standing;
     private bool playerNearby;
@@ -29,6 +33,9 @@ public sealed class ComputerConsoleController : MonoBehaviour
     private Quaternion transitionStartRotation;
     private Vector3 standingCameraLocalPosition;
     private Quaternion standingCameraLocalRotation;
+    private float transitionStartFieldOfView;
+    private float standingCameraFieldOfView;
+    private float seatedTargetFieldOfView;
     private float seatedAzimuth;
     private float seatedElevation;
 
@@ -140,7 +147,22 @@ public sealed class ComputerConsoleController : MonoBehaviour
                 seatedCameraPose.position,
                 seatedCameraPose.rotation
                     * Quaternion.Euler(seatedElevation, seatedAzimuth, 0f));
+
+            float scroll = Mouse.current.scroll.ReadValue().y;
+            if (Mathf.Abs(scroll) > 0.01f)
+            {
+                seatedTargetFieldOfView = Mathf.Clamp(
+                    seatedTargetFieldOfView - scroll * scrollZoomDegreesPerUnit,
+                    seatedZoomLimits.x,
+                    seatedZoomLimits.y);
+            }
         }
+
+        float zoomT = 1f - Mathf.Exp(-zoomSmoothing * Time.unscaledDeltaTime);
+        playerCamera.fieldOfView = Mathf.Lerp(
+            playerCamera.fieldOfView,
+            seatedTargetFieldOfView,
+            zoomT);
 
         // Console operation intentionally exposes pan and tilt only. Height remains
         // unchanged and has no input binding in this mode.
@@ -157,8 +179,14 @@ public sealed class ComputerConsoleController : MonoBehaviour
         transitionElapsed = 0f;
         transitionStartPosition = playerCamera.transform.position;
         transitionStartRotation = playerCamera.transform.rotation;
+        transitionStartFieldOfView = playerCamera.fieldOfView;
         standingCameraLocalPosition = playerCamera.transform.localPosition;
         standingCameraLocalRotation = playerCamera.transform.localRotation;
+        standingCameraFieldOfView = playerCamera.fieldOfView;
+        seatedTargetFieldOfView = Mathf.Clamp(
+            seatedDefaultFieldOfView,
+            seatedZoomLimits.x,
+            seatedZoomLimits.y);
         seatedAzimuth = 0f;
         seatedElevation = 0f;
         playerController.enabled = false;
@@ -172,6 +200,7 @@ public sealed class ComputerConsoleController : MonoBehaviour
         transitionElapsed = 0f;
         transitionStartPosition = playerCamera.transform.position;
         transitionStartRotation = playerCamera.transform.rotation;
+        transitionStartFieldOfView = playerCamera.fieldOfView;
         turntableController.enabled = false;
     }
 
@@ -192,6 +221,13 @@ public sealed class ComputerConsoleController : MonoBehaviour
         playerCamera.transform.SetPositionAndRotation(
             position,
             Quaternion.Slerp(transitionStartRotation, targetRotation, smoothT));
+        float targetFieldOfView = sittingDown
+            ? seatedTargetFieldOfView
+            : standingCameraFieldOfView;
+        playerCamera.fieldOfView = Mathf.Lerp(
+            transitionStartFieldOfView,
+            targetFieldOfView,
+            smoothT);
 
         if (linearT < 1f)
         {
@@ -204,12 +240,14 @@ public sealed class ComputerConsoleController : MonoBehaviour
             playerCamera.transform.SetPositionAndRotation(
                 seatedCameraPose.position,
                 seatedCameraPose.rotation);
+            playerCamera.fieldOfView = seatedTargetFieldOfView;
         }
         else
         {
             state = InteractionState.Standing;
             playerCamera.transform.localPosition = standingCameraLocalPosition;
             playerCamera.transform.localRotation = standingCameraLocalRotation;
+            playerCamera.fieldOfView = standingCameraFieldOfView;
             playerController.enabled = true;
         }
     }
