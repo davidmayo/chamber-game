@@ -69,15 +69,15 @@ Useful commands include `editor_state`, `refresh`, `save_scene`, `rebuild_chambe
 
 ## Controls
 
-- In Edit Mode, use `Window > Chamber Tools` for chamber visualization controls.
-- `Chamber Tools` also exposes chamber-light mode/timeout/status, floodlight state, and editable positioner pan/tilt/height. Generator rebuilds must preserve these values.
-- `Chamber Tools` is an editor-only visualization and debugging panel. Its saved values are useful for inspecting the scene and for Editor Play Mode, but standalone builds intentionally ignore them and start from `ChamberBuildDefaults`: opaque room/chamber walls, chamber lights Auto with a 30-second timer, floodlights off, pan/tilt/polarity at 0 degrees, and height at 0.2 m.
+- In Edit Mode, use `Window > Scene Tools` for scene visualization controls.
+- `Scene Tools` exposes the active scene's wall opacity. In the chamber it also exposes chamber-light mode/timeout/status, floodlight state, and editable positioner pan/tilt/height. Generator rebuilds must preserve these editor values.
+- `Scene Tools` is an editor-only visualization and debugging panel. Its saved values are useful for inspecting scenes and for Editor Play Mode, but standalone builds intentionally use opaque walls and start chamber gameplay from `ChamberBuildDefaults`: chamber lights Auto with a 30-second timer, floodlights off, pan/tilt/polarity at 0 degrees, and height at 0.2 m.
 - Player mode uses `WASD` movement and mouse look. `Escape` releases the captured mouse.
 - Near the computer console, `F` enters the seated console mode; `F` or `Escape` exits it.
 - Console mode uses `A`/`D` for pan, `W`/`S` for tilt, and `Q`/`E` for source-antenna polarity. It must never expose, display, or change positioner height.
 - The red rear-wall control is the only player interface for positioner height: `F` enters its mode, `Q`/`E` lower or raise, and `F` or `Escape` exits.
 - The chamber's back-wall lights respond only to player motion inside the chamber and time out after 30 seconds. The floodlights start off and are toggled with `F` near their stand.
-- Wall visualization is editor-only and is controlled from `Window > Chamber Tools`.
+- Wall visualization is editor-only and is controlled from `Window > Scene Tools`.
 
 ## Ground Ops scene
 
@@ -85,4 +85,5 @@ Useful commands include `editor_state`, `refresh`, `save_scene`, `rebuild_chambe
 - Use `Tools > Ground Ops > Sync and Open Ground Ops Blockout`, or the bridge command `build_ground_ops`, to synchronize and open it. Make durable geometry changes in the builder rather than beneath the generated `Ground Ops Blockout` hierarchy.
 - The current dimensions are photographic estimates based on `.local/reference`; keep the dimensional constants centralized and easy to replace when measurements become available.
 - Ground Ops uses its own intuitive coordinate convention: `+Z` runs from the main Ops entrance toward the Server Room, `-X` points toward the curved window wall, `+X` points toward the straight/right wall, and `+Y` is up.
+- Ground Ops wall opacity is controlled independently from `Window > Scene Tools`. Its volumetric wall shells always retain collision and shadow casting; the slider affects only camera visibility, with near walls at the selected opacity and inward-facing far walls remaining opaque.
 - Keep this early blockout deliberately sparse. The curved glazing, walls, doorway openings, floors, four equipped dish stations, two rows of non-dish stations with a joining station, the DSN rack pair, and the simple server-rack row are intentional; do not infer further furniture, equipment, ceiling infrastructure, or exterior scenery without a task requesting it.

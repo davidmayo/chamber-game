@@ -75,9 +75,21 @@ public static class GroundOpsSceneBuilder
 
         GameObject existingRoot = scene.GetRootGameObjects()
             .FirstOrDefault(candidate => candidate.name == RootName);
+        float preserveWallOpacity = 100f;
+        if (existingRoot != null)
+        {
+            ChamberShellVisibilityController existingVisibility =
+                existingRoot.GetComponent<ChamberShellVisibilityController>();
+            if (existingVisibility != null)
+            {
+                preserveWallOpacity = existingVisibility.RoomOpacityPercent;
+            }
+        }
         BeginSync(existingRoot);
 
         Material wallMaterial = GetMaterial("GroundOpsWall", new Color(0.76f, 0.75f, 0.70f), 0f, 0.08f);
+        Material transparentWallMaterial = GetTransparentMaterial(
+            "GroundOpsWallTransparent", new Color(0.76f, 0.75f, 0.70f, 0.50f));
         Material trimMaterial = GetMaterial("GroundOpsWindowTrim", new Color(0.16f, 0.18f, 0.20f), 0.15f, 0.25f);
         Material glassMaterial = GetTransparentMaterial("GroundOpsWindowGlass", new Color(0.32f, 0.48f, 0.58f, 0.28f));
         Material carpetMaterial = GetMaterial("GroundOpsCarpet", new Color(0.12f, 0.14f, 0.16f), 0f, 0.02f);
@@ -108,6 +120,8 @@ public static class GroundOpsSceneBuilder
             rightWallX,
             serverLeftX,
             carpetMaterial);
+        List<Renderer> wallPhysicalRenderers = new();
+        List<Renderer> wallCutawayRenderers = new();
         BuildWalls(
             NewGroup("Walls", architecture),
             windowPoints,
@@ -120,13 +134,29 @@ public static class GroundOpsSceneBuilder
             wallThickness,
             doorWidth,
             doorHeight,
-            wallMaterial);
+            wallMaterial,
+            wallPhysicalRenderers,
+            wallCutawayRenderers);
         BuildCurvedWindow(
             NewGroup("Curved Window", architecture),
             windowPoints,
             wallHeight,
             glassMaterial,
             trimMaterial);
+
+        ShellVisualBinding[] wallVisuals = CreateCameraVisuals(
+            wallPhysicalRenderers, transparentWallMaterial);
+        ChamberShellVisibilityController wallVisibility =
+            GetOrAddComponent<ChamberShellVisibilityController>(root.gameObject);
+        wallVisibility.Configure(
+            wallPhysicalRenderers.ToArray(),
+            wallVisuals,
+            wallCutawayRenderers.ToArray(),
+            System.Array.Empty<Renderer>(),
+            System.Array.Empty<ShellVisualBinding>(),
+            System.Array.Empty<Renderer>(),
+            preserveWallOpacity,
+            100f);
 
         Transform furniture = NewGroup("Furniture Blockout", root);
         BuildStationDesk("Dish Station 1", furniture, new Vector3(-3.540f, 0f, -2.680f), 17.181f,
@@ -229,15 +259,18 @@ public static class GroundOpsSceneBuilder
         float wallThickness,
         float doorWidth,
         float doorHeight,
-        Material material)
+        Material material,
+        List<Renderer> physicalRenderers,
+        List<Renderer> cutawayRenderers)
     {
         float centerY = wallHeight / 2f;
+        Transform cutaway = NewGroup("Cutaway Surfaces", parent);
 
         // Straight right wall shared by the Ops Room and Server Room.
-        Box("Right Wall", parent,
+        WallBox("Right Wall", parent, cutaway,
             new Vector3(rightWallX, centerY, (opsFrontZ + serverBackZ) / 2f),
             new Vector3(wallThickness, wallHeight, serverBackZ - opsFrontZ),
-            Quaternion.identity, material);
+            material, Vector3.left, physicalRenderers, cutawayRenderers);
 
         // Main Ops entrance opening near the front-right corner.
         const float opsDoorCenterX = 4.15f;
@@ -252,7 +285,11 @@ public static class GroundOpsSceneBuilder
             doorHeight,
             wallHeight,
             wallThickness,
-            material);
+            material,
+            Vector3.forward,
+            cutaway,
+            physicalRenderers,
+            cutawayRenderers);
 
         // Doorway between the Ops Room and Server Room near the window end.
         const float serverDoorCenterX = -2.70f;
@@ -267,16 +304,20 @@ public static class GroundOpsSceneBuilder
             doorHeight,
             wallHeight,
             wallThickness,
-            material);
+            material,
+            Vector3.back,
+            cutaway,
+            physicalRenderers,
+            cutawayRenderers);
 
-        Box("Server Room Back Wall", parent,
+        WallBox("Server Room Back Wall", parent, cutaway,
             new Vector3((serverLeftX + rightWallX) / 2f, centerY, serverBackZ),
             new Vector3(rightWallX - serverLeftX, wallHeight, wallThickness),
-            Quaternion.identity, material);
-        Box("Server Room Left Wall", parent,
+            material, Vector3.back, physicalRenderers, cutawayRenderers);
+        WallBox("Server Room Left Wall", parent, cutaway,
             new Vector3(serverLeftX, centerY, (partitionZ + serverBackZ) / 2f),
             new Vector3(wallThickness, wallHeight, serverBackZ - partitionZ),
-            Quaternion.identity, material);
+            material, Vector3.right, physicalRenderers, cutawayRenderers);
     }
 
     private static void BuildWallWithOpeningAlongX(
@@ -290,7 +331,11 @@ public static class GroundOpsSceneBuilder
         float openingHeight,
         float wallHeight,
         float thickness,
-        Material material)
+        Material material,
+        Vector3 inwardNormal,
+        Transform cutawayParent,
+        List<Renderer> physicalRenderers,
+        List<Renderer> cutawayRenderers)
     {
         Transform wall = NewGroup(name, parent);
         float openingLeft = openingCenterX - openingWidth / 2f;
@@ -299,15 +344,21 @@ public static class GroundOpsSceneBuilder
         float rightWidth = maximumX - openingRight;
         float headerHeight = wallHeight - openingHeight;
 
-        Box("Left Segment", wall,
+        WallBox("Left Segment", wall, cutawayParent,
             new Vector3(minimumX + leftWidth / 2f, wallHeight / 2f, z),
-            new Vector3(leftWidth, wallHeight, thickness), Quaternion.identity, material);
-        Box("Right Segment", wall,
+            new Vector3(leftWidth, wallHeight, thickness), material, inwardNormal,
+            physicalRenderers, cutawayRenderers,
+            $"{name} Left Segment");
+        WallBox("Right Segment", wall, cutawayParent,
             new Vector3(openingRight + rightWidth / 2f, wallHeight / 2f, z),
-            new Vector3(rightWidth, wallHeight, thickness), Quaternion.identity, material);
-        Box("Header", wall,
+            new Vector3(rightWidth, wallHeight, thickness), material, inwardNormal,
+            physicalRenderers, cutawayRenderers,
+            $"{name} Right Segment");
+        WallBox("Header", wall, cutawayParent,
             new Vector3(openingCenterX, openingHeight + headerHeight / 2f, z),
-            new Vector3(openingWidth, headerHeight, thickness), Quaternion.identity, material);
+            new Vector3(openingWidth, headerHeight, thickness), material, inwardNormal,
+            physicalRenderers, cutawayRenderers,
+            $"{name} Header");
     }
 
     private static void BuildCurvedWindow(
@@ -771,6 +822,101 @@ public static class GroundOpsSceneBuilder
         renderer.shadowCastingMode = ShadowCastingMode.On;
         renderer.receiveShadows = true;
         return gameObject;
+    }
+
+    private static GameObject WallBox(
+        string name,
+        Transform parent,
+        Transform cutawayParent,
+        Vector3 position,
+        Vector3 size,
+        Material material,
+        Vector3 inwardNormal,
+        List<Renderer> physicalRenderers,
+        List<Renderer> cutawayRenderers,
+        string cutawayName = null)
+    {
+        GameObject physical = Box(name, parent, position, size, Quaternion.identity, material);
+        physicalRenderers.Add(physical.GetComponent<Renderer>());
+
+        Vector3 normal = inwardNormal.normalized;
+        float faceOffset = Mathf.Abs(normal.x) > 0.5f ? size.x / 2f : size.z / 2f;
+        float width = Mathf.Abs(normal.x) > 0.5f ? size.z : size.x;
+        GameObject cutaway = Quad(
+            cutawayName ?? name,
+            cutawayParent,
+            position + normal * faceOffset,
+            width,
+            size.y,
+            normal,
+            material);
+        Collider collider = cutaway.GetComponent<Collider>();
+        if (collider != null) Object.DestroyImmediate(collider);
+        Renderer cutawayRenderer = cutaway.GetComponent<Renderer>();
+        cutawayRenderer.shadowCastingMode = ShadowCastingMode.Off;
+        cutawayRenderers.Add(cutawayRenderer);
+        return physical;
+    }
+
+    private static GameObject Quad(
+        string name,
+        Transform parent,
+        Vector3 position,
+        float width,
+        float height,
+        Vector3 normal,
+        Material material)
+    {
+        GameObject gameObject = AcquireObject(
+            name,
+            parent,
+            () => GameObject.CreatePrimitive(PrimitiveType.Quad));
+        Mesh mesh = gameObject.GetComponent<MeshFilter>().sharedMesh;
+        Vector3 primitiveNormal = mesh.normals.Length > 0
+            ? mesh.normals[0].normalized
+            : Vector3.back;
+        gameObject.transform.SetParent(parent, false);
+        gameObject.transform.localPosition = position;
+        gameObject.transform.localRotation = Quaternion.FromToRotation(primitiveNormal, normal);
+        gameObject.transform.localScale = new Vector3(width, height, 1f);
+        Renderer renderer = gameObject.GetComponent<Renderer>();
+        renderer.sharedMaterial = material;
+        renderer.shadowCastingMode = ShadowCastingMode.Off;
+        renderer.receiveShadows = true;
+        return gameObject;
+    }
+
+    private static ShellVisualBinding[] CreateCameraVisuals(
+        List<Renderer> physicalRenderers,
+        Material transparentMaterial)
+    {
+        List<ShellVisualBinding> visuals = new();
+        foreach (Renderer physicalRenderer in physicalRenderers)
+        {
+            if (physicalRenderer == null) continue;
+            MeshFilter physicalMesh = physicalRenderer.GetComponent<MeshFilter>();
+            if (physicalMesh == null || physicalMesh.sharedMesh == null) continue;
+
+            GameObject cameraVisual = AcquireObject(
+                "Camera Visual",
+                physicalRenderer.transform,
+                () => new GameObject("Camera Visual"));
+            cameraVisual.transform.localPosition = Vector3.zero;
+            cameraVisual.transform.localRotation = Quaternion.identity;
+            cameraVisual.transform.localScale = Vector3.one;
+            MeshFilter visualMesh = GetOrAddComponent<MeshFilter>(cameraVisual);
+            visualMesh.sharedMesh = physicalMesh.sharedMesh;
+            MeshRenderer visualRenderer = GetOrAddComponent<MeshRenderer>(cameraVisual);
+            visualRenderer.sharedMaterial = physicalRenderer.sharedMaterial;
+            visualRenderer.shadowCastingMode = ShadowCastingMode.Off;
+            visualRenderer.receiveShadows = true;
+            physicalRenderer.shadowCastingMode = ShadowCastingMode.ShadowsOnly;
+            visuals.Add(new ShellVisualBinding(
+                visualRenderer,
+                physicalRenderer.sharedMaterial,
+                transparentMaterial));
+        }
+        return visuals.ToArray();
     }
 
     private static GameObject Cylinder(

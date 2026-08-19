@@ -4,11 +4,11 @@ using UnityEngine;
 
 public sealed class ChamberToolsWindow : EditorWindow
 {
-    [MenuItem("Window/Chamber Tools")]
+    [MenuItem("Window/Scene Tools")]
     private static void Open()
     {
         ChamberToolsWindow window = GetWindow<ChamberToolsWindow>();
-        window.titleContent = new GUIContent("Chamber Tools");
+        window.titleContent = new GUIContent("Scene Tools");
         window.minSize = new Vector2(380f, 500f);
         window.Show();
     }
@@ -30,7 +30,7 @@ public sealed class ChamberToolsWindow : EditorWindow
 
     private void OnEnable()
     {
-        titleContent = new GUIContent("Chamber Tools");
+        titleContent = new GUIContent("Scene Tools");
     }
 
     private void OnInspectorUpdate()
@@ -41,18 +41,21 @@ public sealed class ChamberToolsWindow : EditorWindow
     private void OnGUI()
     {
         EditorGUILayout.Space(10f);
-        EditorGUILayout.LabelField("CHAMBER TOOLS", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField("SCENE TOOLS", EditorStyles.boldLabel);
         EditorGUILayout.Space(6f);
         EditorGUILayout.HelpBox(
-            "Editor-only preview/debug controls. Standalone builds always start from ChamberBuildDefaults.",
+            "Editor-only preview/debug controls. Standalone builds always use opaque walls and their configured gameplay defaults.",
             MessageType.Info);
         EditorGUILayout.Space(6f);
 
         DrawShellSection();
         EditorGUILayout.Space(6f);
-        DrawLightingSection();
-        EditorGUILayout.Space(6f);
-        DrawPositionerSection();
+        if (FindController<MotionSensitiveChamberLights>() != null)
+        {
+            DrawLightingSection();
+            EditorGUILayout.Space(6f);
+            DrawPositionerSection();
+        }
     }
 
     private static void DrawShellSection()
@@ -64,14 +67,15 @@ public sealed class ChamberToolsWindow : EditorWindow
         if (controller == null)
         {
             EditorGUILayout.HelpBox(
-                "No generated chamber shell was found in the active scene.",
+                "No generated wall-visibility controller was found in the active scene.",
                 MessageType.Warning);
             EditorGUILayout.EndVertical();
             return;
         }
 
+        bool groundOps = controller.gameObject.name == "Ground Ops Blockout";
         float roomOpacity = EditorGUILayout.Slider(
-            "Room walls",
+            groundOps ? "Ground Ops walls" : "Room walls",
             controller.RoomOpacityPercent,
             0f,
             100f);
@@ -82,16 +86,19 @@ public sealed class ChamberToolsWindow : EditorWindow
             FinishShellChange(controller);
         }
 
-        float chamberOpacity = EditorGUILayout.Slider(
-            "Chamber walls",
-            controller.ChamberOpacityPercent,
-            0f,
-            100f);
-        if (!Mathf.Approximately(chamberOpacity, controller.ChamberOpacityPercent))
+        if (!groundOps)
         {
-            RecordShellUndo(controller, "Change Chamber Wall Opacity");
-            controller.SetChamberOpacityPercent(chamberOpacity);
-            FinishShellChange(controller);
+            float chamberOpacity = EditorGUILayout.Slider(
+                "Chamber walls",
+                controller.ChamberOpacityPercent,
+                0f,
+                100f);
+            if (!Mathf.Approximately(chamberOpacity, controller.ChamberOpacityPercent))
+            {
+                RecordShellUndo(controller, "Change Chamber Wall Opacity");
+                controller.SetChamberOpacityPercent(chamberOpacity);
+                FinishShellChange(controller);
+            }
         }
 
         EditorGUILayout.Space(6f);
