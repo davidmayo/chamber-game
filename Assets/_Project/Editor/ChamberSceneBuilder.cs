@@ -52,8 +52,8 @@ public static class ChamberSceneBuilder
     private static readonly Color TableColor = Hex(0x777d84);
     private static readonly Color LiftColor = Hex(0x4f5964);
     private static readonly Color HousingColor = Hex(0x59636e);
-    private static readonly Color PurpleColor = Hex(0x6f42c1);
-    private static readonly Color OrangeColor = Hex(0xd46a1f);
+    private static readonly Color PanAssemblyColor = Hex(0x343a40);
+    private static readonly Color TiltAssemblyColor = Hex(0x343a40);
     private static readonly Color YellowColor = Hex(0xe0b323);
     private static readonly Color StandColor = Hex(0xe4b51b);
     private static readonly Color DarkColor = Hex(0x151719);
@@ -207,8 +207,8 @@ public static class ChamberSceneBuilder
         Material table = GetMaterial("Table", TableColor, 0.15f, 0.2f);
         Material lift = GetMaterial("Lift", LiftColor, 0.4f, 0.45f);
         Material housing = GetMaterial("Housing", HousingColor, 0.3f, 0.35f);
-        Material purple = GetMaterial("TurntablePurple", PurpleColor, 0.35f, 0.45f);
-        Material orange = GetMaterial("TiltOrange", OrangeColor, 0.35f, 0.45f);
+        Material purple = GetMaterial("TurntablePurple", PanAssemblyColor, 0.35f, 0.45f);
+        Material orange = GetMaterial("TiltOrange", TiltAssemblyColor, 0.35f, 0.45f);
         Material yellow = GetMaterial("AntennaYellow", YellowColor, 0.2f, 0.45f);
         Material stand = GetMaterial("FloodStandYellow", StandColor, 0.25f, 0.45f);
         Material dark = GetMaterial("FixtureDark", DarkColor, 0.35f, 0.35f);
