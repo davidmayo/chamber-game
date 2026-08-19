@@ -10,6 +10,7 @@ param(
         'capture_game_view',
         'capture_scene_view',
         'rebuild_chamber',
+        'build_ground_ops',
         'enter_play_mode',
         'exit_play_mode',
         'run_tests',

@@ -16,6 +16,7 @@ powershell -ExecutionPolicy Bypass -File tools/unity-bridge.ps1 hierarchy
 powershell -ExecutionPolicy Bypass -File tools/unity-bridge.ps1 capture_game_view
 powershell -ExecutionPolicy Bypass -File tools/unity-bridge.ps1 capture_scene_view
 powershell -ExecutionPolicy Bypass -File tools/unity-bridge.ps1 capture_scene_view -Argument top
+powershell -ExecutionPolicy Bypass -File tools/unity-bridge.ps1 build_ground_ops
 powershell -ExecutionPolicy Bypass -File tools/unity-bridge.ps1 run_tests -Argument edit
 ```
 

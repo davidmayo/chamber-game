@@ -214,6 +214,19 @@ public static class CodexEditorBridge
                     string.Empty, EditorStateJson());
                 return false;
 
+            case "build_ground_ops":
+                RequireSafeEditState(request);
+                if (!request.force && SceneManager.GetActiveScene().isDirty)
+                {
+                    throw new InvalidOperationException(
+                        "The active scene has unsaved changes. Save it first or send the request with force=true.");
+                }
+                GroundOpsSceneBuilder.SyncAndOpenSceneFromBridge();
+                WriteResponse(request.id, request.command, true,
+                    "Ground Ops blockout synchronized, saved, and opened.",
+                    string.Empty, EditorStateJson());
+                return false;
+
             case "enter_play_mode":
                 if (EditorApplication.isPlayingOrWillChangePlaymode)
                 {
@@ -428,10 +441,18 @@ public static class CodexEditorBridge
         {
             if (captureTopView)
             {
-                camera.transform.position = new Vector3(0f, 12f, 0f);
+                Bounds sceneBounds = CalculateSceneRendererBounds();
+                float aspect = width / (float)height;
+                float framedSize = Mathf.Max(
+                    sceneBounds.extents.z,
+                    sceneBounds.extents.x / aspect) * 1.12f;
+                camera.transform.position = new Vector3(
+                    sceneBounds.center.x,
+                    sceneBounds.max.y + 12f,
+                    sceneBounds.center.z);
                 camera.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
                 camera.orthographic = true;
-                camera.orthographicSize = 7f;
+                camera.orthographicSize = Mathf.Max(1f, framedSize);
             }
             camera.targetTexture = renderTexture;
             camera.Render();
@@ -454,6 +475,26 @@ public static class CodexEditorBridge
             UnityEngine.Object.DestroyImmediate(renderTexture);
             UnityEngine.Object.DestroyImmediate(image);
         }
+    }
+
+    private static Bounds CalculateSceneRendererBounds()
+    {
+        Scene scene = SceneManager.GetActiveScene();
+        Renderer[] renderers = scene.GetRootGameObjects()
+            .SelectMany(root => root.GetComponentsInChildren<Renderer>(true))
+            .Where(renderer => renderer.enabled && renderer.gameObject.activeInHierarchy)
+            .ToArray();
+        if (renderers.Length == 0)
+        {
+            return new Bounds(Vector3.zero, new Vector3(10f, 1f, 10f));
+        }
+
+        Bounds bounds = renderers[0].bounds;
+        for (int index = 1; index < renderers.Length; index++)
+        {
+            bounds.Encapsulate(renderers[index].bounds);
+        }
+        return bounds;
     }
 
     private static void WriteLogs(BridgeRequest request)

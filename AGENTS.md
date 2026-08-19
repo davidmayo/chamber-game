@@ -22,6 +22,7 @@ This is a Unity 6.3 LTS project using URP. Keep changes small, readable, and fri
 - Runtime scripts belong in `Assets/_Project/Scripts/`.
 - Editor-only tools belong in `Assets/_Project/Editor/`.
 - The main scene is `Assets/_Project/Scenes/Main.unity`.
+- The Ground Ops level is `Assets/_Project/Scenes/GroundOps.unity`.
 - Do not commit Unity-generated folders such as `Library/`, `Temp/`, `Logs/`, or `UserSettings/`.
 - Always preserve `.meta` files for assets that remain in the project.
 
@@ -59,7 +60,7 @@ Use the local bridge instead of launching a second Unity instance:
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\unity-bridge.ps1 <command>
 ```
 
-Useful commands include `editor_state`, `refresh`, `save_scene`, `rebuild_chamber`, `hierarchy`, `capture_game_view`, `capture_scene_view`, `enter_play_mode`, `exit_play_mode`, and `get_logs`.
+Useful commands include `editor_state`, `refresh`, `save_scene`, `rebuild_chamber`, `build_ground_ops`, `hierarchy`, `capture_game_view`, `capture_scene_view`, `enter_play_mode`, `exit_play_mode`, and `get_logs`.
 
 - Save an intentionally dirty scene before rebuilding; do not force away the user's Editor changes.
 - After changing C# code, run `refresh` and resolve all compiler diagnostics.
@@ -77,3 +78,11 @@ Useful commands include `editor_state`, `refresh`, `save_scene`, `rebuild_chambe
 - The red rear-wall control is the only player interface for positioner height: `F` enters its mode, `Q`/`E` lower or raise, and `F` or `Escape` exits.
 - The chamber's back-wall lights respond only to player motion inside the chamber and time out after 30 seconds. The floodlights start off and are toggled with `F` near their stand.
 - Wall visualization is editor-only and is controlled from `Window > Chamber Tools`.
+
+## Ground Ops scene
+
+- `Assets/_Project/Editor/GroundOpsSceneBuilder.cs` is the source of truth for the generated Dish Operations Center blockout in `GroundOps.unity`.
+- Use `Tools > Ground Ops > Sync and Open Ground Ops Blockout`, or the bridge command `build_ground_ops`, to synchronize and open it. Make durable geometry changes in the builder rather than beneath the generated `Ground Ops Blockout` hierarchy.
+- The current dimensions are photographic estimates based on `.local/reference`; keep the dimensional constants centralized and easy to replace when measurements become available.
+- Ground Ops uses its own intuitive coordinate convention: `+Z` runs from the main Ops entrance toward the Server Room, `-X` points toward the curved window wall, `+X` points toward the straight/right wall, and `+Y` is up.
+- Keep this early blockout deliberately sparse. The curved glazing, walls, doorway openings, floors, four dish-station desk blocks, and DSN rack block are intentional; do not infer detailed furniture, equipment, ceiling infrastructure, or exterior scenery without a task requesting it.
