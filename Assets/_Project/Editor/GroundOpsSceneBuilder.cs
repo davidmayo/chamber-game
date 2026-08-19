@@ -459,17 +459,19 @@ public static class GroundOpsSceneBuilder
             topMaterial);
 
         BuildDesktopMonitor("Left 27-inch Monitor", station,
-            new Vector3(-0.11f, 0f, -0.35f), 90f, deskHeight,
+            new Vector3(-0.11f, 0f, -0.35f), 75f, deskHeight,
             monitorMaterial, screenMaterial);
         BuildDesktopMonitor("Right 27-inch Monitor", station,
-            new Vector3(-0.11f, 0f, 0.35f), 90f, deskHeight,
+            new Vector3(-0.11f, 0f, 0.35f), 105f, deskHeight,
             monitorMaterial, screenMaterial);
         Box("Keyboard", station,
-            new Vector3(0.20f, deskHeight + 0.022f, 0f),
-            new Vector3(0.18f, 0.044f, 0.46f), Quaternion.identity, monitorMaterial);
+            new Vector3(0.20f, deskHeight + 0.022f, -0.048f),
+            new Vector3(0.18f, 0.044f, 0.46f),
+            Quaternion.Euler(0f, -4.878f, 0f), monitorMaterial);
         Box("Mouse", station,
-            new Vector3(0.22f, deskHeight + 0.026f, -0.36f),
-            new Vector3(0.16f, 0.052f, 0.10f), Quaternion.identity, monitorMaterial);
+            new Vector3(0.22f, deskHeight + 0.026f, 0.36f),
+            new Vector3(0.16f, 0.052f, 0.10f),
+            Quaternion.Euler(0f, 13.302f, 0f), monitorMaterial);
 
         Transform chair = NewGroup("Chair", station);
         chair.localPosition = new Vector3(0.86f, 0f, 0f);
@@ -491,46 +493,49 @@ public static class GroundOpsSceneBuilder
         Material monitorMaterial,
         Material screenMaterial)
     {
-        // The reference plan shows two three-operator rows on the right side,
-        // connected at their left ends by a short table with one more station.
-        const float rowCenterX = 3.15f;
-        const float rowLength = 4.30f;
-        const float rowDepth = 0.78f;
-        const float rearRowZ = 1.55f;
-        const float frontRowZ = -0.45f;
-        const float tableHeight = 0.76f;
-
+        // Five individual 2-by-4-foot desks form the compact U shown in the
+        // supplied plan: two rear, two front, and a 90-degree joining station.
+        const float feetToMeters = 0.3048f;
+        const float deskLength = 4f * feetToMeters;
+        const float deskDepth = 2f * feetToMeters;
+        const float rearRowZ = 1.35f;
+        float frontRowZ = rearRowZ - deskLength - deskDepth;
+        float leftDeskX = 2.65f;
+        float rightDeskX = leftDeskX + deskLength;
+        float joiningDeskX = leftDeskX - (deskLength + deskDepth) / 2f;
+        float joiningDeskZ = (rearRowZ + frontRowZ) / 2f;
         Transform nonDish = NewGroup("Non-Dish Stations", parent);
-        BuildSimpleTable("Rear Station Row", nonDish,
-            new Vector3(rowCenterX, 0f, rearRowZ),
-            new Vector2(rowLength, rowDepth), topMaterial, baseMaterial);
-        BuildSimpleTable("Front Station Row", nonDish,
-            new Vector3(rowCenterX, 0f, frontRowZ),
-            new Vector2(rowLength, rowDepth), topMaterial, baseMaterial);
+        nonDish.localPosition = new Vector3(-0.72f, 0f, 1.13f);
 
-        float[] stationX = { 1.75f, 3.15f, 4.55f };
-        int stationNumber = 1;
-        foreach (float rowZ in new[] { rearRowZ, frontRowZ })
-        {
-            foreach (float x in stationX)
-            {
-                BuildNonDishStation($"Non-Dish Station {stationNumber++}", nonDish,
-                    new Vector3(x, 0f, rowZ), tableHeight,
-                    chairMaterial, baseMaterial, monitorMaterial, screenMaterial);
-            }
-        }
+        // Square corner modules turn the three perpendicular runs into one
+        // continuous horseshoe instead of leaving point-contact joints.
+        BuildSimpleTable("Rear 2-by-2-foot Corner", nonDish,
+            new Vector3(joiningDeskX, 0f, rearRowZ),
+            new Vector2(deskDepth, deskDepth), topMaterial, baseMaterial);
+        BuildSimpleTable("Front 2-by-2-foot Corner", nonDish,
+            new Vector3(joiningDeskX, 0f, frontRowZ),
+            new Vector2(deskDepth, deskDepth), topMaterial, baseMaterial);
 
-        // Wide enough for the seventh station's two displays while still
-        // reading as the crosspiece that joins the two long rows.
-        const float joinX = 1.13f;
-        const float joinCenterZ = 0.55f;
-        BuildSimpleTable("Joining Table", nonDish,
-            new Vector3(joinX, 0f, joinCenterZ),
-            new Vector2(1.35f, 1.22f), topMaterial, baseMaterial);
-        BuildNonDishStation("Non-Dish Station 7", nonDish,
-            new Vector3(joinX, 0f, joinCenterZ + 0.12f), tableHeight,
-            chairMaterial, baseMaterial, monitorMaterial, screenMaterial,
-            -0.70f);
+        BuildNonDishStation("Non-Dish Station 1", nonDish,
+            new Vector3(leftDeskX, 0f, rearRowZ), 0f,
+            new Vector3(0f, 0f, -0.434f),
+            topMaterial, baseMaterial, chairMaterial, monitorMaterial, screenMaterial);
+        BuildNonDishStation("Non-Dish Station 2", nonDish,
+            new Vector3(rightDeskX, 0f, rearRowZ), 0f,
+            new Vector3(0f, 0f, -0.760f),
+            topMaterial, baseMaterial, chairMaterial, monitorMaterial, screenMaterial);
+        BuildNonDishStation("Non-Dish Station 3", nonDish,
+            new Vector3(leftDeskX, 0f, frontRowZ), 0f,
+            new Vector3(0f, 0f, -0.760f),
+            topMaterial, baseMaterial, chairMaterial, monitorMaterial, screenMaterial);
+        BuildNonDishStation("Non-Dish Station 4", nonDish,
+            new Vector3(rightDeskX, 0f, frontRowZ), 0f,
+            new Vector3(0f, 0f, -0.760f),
+            topMaterial, baseMaterial, chairMaterial, monitorMaterial, screenMaterial);
+        BuildNonDishStation("Non-Dish Station 5", nonDish,
+            new Vector3(joiningDeskX, 0f, joiningDeskZ), -90f,
+            new Vector3(-0.243f, 0f, -0.507f),
+            topMaterial, baseMaterial, chairMaterial, monitorMaterial, screenMaterial);
     }
 
     private static void BuildSimpleTable(
@@ -567,29 +572,38 @@ public static class GroundOpsSceneBuilder
         string name,
         Transform parent,
         Vector3 floorPosition,
-        float tabletopY,
+        float yawDegrees,
+        Vector3 chairPosition,
+        Material topMaterial,
+        Material tableBaseMaterial,
         Material chairMaterial,
-        Material chairBaseMaterial,
         Material monitorMaterial,
-        Material screenMaterial,
-        float chairOffsetZ = -0.76f)
+        Material screenMaterial)
     {
+        const float feetToMeters = 0.3048f;
+        const float tabletopY = 0.76f;
         Transform station = NewGroup(name, parent);
         station.localPosition = floorPosition;
+        station.localRotation = Quaternion.Euler(0f, yawDegrees, 0f);
+        BuildSimpleTable("2-by-4-foot Desk", station, Vector3.zero,
+            new Vector2(4f * feetToMeters, 2f * feetToMeters),
+            topMaterial, tableBaseMaterial);
         BuildDesktopMonitor("Left 27-inch Monitor", station,
-            new Vector3(-0.34f, 0f, 0.08f), 180f, tabletopY,
+            new Vector3(-0.34f, 0f, 0.08f), 165f, tabletopY,
             monitorMaterial, screenMaterial);
         BuildDesktopMonitor("Right 27-inch Monitor", station,
-            new Vector3(0.34f, 0f, 0.08f), 180f, tabletopY,
+            new Vector3(0.34f, 0f, 0.08f), 195f, tabletopY,
             monitorMaterial, screenMaterial);
         Box("Keyboard", station,
-            new Vector3(0f, tabletopY + 0.022f, -0.18f),
-            new Vector3(0.46f, 0.044f, 0.18f), Quaternion.identity, monitorMaterial);
+            new Vector3(-0.048f, tabletopY + 0.022f, -0.184f),
+            new Vector3(0.46f, 0.044f, 0.18f),
+            Quaternion.Euler(0f, -4.878f, 0f), monitorMaterial);
         Box("Mouse", station,
             new Vector3(0.34f, tabletopY + 0.026f, -0.20f),
-            new Vector3(0.10f, 0.052f, 0.16f), Quaternion.identity, monitorMaterial);
-        BuildSimpleChair("Chair", station, new Vector3(0f, 0f, chairOffsetZ),
-            chairMaterial, chairBaseMaterial, Vector3.back);
+            new Vector3(0.10f, 0.052f, 0.16f),
+            Quaternion.Euler(0f, 13.302f, 0f), monitorMaterial);
+        BuildSimpleChair("Chair", station, chairPosition,
+            chairMaterial, tableBaseMaterial, Vector3.back);
     }
 
     private static void BuildDesktopMonitor(
