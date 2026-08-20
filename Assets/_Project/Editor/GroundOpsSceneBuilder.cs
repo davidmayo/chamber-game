@@ -22,6 +22,12 @@ public static class GroundOpsSceneBuilder
     private static readonly Vector2 ExteriorViewDirection = new Vector2(-0.48f, 0.88f).normalized;
     private static readonly Vector2 ExteriorLateralDirection =
         new(ExteriorViewDirection.y, -ExteriorViewDirection.x);
+    private static readonly Vector3 DishComplexOffset = new(-41.5f, 13.7f, 18.01f);
+    private static readonly Vector2 DishTerrainCenter = new(-55.16f, 37.81f);
+    private const float TerrainHorizontalScale = 0.08641784f;
+    private const float TerrainVerticalScale = 0.14127464f;
+    private const float TerrainRotationCos = 0.87581675f;
+    private const float TerrainRotationSin = -0.48264379f;
 
     private static GameObject syncRoot;
     private static HashSet<GameObject> staleObjects;
@@ -105,7 +111,7 @@ public static class GroundOpsSceneBuilder
         Material monitorScreenMaterial = GetMaterial("GroundOpsMonitorScreen", new Color(0.010f, 0.016f, 0.022f), 0f, 0.38f);
         Material rackMaterial = GetMaterial("GroundOpsDsnRack", new Color(0.25f, 0.27f, 0.28f), 0.15f, 0.18f);
         Material kvmScreenMaterial = GetMaterial("GroundOpsKvmScreen", new Color(0.015f, 0.025f, 0.030f), 0f, 0.35f);
-        Material terrainMaterial = GetMaterial("GroundOpsMountainTerrain", new Color(0.16f, 0.21f, 0.13f), 0f, 0.02f);
+        Material terrainMaterial = GetMaterial("GroundOpsMountainTerrain", new Color(0.22f, 0.31f, 0.17f), 0f, 0.02f);
         Material dishMaterial = GetMaterial("GroundOpsExteriorDish", new Color(0.66f, 0.68f, 0.65f), 0.05f, 0.15f);
         Material playerMaterial = GetMaterial("GroundOpsPlayer", new Color(0.12f, 0.32f, 0.58f), 0f, 0.18f);
 
@@ -778,13 +784,12 @@ public static class GroundOpsSceneBuilder
             ExteriorViewOrigin
             + ExteriorViewDirection * 25.4f
             + ExteriorLateralDirection * 3.0f;
-        Vector3 movedDishComplexOffset = new(-41.5f, 13.7f, 18.01f);
         BuildDishProxy("13-meter Dish Proxy", parent,
             smallDishPosition, 1.30f, 2.0f,
-            new Vector3(0.68f, 0.70f, 0.18f), movedDishComplexOffset, dishMaterial);
+            new Vector3(0.68f, 0.70f, 0.18f), DishComplexOffset, dishMaterial);
         BuildDishProxy("21-meter Dish Proxy", parent,
             largeDishPosition, 2.10f, 2.6f,
-            new Vector3(0.58f, 0.79f, -0.20f), movedDishComplexOffset, dishMaterial);
+            new Vector3(0.58f, 0.79f, -0.20f), DishComplexOffset, dishMaterial);
     }
 
     private static void BuildDishProxy(
@@ -828,33 +833,40 @@ public static class GroundOpsSceneBuilder
             mesh.Clear();
         }
 
-        const int depthSegments = 20;
-        const int widthSegments = 32;
-        const float nearDepth = 8f;
-        const float farDepth = 108f;
-        const float minimumLateral = -65f;
-        const float maximumLateral = 65f;
-        List<Vector3> vertices = new(depthSegments * widthSegments * 6);
-        List<int> triangles = new(depthSegments * widthSegments * 6);
+        // This is a complete, rotated USGS-derived landscape around the DOC,
+        // rather than a backdrop aimed at one window. It extends beyond the
+        // camera's useful view distance in every horizontal direction.
+        const int segmentsPerAxis = 48;
+        float halfExtent = GroundOpsTerrainElevationData.HalfExtentMeters;
+        List<Vector3> vertices = new(segmentsPerAxis * segmentsPerAxis * 6);
+        List<int> triangles = new(segmentsPerAxis * segmentsPerAxis * 6);
 
-        for (int depth = 0; depth < depthSegments; depth++)
+        for (int northIndex = 0; northIndex < segmentsPerAxis; northIndex++)
         {
-            float t0 = depth / (float)depthSegments;
-            float t1 = (depth + 1) / (float)depthSegments;
-            float depth0 = Mathf.Lerp(nearDepth, farDepth, t0);
-            float depth1 = Mathf.Lerp(nearDepth, farDepth, t1);
-            for (int across = 0; across < widthSegments; across++)
+            float north0 = Mathf.Lerp(-halfExtent, halfExtent,
+                northIndex / (float)segmentsPerAxis);
+            float north1 = Mathf.Lerp(-halfExtent, halfExtent,
+                (northIndex + 1) / (float)segmentsPerAxis);
+            for (int eastIndex = 0; eastIndex < segmentsPerAxis; eastIndex++)
             {
-                float s0 = across / (float)widthSegments;
-                float s1 = (across + 1) / (float)widthSegments;
-                float lateral0 = Mathf.Lerp(minimumLateral, maximumLateral, s0);
-                float lateral1 = Mathf.Lerp(minimumLateral, maximumLateral, s1);
-                Vector3 p00 = MountainPoint(depth0, lateral0);
-                Vector3 p10 = MountainPoint(depth1, lateral0);
-                Vector3 p11 = MountainPoint(depth1, lateral1);
-                Vector3 p01 = MountainPoint(depth0, lateral1);
-                AddFlatTriangle(vertices, triangles, p00, p10, p11);
-                AddFlatTriangle(vertices, triangles, p00, p11, p01);
+                float east0 = Mathf.Lerp(-halfExtent, halfExtent,
+                    eastIndex / (float)segmentsPerAxis);
+                float east1 = Mathf.Lerp(-halfExtent, halfExtent,
+                    (eastIndex + 1) / (float)segmentsPerAxis);
+                Vector3 p00 = TerrainPointFromMeters(east0, north0);
+                Vector3 p10 = TerrainPointFromMeters(east1, north0);
+                Vector3 p11 = TerrainPointFromMeters(east1, north1);
+                Vector3 p01 = TerrainPointFromMeters(east0, north1);
+                if ((eastIndex + northIndex) % 2 == 0)
+                {
+                    AddFlatTriangle(vertices, triangles, p00, p01, p11);
+                    AddFlatTriangle(vertices, triangles, p00, p11, p10);
+                }
+                else
+                {
+                    AddFlatTriangle(vertices, triangles, p00, p01, p10);
+                    AddFlatTriangle(vertices, triangles, p10, p01, p11);
+                }
             }
         }
 
@@ -868,39 +880,80 @@ public static class GroundOpsSceneBuilder
 
     private static float MountainHeight(float x, float z)
     {
-        Vector2 offset = new Vector2(x, z) - ExteriorViewOrigin;
-        float distance = Vector2.Dot(offset, ExteriorViewDirection);
-        float lateral = Vector2.Dot(offset, ExteriorLateralDirection);
-        float depth = Mathf.InverseLerp(8f, 108f, distance);
-        float rise = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.04f, 0.92f, depth));
-        float skyline =
-            2.4f * Mathf.Sin(lateral * 0.055f + 0.5f)
-            + 1.15f * Mathf.Sin(lateral * 0.135f - 0.8f)
-            + 0.55f * Mathf.Sin(lateral * 0.31f + 1.1f);
-        // The Ops floor is on the second story; nearby exterior grade begins
-        // roughly 4.2 m below it before climbing toward the ridge.
-        float broadSlope = Mathf.Lerp(-4.2f, 13.5f, rise);
-        float foldedSlope =
-            Mathf.Sin(depth * Mathf.PI * 4.2f + lateral * 0.045f) * 0.9f * rise;
-        float naturalHeight = broadSlope + skyline * rise + foldedSlope;
+        Vector2 worldOffset = new Vector2(x, z) - ExteriorViewOrigin;
+        Vector2 unscaled = worldOffset / TerrainHorizontalScale;
+        float eastMeters =
+            TerrainRotationCos * unscaled.x + TerrainRotationSin * unscaled.y;
+        float northMeters =
+            -TerrainRotationSin * unscaled.x + TerrainRotationCos * unscaled.y;
+        float elevationMeters = SampleRealTerrain(eastMeters, northMeters);
+        float naturalHeight = -4.2f + (
+            elevationMeters - GroundOpsTerrainElevationData.DocElevationMeters)
+            * TerrainVerticalScale;
+        float docGradeWeight = 1f - Mathf.SmoothStep(
+            0f, 1f, Mathf.InverseLerp(8f, 22f, worldOffset.magnitude));
+        naturalHeight = Mathf.Lerp(naturalHeight, -4.2f, docGradeWeight);
 
         // A broad shoulder rises to the manually placed dish complex. Both post
         // bases are near y=12.56 after applying their shared transform.
-        Vector2 dishPlateauCenter = new(-55.16f, 37.81f);
-        float plateauDistance = Vector2.Distance(new Vector2(x, z), dishPlateauCenter);
+        float plateauDistance = Vector2.Distance(
+            new Vector2(x, z), DishTerrainCenter);
         float plateauWeight = 1f - Mathf.SmoothStep(
             0f,
             1f,
-            Mathf.InverseLerp(8f, 24f, plateauDistance));
+            Mathf.InverseLerp(5f, 16f, plateauDistance));
         return Mathf.Lerp(naturalHeight, 12.56f, plateauWeight);
     }
 
-    private static Vector3 MountainPoint(float depth, float lateral)
+    private static float SampleRealTerrain(float eastMeters, float northMeters)
     {
-        Vector2 horizontal =
-            ExteriorViewOrigin
-            + ExteriorViewDirection * depth
-            + ExteriorLateralDirection * lateral;
+        int sampleCount = GroundOpsTerrainElevationData.SampleCount;
+        float halfExtent = GroundOpsTerrainElevationData.HalfExtentMeters;
+        float sampleX = Mathf.InverseLerp(-halfExtent, halfExtent, eastMeters)
+            * (sampleCount - 1);
+        float sampleZ = Mathf.InverseLerp(-halfExtent, halfExtent, northMeters)
+            * (sampleCount - 1);
+        int x0 = Mathf.Clamp(Mathf.FloorToInt(sampleX), 0, sampleCount - 2);
+        int z0 = Mathf.Clamp(Mathf.FloorToInt(sampleZ), 0, sampleCount - 2);
+        float tx = Mathf.Clamp01(sampleX - x0);
+        float tz = Mathf.Clamp01(sampleZ - z0);
+        float south = Mathf.Lerp(
+            SmoothedElevation(z0, x0),
+            SmoothedElevation(z0, x0 + 1),
+            tx);
+        float north = Mathf.Lerp(
+            SmoothedElevation(z0 + 1, x0),
+            SmoothedElevation(z0 + 1, x0 + 1),
+            tx);
+        return Mathf.Lerp(south, north, tz);
+    }
+
+    private static float SmoothedElevation(int z, int x)
+    {
+        int sampleCount = GroundOpsTerrainElevationData.SampleCount;
+        float weightedSum = 0f;
+        float totalWeight = 0f;
+        for (int dz = -1; dz <= 1; dz++)
+        {
+            int sampleZ = Mathf.Clamp(z + dz, 0, sampleCount - 1);
+            float zWeight = dz == 0 ? 2f : 1f;
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                int sampleX = Mathf.Clamp(x + dx, 0, sampleCount - 1);
+                float weight = zWeight * (dx == 0 ? 2f : 1f);
+                weightedSum += GroundOpsTerrainElevationData.ElevationsMeters[
+                    sampleZ, sampleX] * weight;
+                totalWeight += weight;
+            }
+        }
+        return weightedSum / totalWeight;
+    }
+
+    private static Vector3 TerrainPointFromMeters(float eastMeters, float northMeters)
+    {
+        Vector2 horizontal = ExteriorViewOrigin + TerrainHorizontalScale * new Vector2(
+            TerrainRotationCos * eastMeters - TerrainRotationSin * northMeters,
+            TerrainRotationSin * eastMeters + TerrainRotationCos * northMeters);
         return new Vector3(
             horizontal.x,
             MountainHeight(horizontal.x, horizontal.y),
