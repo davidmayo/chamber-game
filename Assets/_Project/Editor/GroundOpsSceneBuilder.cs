@@ -28,10 +28,12 @@ public static class GroundOpsSceneBuilder
     private static readonly Vector2 ExteriorLateralDirection =
         new(ExteriorViewDirection.y, -ExteriorViewDirection.x);
     private static readonly Vector3 DishComplexOffset = new(-41.5f, 13.7f, 18.01f);
-    private static readonly Vector3 SmallDishRootPosition = new(-18.124f, 16.054f, -8.329f);
-    private static readonly Vector3 LargeDishRootPosition = new(-24.988f, 15.140f, -13.781f);
-    private const float SmallDishRootScale = 2.434f;
-    private const float LargeDishRootScale = 2.497f;
+    private static readonly Vector3 SmallDishRootPosition = new(11.95f, 14.30f, -61.00f);
+    private static readonly Vector3 LargeDishRootPosition = new(-6.35f, 11.97f, -65.97f);
+    private const float SmallDishRootScale = 4.9419937f;
+    private const float LargeDishRootScale = 4.981515f;
+    private const float SmallDishReflectorOffsetY = 0.162f;
+    private const float LargeDishReflectorOffsetY = 0.239f;
     private static readonly Vector2 DishTerrainCenter = new(-55.16f, 37.81f);
     private const float TerrainHorizontalScale = 0.08641784f;
     private const float TerrainVerticalScale = 0.14127464f;
@@ -824,7 +826,7 @@ public static class GroundOpsSceneBuilder
         const float thickness = 0.055f;
         Box("Wooden Door", parent,
             new Vector3(centerX, doorHeight / 2f, wallZ),
-            new Vector3(doorWidth - 0.05f, doorHeight - 0.04f, thickness),
+            new Vector3(doorWidth, doorHeight, thickness),
             Quaternion.identity,
             woodMaterial);
         Box("Door Handle", parent,
@@ -1428,11 +1430,13 @@ public static class GroundOpsSceneBuilder
         Transform smallReflector = BuildDishProxy("13-meter Dish Proxy", parent,
             smallDishPosition, 1.30f, 2.0f,
             new Vector3(0.68f, 0.70f, 0.18f),
-            SmallDishRootPosition, SmallDishRootScale, dishMaterial);
+            SmallDishRootPosition, SmallDishRootScale, SmallDishReflectorOffsetY,
+            dishMaterial);
         Transform largeReflector = BuildDishProxy("21-meter Dish Proxy", parent,
             largeDishPosition, 2.10f, 2.6f,
             new Vector3(0.58f, 0.79f, -0.20f),
-            LargeDishRootPosition, LargeDishRootScale, dishMaterial);
+            LargeDishRootPosition, LargeDishRootScale, LargeDishReflectorOffsetY,
+            dishMaterial);
         GroundOpsDishController controller =
             GetOrAddComponent<GroundOpsDishController>(parent.gameObject);
         controller.Configure(
@@ -1678,6 +1682,7 @@ public static class GroundOpsSceneBuilder
         Vector3 dishNormal,
         Vector3 rootPosition,
         float rootScale,
+        float reflectorOffsetY,
         Material material)
     {
         Transform dish = NewGroup(name, parent);
@@ -1701,9 +1706,17 @@ public static class GroundOpsSceneBuilder
             new Vector3(horizontalPosition.x, groundY + postHeight, horizontalPosition.y);
         pointingAssembly.localRotation =
             Quaternion.FromToRotation(Vector3.up, dishNormal.normalized);
-        Cylinder("Dish Circle", pointingAssembly,
-            Vector3.zero,
-            diameter / 2f, 0.07f, material);
+        GameObject reflector = MeshObject(
+            "Dish Circle",
+            pointingAssembly,
+            GetDishReflectorMesh($"GroundOps_{name.Replace(' ', '_')}_Reflector", diameter),
+            material,
+            false);
+        reflector.transform.localPosition = new Vector3(0f, reflectorOffsetY, 0f);
+        foreach (Collider collider in reflector.GetComponents<Collider>())
+        {
+            Object.DestroyImmediate(collider);
+        }
 
         float subreflectorHeight = diameter * 0.34f;
         float subreflectorRadius = diameter * 0.085f;
@@ -1730,11 +1743,139 @@ public static class GroundOpsSceneBuilder
                 pointingAssembly,
                 start,
                 end,
-                Mathf.Max(0.018f, diameter * 0.018f),
+                Mathf.Max(0.036f, diameter * 0.036f),
                 material);
         }
 
         return pointingAssembly;
+    }
+
+    private static Mesh GetDishReflectorMesh(string name, float diameter)
+    {
+        string path = $"{MeshFolder}/{name}.asset";
+        Mesh mesh = AssetDatabase.LoadAssetAtPath<Mesh>(path);
+        if (mesh == null)
+        {
+            mesh = new Mesh { name = name };
+            AssetDatabase.CreateAsset(mesh, path);
+        }
+        else
+        {
+            mesh.Clear();
+        }
+
+        const int radialSegments = 8;
+        const int angularSegments = 32;
+        float apertureRadius = diameter * 0.5f;
+        float depth = diameter * 0.16f;
+        float shellThickness = Mathf.Max(0.025f, diameter * 0.025f);
+        float sphereRadius =
+            (apertureRadius * apertureRadius + depth * depth) / (2f * depth);
+        float sphereCenterY = sphereRadius - depth;
+
+        List<Vector3> vertices = new(2 + radialSegments * angularSegments * 2);
+        List<int> triangles = new(radialSegments * angularSegments * 12);
+
+        vertices.Add(new Vector3(0f, -depth, 0f));
+        for (int ring = 1; ring <= radialSegments; ring++)
+        {
+            float radius = apertureRadius * ring / radialSegments;
+            float y = sphereCenterY - Mathf.Sqrt(
+                Mathf.Max(0f, sphereRadius * sphereRadius - radius * radius));
+            for (int side = 0; side < angularSegments; side++)
+            {
+                float angle = side * Mathf.PI * 2f / angularSegments;
+                vertices.Add(new Vector3(
+                    Mathf.Cos(angle) * radius,
+                    y,
+                    Mathf.Sin(angle) * radius));
+            }
+        }
+
+        int backCenter = vertices.Count;
+        vertices.Add(new Vector3(0f, -depth - shellThickness, 0f));
+        for (int ring = 1; ring <= radialSegments; ring++)
+        {
+            float radius = apertureRadius * ring / radialSegments;
+            float y = sphereCenterY - Mathf.Sqrt(
+                Mathf.Max(0f, sphereRadius * sphereRadius - radius * radius));
+            for (int side = 0; side < angularSegments; side++)
+            {
+                float angle = side * Mathf.PI * 2f / angularSegments;
+                vertices.Add(new Vector3(
+                    Mathf.Cos(angle) * radius,
+                    y - shellThickness,
+                    Mathf.Sin(angle) * radius));
+            }
+        }
+
+        int FrontIndex(int ring, int side) =>
+            1 + (ring - 1) * angularSegments + side % angularSegments;
+        int BackIndex(int ring, int side) =>
+            backCenter + 1 + (ring - 1) * angularSegments + side % angularSegments;
+
+        for (int side = 0; side < angularSegments; side++)
+        {
+            int next = (side + 1) % angularSegments;
+            triangles.Add(0);
+            triangles.Add(FrontIndex(1, next));
+            triangles.Add(FrontIndex(1, side));
+
+            triangles.Add(backCenter);
+            triangles.Add(BackIndex(1, side));
+            triangles.Add(BackIndex(1, next));
+        }
+
+        for (int ring = 1; ring < radialSegments; ring++)
+        {
+            for (int side = 0; side < angularSegments; side++)
+            {
+                int next = (side + 1) % angularSegments;
+                int frontInner = FrontIndex(ring, side);
+                int frontInnerNext = FrontIndex(ring, next);
+                int frontOuter = FrontIndex(ring + 1, side);
+                int frontOuterNext = FrontIndex(ring + 1, next);
+                triangles.Add(frontInner);
+                triangles.Add(frontOuterNext);
+                triangles.Add(frontOuter);
+                triangles.Add(frontInner);
+                triangles.Add(frontInnerNext);
+                triangles.Add(frontOuterNext);
+
+                int backInner = BackIndex(ring, side);
+                int backInnerNext = BackIndex(ring, next);
+                int backOuter = BackIndex(ring + 1, side);
+                int backOuterNext = BackIndex(ring + 1, next);
+                triangles.Add(backInner);
+                triangles.Add(backOuter);
+                triangles.Add(backOuterNext);
+                triangles.Add(backInner);
+                triangles.Add(backOuterNext);
+                triangles.Add(backInnerNext);
+            }
+        }
+
+        for (int side = 0; side < angularSegments; side++)
+        {
+            int next = (side + 1) % angularSegments;
+            int frontCurrent = FrontIndex(radialSegments, side);
+            int frontNext = FrontIndex(radialSegments, next);
+            int backCurrent = BackIndex(radialSegments, side);
+            int backNext = BackIndex(radialSegments, next);
+            triangles.Add(frontCurrent);
+            triangles.Add(backNext);
+            triangles.Add(frontNext);
+            triangles.Add(frontCurrent);
+            triangles.Add(backCurrent);
+            triangles.Add(backNext);
+        }
+
+        mesh.SetVertices(vertices);
+        mesh.SetTriangles(triangles, 0);
+        mesh.RecalculateNormals();
+        mesh.RecalculateBounds();
+        EditorUtility.SetDirty(mesh);
+        return mesh;
     }
 
     private static Mesh GetMountainTerrainMesh(string name)

@@ -40,11 +40,7 @@ public sealed class FirstPersonPlayerController : MonoBehaviour
             return;
         }
 
-        if (keyboard.escapeKey.wasPressedThisFrame)
-        {
-            SetCursorCaptured(false);
-        }
-        else if (Mouse.current != null
+        if (Mouse.current != null
             && Mouse.current.leftButton.wasPressedThisFrame
             && Cursor.lockState != CursorLockMode.Locked)
         {
