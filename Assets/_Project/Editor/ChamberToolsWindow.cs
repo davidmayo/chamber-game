@@ -50,12 +50,62 @@ public sealed class ChamberToolsWindow : EditorWindow
 
         DrawShellSection();
         EditorGUILayout.Space(6f);
+        if (FindController<GroundOpsSkyController>() != null)
+        {
+            DrawSkySection();
+            EditorGUILayout.Space(6f);
+        }
         if (FindController<MotionSensitiveChamberLights>() != null)
         {
             DrawLightingSection();
             EditorGUILayout.Space(6f);
             DrawPositionerSection();
         }
+    }
+
+    private static void DrawSkySection()
+    {
+        EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+        EditorGUILayout.LabelField("Ground Ops Sky", EditorStyles.boldLabel);
+
+        GroundOpsSkyController controller = FindController<GroundOpsSkyController>();
+        if (controller == null)
+        {
+            EditorGUILayout.HelpBox(
+                "The generated Ground Ops sky controller was not found.",
+                MessageType.Warning);
+            EditorGUILayout.EndVertical();
+            return;
+        }
+
+        EditorGUILayout.HelpBox(
+            "Local civil time at the DOC. Eastern Standard/Daylight Time is selected automatically.",
+            MessageType.Info);
+        EditorGUI.BeginChangeCheck();
+        int year = EditorGUILayout.IntField("Year", controller.Year);
+        int month = EditorGUILayout.IntSlider("Month", controller.Month, 1, 12);
+        int day = EditorGUILayout.IntSlider("Day", controller.Day, 1, 31);
+        int hour = EditorGUILayout.IntSlider("Hour (0-23)", controller.Hour, 0, 23);
+        int minute = EditorGUILayout.IntSlider("Minute", controller.Minute, 0, 59);
+        if (EditorGUI.EndChangeCheck())
+        {
+            RecordUndo(controller, "Change Ground Ops Date and Time");
+            controller.SetLocalDateTime(year, month, day, hour, minute);
+            FinishChange(controller);
+        }
+
+        if (GUILayout.Button("Use Current Local Date and Time"))
+        {
+            RecordUndo(controller, "Set Current Ground Ops Date and Time");
+            controller.SetToCurrentLocalTime();
+            FinishChange(controller);
+        }
+
+        EditorGUILayout.Space(4f);
+        EditorGUILayout.LabelField("Time zone", controller.TimeZoneAbbreviation);
+        EditorGUILayout.LabelField("Sun azimuth", $"{controller.SolarAzimuthDegrees:0.00}° true");
+        EditorGUILayout.LabelField("Sun elevation", $"{controller.SolarElevationDegrees:+0.00;-0.00;0.00}°");
+        EditorGUILayout.EndVertical();
     }
 
     private static void DrawShellSection()

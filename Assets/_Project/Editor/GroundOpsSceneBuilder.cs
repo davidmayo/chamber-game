@@ -18,13 +18,17 @@ public static class GroundOpsSceneBuilder
     private const string RootName = "Ground Ops Blockout";
     private const string MaterialFolder = "Assets/_Project/Materials";
     private const string MeshFolder = "Assets/_Project/Generated/Meshes";
+    private const double DocLatitudeDegrees = 38.1908805555556;
+    private const double DocLongitudeDegrees = -83.4300361111111;
+    private const double AntennaLatitudeDegrees = 38.1918583333333;
+    private const double AntennaLongitudeDegrees = -83.438825;
     private static readonly Vector2 ExteriorViewOrigin = new(-1.5f, -2.5f);
     private static readonly Vector2 ExteriorViewDirection = new Vector2(-0.48f, 0.88f).normalized;
     private static readonly Vector2 ExteriorLateralDirection =
         new(ExteriorViewDirection.y, -ExteriorViewDirection.x);
     private static readonly Vector3 DishComplexOffset = new(-41.5f, 13.7f, 18.01f);
-    private static readonly Vector3 SmallDishRootPosition = new(-18.124f, 13.554f, -8.329f);
-    private static readonly Vector3 LargeDishRootPosition = new(-24.988f, 12.640f, -13.781f);
+    private static readonly Vector3 SmallDishRootPosition = new(-18.124f, 16.054f, -8.329f);
+    private static readonly Vector3 LargeDishRootPosition = new(-24.988f, 15.140f, -13.781f);
     private const float SmallDishRootScale = 2.434f;
     private const float LargeDishRootScale = 2.497f;
     private static readonly Vector2 DishTerrainCenter = new(-55.16f, 37.81f);
@@ -117,8 +121,21 @@ public static class GroundOpsSceneBuilder
         Material rackMaterial = GetMaterial("GroundOpsDsnRack", new Color(0.25f, 0.27f, 0.28f), 0.15f, 0.18f);
         Material kvmScreenMaterial = GetMaterial("GroundOpsKvmScreen", new Color(0.015f, 0.025f, 0.030f), 0f, 0.35f);
         Material terrainMaterial = GetMaterial("GroundOpsMountainTerrain", new Color(0.22f, 0.31f, 0.17f), 0f, 0.02f);
+        Material forestTrunkMaterial = GetMaterial("GroundOpsForestTrunks", new Color(0.16f, 0.11f, 0.065f), 0f, 0.02f);
+        Material[] forestCrownMaterials =
+        {
+            GetMaterial("GroundOpsForestCrown1", new Color(0.13f, 0.25f, 0.10f), 0f, 0.01f),
+            GetMaterial("GroundOpsForestCrown2", new Color(0.18f, 0.32f, 0.13f), 0f, 0.01f),
+            GetMaterial("GroundOpsForestCrown3", new Color(0.23f, 0.38f, 0.16f), 0f, 0.01f),
+            GetMaterial("GroundOpsForestCrown4", new Color(0.29f, 0.43f, 0.19f), 0f, 0.01f),
+        };
         Material dishMaterial = GetMaterial("GroundOpsExteriorDish", new Color(0.66f, 0.68f, 0.65f), 0.05f, 0.15f);
         Material playerMaterial = GetMaterial("GroundOpsPlayer", new Color(0.12f, 0.32f, 0.58f), 0f, 0.18f);
+        Material northMaterial = GetMaterial("GroundOpsTrueNorth", new Color(0.16f, 0.40f, 0.95f), 0f, 0.12f);
+        Material eastMaterial = GetMaterial("GroundOpsTrueEast", new Color(0.95f, 0.20f, 0.14f), 0f, 0.12f);
+        Material skyMaterial = GetSkyMaterial("GroundOpsSky");
+
+        CalculateWorldCardinalAxes(out Vector3 worldNorth, out Vector3 worldEast);
 
         Transform root = NewGroup(RootName, null);
         Transform architecture = NewGroup("Architecture", root);
@@ -165,6 +182,8 @@ public static class GroundOpsSceneBuilder
         BuildExteriorLandscape(
             NewGroup("Exterior Landscape", root),
             terrainMaterial,
+            forestTrunkMaterial,
+            forestCrownMaterials,
             dishMaterial);
 
         ShellVisualBinding[] wallVisuals = CreateCameraVisuals(
@@ -209,13 +228,23 @@ public static class GroundOpsSceneBuilder
             rackMaterial,
             deskBaseMaterial);
 
-        BuildCameraAndLight(NewGroup("Scene Setup", root));
+        BuildGeographicReference(
+            NewGroup("Geographic Reference", root),
+            worldNorth,
+            worldEast,
+            northMaterial,
+            eastMaterial,
+            trimMaterial);
+        BuildCameraAndLight(
+            NewGroup("Scene Setup", root),
+            skyMaterial,
+            worldNorth,
+            worldEast);
         BuildPlayer(NewGroup("Player", root), playerMaterial);
         FinishSync();
 
-        RenderSettings.skybox = null;
-        RenderSettings.ambientMode = AmbientMode.Flat;
-        RenderSettings.ambientLight = new Color(0.48f, 0.48f, 0.48f);
+        RenderSettings.skybox = skyMaterial;
+        RenderSettings.ambientMode = AmbientMode.Skybox;
     }
 
     private static Vector3[] BuildWindowPoints(
@@ -773,10 +802,17 @@ public static class GroundOpsSceneBuilder
     private static void BuildExteriorLandscape(
         Transform parent,
         Material terrainMaterial,
+        Material forestTrunkMaterial,
+        Material[] forestCrownMaterials,
         Material dishMaterial)
     {
         Mesh terrainMesh = GetMountainTerrainMesh("GroundOps_MountainTerrain");
         MeshObject("Low-poly Mountain Ridge", parent, terrainMesh, terrainMaterial, false);
+
+        BuildForest(
+            NewGroup("Low-poly Forest", parent),
+            forestTrunkMaterial,
+            forestCrownMaterials);
 
         // The actual antennas are roughly 2,500 feet (762 m) from the DOC. Their
         // diameters remain at 1:10 scale, but the complex is deliberately staged
@@ -797,6 +833,231 @@ public static class GroundOpsSceneBuilder
             largeDishPosition, 2.10f, 2.6f,
             new Vector3(0.58f, 0.79f, -0.20f),
             LargeDishRootPosition, LargeDishRootScale, dishMaterial);
+    }
+
+    private static void BuildForest(
+        Transform parent,
+        Material trunkMaterial,
+        Material[] crownMaterials)
+    {
+        const float spacing = 1.55f;
+        const float forestRadius = 112f;
+        const float docClearingRadius = 24f;
+        const float windowSideBackfill = 5f;
+        const int gridRadius = 73;
+
+        List<Vector3> trunkVertices = new();
+        List<int> trunkTriangles = new();
+        List<Vector3>[] crownVertices = crownMaterials.Select(_ => new List<Vector3>()).ToArray();
+        List<int>[] crownTriangles = crownMaterials.Select(_ => new List<int>()).ToArray();
+
+        for (int zIndex = -gridRadius; zIndex <= gridRadius; zIndex++)
+        {
+            for (int xIndex = -gridRadius; xIndex <= gridRadius; xIndex++)
+            {
+                float jitterX = (StableNoise01(xIndex, zIndex, 1) - 0.5f) * spacing * 0.72f;
+                float jitterZ = (StableNoise01(xIndex, zIndex, 2) - 0.5f) * spacing * 0.72f;
+                float x = ExteriorViewOrigin.x + xIndex * spacing + jitterX;
+                float z = ExteriorViewOrigin.y + zIndex * spacing + jitterZ;
+                Vector2 horizontal = new(x, z);
+
+                if ((horizontal - ExteriorViewOrigin).sqrMagnitude > forestRadius * forestRadius) continue;
+                if ((horizontal - ExteriorViewOrigin).sqrMagnitude < docClearingRadius * docClearingRadius) continue;
+                // Only the broad -X half of the landscape is visible through the
+                // curved window. Retain a little backfill beyond the DOC center
+                // so the forest never ends visibly at an exact radial boundary.
+                if (x > ExteriorViewOrigin.x + windowSideBackfill) continue;
+                if (StableNoise01(xIndex, zIndex, 3) < 0.04f) continue;
+
+                float groundY = MountainHeight(x, z);
+                float height = Mathf.Lerp(1.30f, 2.35f, StableNoise01(xIndex, zIndex, 4));
+                float crownRadius = Mathf.Lerp(0.82f, 1.22f, StableNoise01(xIndex, zIndex, 5));
+                float slopeBlend = Mathf.InverseLerp(0.08f, 0.75f, TerrainSlope(x, z));
+                crownRadius *= Mathf.Lerp(1f, 1.95f, slopeBlend);
+                float trunkHeight = height
+                    * Mathf.Lerp(0.38f, 0.52f, StableNoise01(xIndex, zIndex, 6))
+                    * Mathf.Lerp(1f, 0.68f, slopeBlend);
+                float crownHeight = (height - trunkHeight) * Mathf.Lerp(1f, 1.35f, slopeBlend);
+                float trunkRadius = Mathf.Lerp(0.055f, 0.095f, StableNoise01(xIndex, zIndex, 7));
+                int paletteIndex = Mathf.Min(
+                    crownMaterials.Length - 1,
+                    Mathf.FloorToInt(StableNoise01(xIndex, zIndex, 8) * crownMaterials.Length));
+
+                AddTreeTrunk(
+                    trunkVertices,
+                    trunkTriangles,
+                    new Vector3(x, groundY, z),
+                    trunkRadius,
+                    trunkHeight);
+                AddTreeCrown(
+                    crownVertices[paletteIndex],
+                    crownTriangles[paletteIndex],
+                    new Vector3(x, groundY + trunkHeight, z),
+                    crownRadius,
+                    crownHeight,
+                    xIndex,
+                    zIndex);
+            }
+        }
+
+        Mesh trunkMesh = GetGeneratedMesh("GroundOps_ForestTrunks", trunkVertices, trunkTriangles);
+        MeshObject("Forest Trunks", parent, trunkMesh, trunkMaterial, false);
+        for (int index = 0; index < crownMaterials.Length; index++)
+        {
+            Mesh crownMesh = GetGeneratedMesh(
+                $"GroundOps_ForestCrowns{index + 1}",
+                crownVertices[index],
+                crownTriangles[index]);
+            MeshObject($"Forest Crowns {index + 1}", parent, crownMesh, crownMaterials[index], false);
+        }
+    }
+
+    private static float TerrainSlope(float x, float z)
+    {
+        const float sampleOffset = 0.65f;
+        float xGradient = (
+            MountainHeight(x + sampleOffset, z)
+            - MountainHeight(x - sampleOffset, z)) / (sampleOffset * 2f);
+        float zGradient = (
+            MountainHeight(x, z + sampleOffset)
+            - MountainHeight(x, z - sampleOffset)) / (sampleOffset * 2f);
+        return Mathf.Sqrt(xGradient * xGradient + zGradient * zGradient);
+    }
+
+    private static void AddTreeTrunk(
+        List<Vector3> vertices,
+        List<int> triangles,
+        Vector3 baseCenter,
+        float radius,
+        float height)
+    {
+        const int sides = 5;
+        int start = vertices.Count;
+        for (int ring = 0; ring < 2; ring++)
+        {
+            float y = baseCenter.y + ring * height;
+            for (int side = 0; side < sides; side++)
+            {
+                float angle = side * Mathf.PI * 2f / sides;
+                vertices.Add(new Vector3(
+                    baseCenter.x + Mathf.Cos(angle) * radius,
+                    y,
+                    baseCenter.z + Mathf.Sin(angle) * radius));
+            }
+        }
+
+        for (int side = 0; side < sides; side++)
+        {
+            int next = (side + 1) % sides;
+            triangles.Add(start + side);
+            triangles.Add(start + sides + side);
+            triangles.Add(start + sides + next);
+            triangles.Add(start + side);
+            triangles.Add(start + sides + next);
+            triangles.Add(start + next);
+        }
+    }
+
+    private static void AddTreeCrown(
+        List<Vector3> vertices,
+        List<int> triangles,
+        Vector3 baseCenter,
+        float radius,
+        float height,
+        int xIndex,
+        int zIndex)
+    {
+        const int sides = 7;
+        int start = vertices.Count;
+        vertices.Add(baseCenter + Vector3.up * height);
+        vertices.Add(baseCenter - Vector3.up * height * 0.08f);
+        float lowerRingY = baseCenter.y + height * 0.38f;
+        float upperRingY = baseCenter.y + height * 0.76f;
+        float yaw = StableNoise01(xIndex, zIndex, 9) * Mathf.PI * 2f;
+        for (int side = 0; side < sides; side++)
+        {
+            float angle = yaw + side * Mathf.PI * 2f / sides;
+            float irregularity = Mathf.Lerp(
+                0.82f,
+                1.16f,
+                StableNoise01(xIndex * 11 + side, zIndex * 13 - side, 10));
+            vertices.Add(new Vector3(
+                baseCenter.x + Mathf.Cos(angle) * radius * irregularity * 0.72f,
+                upperRingY,
+                baseCenter.z + Mathf.Sin(angle) * radius * irregularity * 0.72f));
+        }
+        for (int side = 0; side < sides; side++)
+        {
+            float angle = yaw + side * Mathf.PI * 2f / sides;
+            float irregularity = Mathf.Lerp(
+                0.82f,
+                1.16f,
+                StableNoise01(xIndex * 11 + side, zIndex * 13 - side, 10));
+            vertices.Add(new Vector3(
+                baseCenter.x + Mathf.Cos(angle) * radius * irregularity,
+                lowerRingY,
+                baseCenter.z + Mathf.Sin(angle) * radius * irregularity));
+        }
+
+        for (int side = 0; side < sides; side++)
+        {
+            int upperCurrent = start + 2 + side;
+            int upperNext = start + 2 + (side + 1) % sides;
+            int lowerCurrent = start + 2 + sides + side;
+            int lowerNext = start + 2 + sides + (side + 1) % sides;
+            triangles.Add(start);
+            triangles.Add(upperNext);
+            triangles.Add(upperCurrent);
+
+            triangles.Add(upperCurrent);
+            triangles.Add(upperNext);
+            triangles.Add(lowerNext);
+            triangles.Add(upperCurrent);
+            triangles.Add(lowerNext);
+            triangles.Add(lowerCurrent);
+
+            triangles.Add(start + 1);
+            triangles.Add(lowerCurrent);
+            triangles.Add(lowerNext);
+        }
+    }
+
+    private static float StableNoise01(int x, int z, int salt)
+    {
+        unchecked
+        {
+            uint value = (uint)(x * 73856093) ^ (uint)(z * 19349663) ^ (uint)(salt * 83492791);
+            value ^= value >> 13;
+            value *= 1274126177u;
+            value ^= value >> 16;
+            return (value & 0x00ffffffu) / 16777215f;
+        }
+    }
+
+    private static Mesh GetGeneratedMesh(
+        string name,
+        List<Vector3> vertices,
+        List<int> triangles)
+    {
+        string path = $"{MeshFolder}/{name}.asset";
+        Mesh mesh = AssetDatabase.LoadAssetAtPath<Mesh>(path);
+        if (mesh == null)
+        {
+            mesh = new Mesh { name = name };
+            AssetDatabase.CreateAsset(mesh, path);
+        }
+        else
+        {
+            mesh.Clear();
+        }
+
+        mesh.indexFormat = IndexFormat.UInt32;
+        mesh.SetVertices(vertices);
+        mesh.SetTriangles(triangles, 0);
+        mesh.RecalculateNormals();
+        mesh.RecalculateBounds();
+        EditorUtility.SetDirty(mesh);
+        return mesh;
     }
 
     private static void BuildDishProxy(
@@ -999,15 +1260,98 @@ public static class GroundOpsSceneBuilder
         triangles.Add(start + 2);
     }
 
-    private static void BuildCameraAndLight(Transform parent)
+    private static void CalculateWorldCardinalAxes(
+        out Vector3 worldNorth,
+        out Vector3 worldEast)
     {
-        GameObject lightObject = AcquireObject("Directional Light", parent, () => new GameObject("Directional Light"));
+        const double earthRadiusMeters = 6371000.0;
+        double meanLatitudeRadians = (
+            DocLatitudeDegrees + AntennaLatitudeDegrees) * 0.5 * Mathf.Deg2Rad;
+        double trueNorthMeters = (
+            AntennaLatitudeDegrees - DocLatitudeDegrees) * Mathf.Deg2Rad * earthRadiusMeters;
+        double trueEastMeters = (
+            AntennaLongitudeDegrees - DocLongitudeDegrees) * Mathf.Deg2Rad
+            * earthRadiusMeters * System.Math.Cos(meanLatitudeRadians);
+        float realDirectionAngle = Mathf.Atan2((float)trueNorthMeters, (float)trueEastMeters);
+        Vector2 stagedAntennaDirection = (DishTerrainCenter - ExteriorViewOrigin).normalized;
+        float worldDirectionAngle = Mathf.Atan2(
+            stagedAntennaDirection.y,
+            stagedAntennaDirection.x);
+        float cardinalRotation = worldDirectionAngle - realDirectionAngle;
+
+        worldEast = new Vector3(
+            Mathf.Cos(cardinalRotation),
+            0f,
+            Mathf.Sin(cardinalRotation)).normalized;
+        worldNorth = new Vector3(-worldEast.z, 0f, worldEast.x).normalized;
+    }
+
+    private static void BuildGeographicReference(
+        Transform parent,
+        Vector3 worldNorth,
+        Vector3 worldEast,
+        Material northMaterial,
+        Material eastMaterial,
+        Material centerMaterial)
+    {
+        const float axisLength = 5f;
+        const float axisWidth = 0.16f;
+        const float markerY = -0.32f;
+        Box("Cardinal Origin", parent,
+            new Vector3(0f, markerY, 0f),
+            new Vector3(0.44f, 0.08f, 0.44f),
+            Quaternion.identity,
+            centerMaterial);
+        BuildCardinalAxis("TRUE NORTH (+N)", parent, worldNorth,
+            axisLength, axisWidth, markerY, northMaterial);
+        BuildCardinalAxis("EAST (+E)", parent, worldEast,
+            axisLength, axisWidth, markerY, eastMaterial);
+    }
+
+    private static void BuildCardinalAxis(
+        string name,
+        Transform parent,
+        Vector3 direction,
+        float length,
+        float width,
+        float y,
+        Material material)
+    {
+        Transform axis = NewGroup(name, parent);
+        float yaw = -Mathf.Atan2(direction.z, direction.x) * Mathf.Rad2Deg;
+        Quaternion rotation = Quaternion.Euler(0f, yaw, 0f);
+        Box("Shaft", axis,
+            direction * (length * 0.5f) + Vector3.up * y,
+            new Vector3(length, 0.08f, width),
+            rotation,
+            material);
+        Box("Arrowhead", axis,
+            direction * length + Vector3.up * y,
+            new Vector3(0.52f, 0.10f, 0.52f),
+            Quaternion.Euler(0f, yaw + 45f, 0f),
+            material);
+    }
+
+    private static void BuildCameraAndLight(
+        Transform parent,
+        Material skyMaterial,
+        Vector3 worldNorth,
+        Vector3 worldEast)
+    {
+        Transform skyAndSun = NewGroup("Sky and Sun", parent);
+        GameObject lightObject = AcquireObject("Sun", skyAndSun, () => new GameObject("Sun"));
         Light light = GetOrAddComponent<Light>(lightObject);
         light.type = LightType.Directional;
-        light.intensity = 1.1f;
-        light.color = new Color(1f, 0.96f, 0.90f);
         light.shadows = LightShadows.Soft;
-        lightObject.transform.rotation = Quaternion.Euler(52f, -35f, 0f);
+        GroundOpsSkyController skyController =
+            GetOrAddComponent<GroundOpsSkyController>(skyAndSun.gameObject);
+        skyController.Configure(
+            light,
+            skyMaterial,
+            worldNorth,
+            worldEast,
+            DocLatitudeDegrees,
+            DocLongitudeDegrees);
     }
 
     private static FirstPersonPlayerController BuildPlayer(
@@ -1291,6 +1635,32 @@ public static class GroundOpsSceneBuilder
         if (material.HasProperty("_ZWrite")) material.SetFloat("_ZWrite", 0f);
         material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
         material.renderQueue = (int)RenderQueue.Transparent;
+        EditorUtility.SetDirty(material);
+        return material;
+    }
+
+    private static Material GetSkyMaterial(string name)
+    {
+        string path = $"{MaterialFolder}/{name}.mat";
+        Shader shader = Shader.Find("Skybox/Procedural");
+        if (shader == null)
+        {
+            throw new System.InvalidOperationException(
+                "Unity's Skybox/Procedural shader is required for the Ground Ops sky.");
+        }
+
+        Material material = AssetDatabase.LoadAssetAtPath<Material>(path);
+        if (material == null)
+        {
+            material = new Material(shader) { name = name };
+            AssetDatabase.CreateAsset(material, path);
+        }
+        else if (material.shader != shader)
+        {
+            material.shader = shader;
+        }
+
+        if (material.HasProperty("_SunDisk")) material.SetFloat("_SunDisk", 2f);
         EditorUtility.SetDirty(material);
         return material;
     }
