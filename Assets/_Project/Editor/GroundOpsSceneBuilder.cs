@@ -96,8 +96,8 @@ public static class GroundOpsSceneBuilder
             .FirstOrDefault(candidate => candidate.name == RootName);
         float preserveWallOpacity = 100f;
         bool preserveCeilingLightsOn = true;
-        float preserveDishAzimuth = 98f;
-        float preserveDishElevation = 20f;
+        float preserveDishAzimuth = 0f;
+        float preserveDishElevation = 90f;
         string preserveTargetName = "GOES-19";
         float preserveTargetAzimuth = 166.823f;
         float preserveTargetElevation = 44.946f;
@@ -122,8 +122,14 @@ public static class GroundOpsSceneBuilder
                 existingRoot.GetComponentInChildren<GroundOpsDishController>(true);
             if (existingDishes != null)
             {
-                preserveDishAzimuth = existingDishes.AzimuthDegrees;
-                preserveDishElevation = existingDishes.ElevationDegrees;
+                bool oldDefaultPose =
+                    Mathf.Approximately(existingDishes.AzimuthDegrees, 98f)
+                    && Mathf.Approximately(existingDishes.ElevationDegrees, 20f);
+                if (!oldDefaultPose)
+                {
+                    preserveDishAzimuth = existingDishes.AzimuthDegrees;
+                    preserveDishElevation = existingDishes.ElevationDegrees;
+                }
             }
             GroundOpsSatelliteTarget existingTarget =
                 existingRoot.GetComponentInChildren<GroundOpsSatelliteTarget>(true);
@@ -159,6 +165,8 @@ public static class GroundOpsSceneBuilder
         Material monitorMaterial = GetMaterial("GroundOpsMonitor", new Color(0.055f, 0.060f, 0.065f), 0.02f, 0.20f);
         Material monitorScreenMaterial = GetMaterial("GroundOpsMonitorScreen", new Color(0.010f, 0.016f, 0.022f), 0f, 0.38f);
         Material rackMaterial = GetMaterial("GroundOpsDsnRack", new Color(0.25f, 0.27f, 0.28f), 0.15f, 0.18f);
+        Material woodDoorMaterial = GetMaterial(
+            "GroundOpsWoodDoor", new Color(0.36f, 0.19f, 0.08f), 0f, 0.20f);
         Material legacyBeigeMaterial = GetMaterial(
             "GroundOpsLegacyComputerBeige", new Color(0.68f, 0.65f, 0.53f), 0f, 0.08f);
         Material kvmScreenMaterial = GetMaterial("GroundOpsKvmScreen", new Color(0.015f, 0.025f, 0.030f), 0f, 0.35f);
@@ -191,7 +199,7 @@ public static class GroundOpsSceneBuilder
             new Vector3(serverLeftX, 0f, partitionZ),
             new Vector3(-5.1f, 0f, opsFrontZ),
             new Vector3(-7.0f, 0f, -0.2f),
-            4);
+            5);
 
         BuildFloor(
             NewGroup("Floors", architecture),
@@ -235,6 +243,13 @@ public static class GroundOpsSceneBuilder
             windowPoints,
             wallHeight,
             glassMaterial,
+            trimMaterial);
+        BuildOpsRoomDoor(
+            NewGroup("Ops Room Door", architecture),
+            opsFrontZ,
+            doorWidth,
+            doorHeight,
+            woodDoorMaterial,
             trimMaterial);
 
         Transform exteriorLandscape = NewGroup("Exterior Landscape", root);
@@ -291,7 +306,8 @@ public static class GroundOpsSceneBuilder
             deskMaterial, deskBaseMaterial, chairMaterial, monitorMaterial, monitorScreenMaterial);
         BuildStationDesk("Dish Station 2", furniture, new Vector3(-2.870f, 0f, -0.700f), 21.625f,
             deskMaterial, deskBaseMaterial, chairMaterial, monitorMaterial, monitorScreenMaterial);
-        BuildStationDesk("Dish Station 3", furniture, new Vector3(-1.527f, 0f, -3.340f), 14.958f,
+        Transform dishStation3 = BuildStationDesk(
+            "Dish Station 3", furniture, new Vector3(-1.527f, 0f, -3.340f), 14.958f,
             deskMaterial, deskBaseMaterial, chairMaterial, monitorMaterial, monitorScreenMaterial);
         BuildStationDesk("Dish Station 4", furniture, new Vector3(-0.858f, 0f, -1.457f), 26.940f,
             deskMaterial, deskBaseMaterial, chairMaterial, monitorMaterial, monitorScreenMaterial);
@@ -330,7 +346,11 @@ public static class GroundOpsSceneBuilder
             worldNorth,
             worldEast);
         FirstPersonPlayerController playerController =
-            BuildPlayer(NewGroup("Player", root), playerMaterial);
+            BuildPlayer(
+                NewGroup("Player", root),
+                playerMaterial,
+                dishStation3.TransformPoint(new Vector3(1.50f, 0f, 0f)),
+                new Vector3(-6.0f, 1.65f, -0.2f));
         BuildDishStationConsole(frontLeftStation, playerController, dishController);
         BuildDsnRackConsole(dsnRackPair, playerController);
         FinishSync();
@@ -527,8 +547,8 @@ public static class GroundOpsSceneBuilder
                 Vector3.down,
                 LightType.Point,
                 warmLight,
-                0.46f,
-                5.8f,
+                0.70f,
+                7.2f,
                 0f,
                 false));
         }
@@ -559,10 +579,33 @@ public static class GroundOpsSceneBuilder
                 Vector3.down,
                 LightType.Spot,
                 warmLight,
-                4.2f,
-                8f,
+                5.8f,
+                9.5f,
                 72f,
                 index % 3 == 0));
+        }
+
+        Transform roomFillGroup = NewGroup("Diffuse Room Fill", parent);
+        Vector3[] fillPositions =
+        {
+            new(-2.6f, wallHeight - 0.85f, -2.4f),
+            new(1.4f, wallHeight - 0.85f, -1.0f),
+            new(-0.5f, wallHeight - 0.85f, 2.5f),
+            new(2.8f, wallHeight - 0.85f, 3.2f),
+        };
+        for (int index = 0; index < fillPositions.Length; index++)
+        {
+            lights.Add(CreateLight(
+                $"Room Fill {index + 1}",
+                roomFillGroup,
+                fillPositions[index],
+                Vector3.down,
+                LightType.Point,
+                warmLight,
+                0.55f,
+                8.5f,
+                0f,
+                false));
         }
 
         GroundOpsCeilingLightsController controller =
@@ -767,6 +810,28 @@ public static class GroundOpsSceneBuilder
                 Quaternion.identity,
                 trimMaterial);
         }
+    }
+
+    private static void BuildOpsRoomDoor(
+        Transform parent,
+        float wallZ,
+        float doorWidth,
+        float doorHeight,
+        Material woodMaterial,
+        Material hardwareMaterial)
+    {
+        const float centerX = 4.15f;
+        const float thickness = 0.055f;
+        Box("Wooden Door", parent,
+            new Vector3(centerX, doorHeight / 2f, wallZ),
+            new Vector3(doorWidth - 0.05f, doorHeight - 0.04f, thickness),
+            Quaternion.identity,
+            woodMaterial);
+        Box("Door Handle", parent,
+            new Vector3(centerX - doorWidth * 0.34f, 1.02f, wallZ - thickness * 0.62f),
+            new Vector3(0.05f, 0.12f, 0.05f),
+            Quaternion.identity,
+            hardwareMaterial);
     }
 
     private static Transform BuildStationDesk(
@@ -1232,7 +1297,7 @@ public static class GroundOpsSceneBuilder
             new Vector3(-0.025f, monitorCenterY, frontZ - 0.109f),
             0.36f,
             0.24f,
-            "Power: -85.2 dBm\nFrequency: 8220.000 MHz\nID: GOES-19",
+            "Power: -60.0 dBm\nFrequency: 8220.000 MHz\nID: GOES-19",
             64,
             Quaternion.Euler(0f, -12f, 0f));
         GroundOpsSignalDisplay signalDisplay =
@@ -1241,7 +1306,7 @@ public static class GroundOpsSceneBuilder
             dishController,
             satelliteTarget,
             signalReadout,
-            -85.2f,
+            -60f,
             15f);
         Box("Improvised Shelf", kludgedConsole,
             new Vector3(0f, 0.92f, frontZ - 0.22f),
@@ -1631,12 +1696,45 @@ public static class GroundOpsSceneBuilder
         Cylinder("Post", dish,
             new Vector3(horizontalPosition.x, groundY + postHeight / 2f, horizontalPosition.y),
             0.075f, postHeight, material);
-        GameObject reflector = Cylinder("Dish Circle", dish,
-            new Vector3(horizontalPosition.x, groundY + postHeight, horizontalPosition.y),
-            diameter / 2f, 0.07f, material);
-        reflector.transform.localRotation =
+        Transform pointingAssembly = NewGroup("Pointing Assembly", dish);
+        pointingAssembly.localPosition =
+            new Vector3(horizontalPosition.x, groundY + postHeight, horizontalPosition.y);
+        pointingAssembly.localRotation =
             Quaternion.FromToRotation(Vector3.up, dishNormal.normalized);
-        return reflector.transform;
+        Cylinder("Dish Circle", pointingAssembly,
+            Vector3.zero,
+            diameter / 2f, 0.07f, material);
+
+        float subreflectorHeight = diameter * 0.34f;
+        float subreflectorRadius = diameter * 0.085f;
+        Cylinder("Subreflector", pointingAssembly,
+            new Vector3(0f, subreflectorHeight, 0f),
+            subreflectorRadius, 0.045f, material);
+
+        float supportRadius = diameter * 0.36f;
+        float innerRadius = subreflectorRadius * 0.60f;
+        Vector3[] supportDirections =
+        {
+            Vector3.right,
+            Vector3.left,
+            Vector3.forward,
+            Vector3.back,
+        };
+        for (int index = 0; index < supportDirections.Length; index++)
+        {
+            Vector3 radial = supportDirections[index];
+            Vector3 start = radial * supportRadius + Vector3.up * 0.04f;
+            Vector3 end = radial * innerRadius + Vector3.up * subreflectorHeight;
+            BoxBetween(
+                $"Subreflector Leg {index + 1}",
+                pointingAssembly,
+                start,
+                end,
+                Mathf.Max(0.018f, diameter * 0.018f),
+                material);
+        }
+
+        return pointingAssembly;
     }
 
     private static Mesh GetMountainTerrainMesh(string name)
@@ -1901,11 +1999,18 @@ public static class GroundOpsSceneBuilder
 
     private static FirstPersonPlayerController BuildPlayer(
         Transform player,
-        Material material)
+        Material material,
+        Vector3 startPosition,
+        Vector3 lookTarget)
     {
-        // Start just inside the main Ops entrance, facing toward the server room.
-        player.localPosition = new Vector3(4.15f, 0f, -4.65f);
-        player.localRotation = Quaternion.identity;
+        // Start behind Dish Station 3, facing the curved window wall.
+        player.localPosition = startPosition;
+        Vector3 lookDirection = Vector3.ProjectOnPlane(
+            lookTarget - (startPosition + Vector3.up * 1.65f),
+            Vector3.up);
+        player.localRotation = Quaternion.LookRotation(
+            lookDirection.normalized,
+            Vector3.up);
 
         GameObject body = AcquireObject(
             "Capsule Body",
@@ -2086,6 +2191,24 @@ public static class GroundOpsSceneBuilder
         renderer.shadowCastingMode = ShadowCastingMode.On;
         renderer.receiveShadows = true;
         return gameObject;
+    }
+
+    private static GameObject BoxBetween(
+        string name,
+        Transform parent,
+        Vector3 start,
+        Vector3 end,
+        float thickness,
+        Material material)
+    {
+        Vector3 delta = end - start;
+        return Box(
+            name,
+            parent,
+            (start + end) * 0.5f,
+            new Vector3(thickness, delta.magnitude, thickness),
+            Quaternion.FromToRotation(Vector3.up, delta.normalized),
+            material);
     }
 
     private static GameObject WallBox(

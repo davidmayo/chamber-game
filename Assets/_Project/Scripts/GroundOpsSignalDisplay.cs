@@ -7,7 +7,7 @@ public sealed class GroundOpsSignalDisplay : MonoBehaviour
     [SerializeField] private GroundOpsDishController dishController;
     [SerializeField] private GroundOpsSatelliteTarget satelliteTarget;
     [SerializeField] private Text readout;
-    [SerializeField] private float perfectAlignmentPowerDbm = -85.2f;
+    [SerializeField] private float perfectAlignmentPowerDbm = -60f;
     [SerializeField, Min(0.01f)] private float halfPowerBeamWidthDegrees = 15f;
     [SerializeField] private float minimumDisplayedPowerDbm = -160f;
 
