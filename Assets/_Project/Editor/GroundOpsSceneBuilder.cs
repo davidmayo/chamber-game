@@ -94,6 +94,7 @@ public static class GroundOpsSceneBuilder
         GameObject existingRoot = scene.GetRootGameObjects()
             .FirstOrDefault(candidate => candidate.name == RootName);
         float preserveWallOpacity = 100f;
+        bool preserveCeilingLightsOn = true;
         if (existingRoot != null)
         {
             ChamberShellVisibilityController existingVisibility =
@@ -102,12 +103,22 @@ public static class GroundOpsSceneBuilder
             {
                 preserveWallOpacity = existingVisibility.RoomOpacityPercent;
             }
+            GroundOpsCeilingLightsController existingCeilingLights =
+                existingRoot.GetComponentInChildren<GroundOpsCeilingLightsController>(true);
+            if (existingCeilingLights != null)
+            {
+                preserveCeilingLightsOn = existingCeilingLights.LightsOn;
+            }
         }
         BeginSync(existingRoot);
 
         Material wallMaterial = GetMaterial("GroundOpsWall", new Color(0.76f, 0.75f, 0.70f), 0f, 0.08f);
         Material transparentWallMaterial = GetTransparentMaterial(
             "GroundOpsWallTransparent", new Color(0.76f, 0.75f, 0.70f, 0.50f));
+        Material ceilingMaterial = GetMaterial(
+            "GroundOpsCeilingPlaster", new Color(0.92f, 0.90f, 0.84f), 0f, 0.04f);
+        Material transparentCeilingMaterial = GetTransparentMaterial(
+            "GroundOpsCeilingPlasterTransparent", new Color(0.92f, 0.90f, 0.84f, 0.50f));
         Material trimMaterial = GetMaterial("GroundOpsWindowTrim", new Color(0.16f, 0.18f, 0.20f), 0.15f, 0.25f);
         Material glassMaterial = GetTransparentMaterial(
             "GroundOpsWindowGlass", new Color(0.32f, 0.48f, 0.58f, 0.12f));
@@ -131,6 +142,11 @@ public static class GroundOpsSceneBuilder
         };
         Material dishMaterial = GetMaterial("GroundOpsExteriorDish", new Color(0.66f, 0.68f, 0.65f), 0.05f, 0.15f);
         Material playerMaterial = GetMaterial("GroundOpsPlayer", new Color(0.12f, 0.32f, 0.58f), 0f, 0.18f);
+        Material lightHousingMaterial = GetMaterial("GroundOpsLightHousing", new Color(0.44f, 0.46f, 0.46f), 0.25f, 0.38f);
+        Material lightsOnMaterial = GetEmissiveMaterial(
+            "GroundOpsLightsOn", new Color(1f, 0.89f, 0.70f), 1.35f);
+        Material lightsOffMaterial = GetMaterial(
+            "GroundOpsLightsOff", new Color(0.22f, 0.22f, 0.20f), 0f, 0.18f);
         Material northMaterial = GetMaterial("GroundOpsTrueNorth", new Color(0.16f, 0.40f, 0.95f), 0f, 0.12f);
         Material eastMaterial = GetMaterial("GroundOpsTrueEast", new Color(0.95f, 0.20f, 0.14f), 0f, 0.12f);
         Material skyMaterial = GetSkyMaterial("GroundOpsSky");
@@ -156,6 +172,7 @@ public static class GroundOpsSceneBuilder
             serverLeftX,
             carpetMaterial);
         List<Renderer> wallPhysicalRenderers = new();
+        List<Renderer> ceilingPhysicalRenderers = new();
         List<Renderer> wallCutawayRenderers = new();
         BuildWalls(
             NewGroup("Walls", architecture),
@@ -172,6 +189,16 @@ public static class GroundOpsSceneBuilder
             wallMaterial,
             wallPhysicalRenderers,
             wallCutawayRenderers);
+        BuildCeiling(
+            NewGroup("Ceiling", architecture),
+            windowPoints,
+            partitionZ,
+            serverBackZ,
+            rightWallX,
+            serverLeftX,
+            wallHeight,
+            ceilingMaterial,
+            ceilingPhysicalRenderers);
         BuildCurvedWindow(
             NewGroup("Curved Window", architecture),
             windowPoints,
@@ -187,11 +214,16 @@ public static class GroundOpsSceneBuilder
             dishMaterial);
 
         ShellVisualBinding[] wallVisuals = CreateCameraVisuals(
-            wallPhysicalRenderers, transparentWallMaterial);
+            wallPhysicalRenderers, transparentWallMaterial)
+            .Concat(CreateCameraVisuals(ceilingPhysicalRenderers, transparentCeilingMaterial))
+            .ToArray();
+        Renderer[] roomPhysicalRenderers = wallPhysicalRenderers
+            .Concat(ceilingPhysicalRenderers)
+            .ToArray();
         ChamberShellVisibilityController wallVisibility =
             GetOrAddComponent<ChamberShellVisibilityController>(root.gameObject);
         wallVisibility.Configure(
-            wallPhysicalRenderers.ToArray(),
+            roomPhysicalRenderers,
             wallVisuals,
             wallCutawayRenderers.ToArray(),
             System.Array.Empty<Renderer>(),
@@ -199,6 +231,14 @@ public static class GroundOpsSceneBuilder
             System.Array.Empty<Renderer>(),
             preserveWallOpacity,
             100f);
+
+        BuildCeilingLights(
+            NewGroup("Ceiling Lighting", root),
+            wallHeight,
+            lightHousingMaterial,
+            lightsOnMaterial,
+            lightsOffMaterial,
+            preserveCeilingLightsOn);
 
         Transform furniture = NewGroup("Furniture Blockout", root);
         BuildStationDesk("Dish Station 1", furniture, new Vector3(-3.540f, 0f, -2.680f), 17.181f,
@@ -298,6 +338,223 @@ public static class GroundOpsSceneBuilder
             new Vector3(rightWallX - serverLeftX, 0.08f, serverBackZ - partitionZ),
             Quaternion.identity,
             material);
+    }
+
+    private static void BuildCeiling(
+        Transform parent,
+        Vector3[] windowPoints,
+        float partitionZ,
+        float serverBackZ,
+        float rightWallX,
+        float serverLeftX,
+        float wallHeight,
+        Material material,
+        List<Renderer> physicalRenderers)
+    {
+        const float slabThickness = 0.16f;
+        const float lightSealOverlap = 0.18f;
+        List<Vector3> opsBoundary = new()
+        {
+            new Vector3(rightWallX, 0f, windowPoints[windowPoints.Length - 1].z),
+        };
+        for (int index = windowPoints.Length - 1; index >= 0; index--)
+        {
+            opsBoundary.Add(windowPoints[index]);
+        }
+        opsBoundary.Add(new Vector3(rightWallX, 0f, partitionZ));
+
+        // The ceiling must overlap the wall centerlines instead of merely
+        // touching them. Exact edge contact can leave a one-pixel directional
+        // shadow-map seam that reads as a bright diagonal crack in a corner.
+        Vector3 boundaryCenter = Vector3.zero;
+        foreach (Vector3 point in opsBoundary)
+        {
+            boundaryCenter += point;
+        }
+        boundaryCenter /= opsBoundary.Count;
+        for (int index = 0; index < opsBoundary.Count; index++)
+        {
+            Vector3 outward = opsBoundary[index] - boundaryCenter;
+            outward.y = 0f;
+            opsBoundary[index] += outward.normalized * lightSealOverlap;
+        }
+
+        Mesh opsCeilingMesh = GetSlabMesh(
+            "GroundOps_OpsCeiling",
+            opsBoundary.ToArray(),
+            wallHeight,
+            wallHeight + slabThickness);
+        GameObject opsCeiling = MeshObject(
+            "Operations Room Ceiling Slab",
+            parent,
+            opsCeilingMesh,
+            material);
+        physicalRenderers.Add(opsCeiling.GetComponent<Renderer>());
+
+        GameObject serverCeiling = Box(
+            "Server Room Ceiling Slab",
+            parent,
+            new Vector3(
+                (serverLeftX + rightWallX) / 2f,
+                wallHeight + slabThickness / 2f,
+                (partitionZ + serverBackZ) / 2f),
+            new Vector3(
+                rightWallX - serverLeftX + lightSealOverlap * 2f,
+                slabThickness,
+                serverBackZ - partitionZ + lightSealOverlap * 2f),
+            Quaternion.identity,
+            material);
+        physicalRenderers.Add(serverCeiling.GetComponent<Renderer>());
+    }
+
+    private static GroundOpsCeilingLightsController BuildCeilingLights(
+        Transform parent,
+        float wallHeight,
+        Material housingMaterial,
+        Material lightsOnMaterial,
+        Material lightsOffMaterial,
+        bool initialState)
+    {
+        List<Light> lights = new();
+        List<Renderer> luminousRenderers = new();
+        Color warmLight = new(1f, 0.86f, 0.67f);
+
+        (Vector3 position, float yaw, float length)[] hangingFixtures =
+        {
+            (new Vector3(-2.5f, wallHeight - 0.58f, -2.75f), -9f, 3.8f),
+            (new Vector3(1.35f, wallHeight - 0.58f, -0.35f), 8f, 4.2f),
+            (new Vector3(-1.05f, wallHeight - 0.58f, 2.35f), -6f, 4.0f),
+        };
+        Transform hangingGroup = NewGroup("Suspended Uplights", parent);
+        for (int index = 0; index < hangingFixtures.Length; index++)
+        {
+            (Vector3 position, float yaw, float length) fixture = hangingFixtures[index];
+            Transform fixtureRoot = NewGroup($"Uplight {index + 1}", hangingGroup);
+            Quaternion rotation = Quaternion.Euler(0f, fixture.yaw, 0f);
+            Vector3 fixtureRight = rotation * Vector3.right;
+            Box("Housing", fixtureRoot,
+                fixture.position,
+                new Vector3(fixture.length, 0.16f, 0.28f),
+                rotation,
+                housingMaterial);
+            GameObject luminousStrip = Box("Upward Luminous Strip", fixtureRoot,
+                fixture.position + Vector3.up * 0.095f,
+                new Vector3(fixture.length * 0.90f, 0.035f, 0.19f),
+                rotation,
+                lightsOnMaterial);
+            luminousRenderers.Add(luminousStrip.GetComponent<Renderer>());
+
+            float hangerHeight = wallHeight - fixture.position.y;
+            for (int side = -1; side <= 1; side += 2)
+            {
+                Cylinder($"Hanger {side}", fixtureRoot,
+                    fixture.position
+                    + fixtureRight * (fixture.length * 0.34f * side)
+                    + Vector3.up * (hangerHeight * 0.5f),
+                    0.018f,
+                    hangerHeight,
+                    housingMaterial);
+            }
+
+            lights.Add(CreateLight(
+                "Upward Light",
+                fixtureRoot,
+                fixture.position + Vector3.up * 0.12f,
+                Vector3.up,
+                LightType.Spot,
+                warmLight,
+                0.16f,
+                2.8f,
+                160f,
+                false,
+                0.08f));
+            lights.Add(CreateLight(
+                "Reflected Fill",
+                fixtureRoot,
+                fixture.position + Vector3.up * 0.08f,
+                Vector3.down,
+                LightType.Point,
+                warmLight,
+                0.46f,
+                5.8f,
+                0f,
+                false));
+        }
+
+        Vector2[] canPositions =
+        {
+            new(-3.8f, -4.15f), new(-1.0f, -4.15f), new(1.8f, -4.15f), new(4.35f, -4.15f),
+            new(-3.5f, 0.15f), new(0.0f, 0.15f), new(3.5f, 0.15f),
+            new(-2.7f, 3.55f), new(0.8f, 3.55f), new(4.1f, 3.55f),
+            new(-1.6f, 6.25f), new(2.2f, 6.25f),
+        };
+        Transform canGroup = NewGroup("Recessed Can Lights", parent);
+        for (int index = 0; index < canPositions.Length; index++)
+        {
+            Vector3 position = new(canPositions[index].x, wallHeight - 0.035f, canPositions[index].y);
+            GameObject lens = Cylinder(
+                $"Can Light {index + 1}",
+                canGroup,
+                position,
+                0.115f,
+                0.045f,
+                lightsOnMaterial);
+            luminousRenderers.Add(lens.GetComponent<Renderer>());
+            lights.Add(CreateLight(
+                "Downlight",
+                lens.transform,
+                new Vector3(0f, -0.08f, 0f),
+                Vector3.down,
+                LightType.Spot,
+                warmLight,
+                4.2f,
+                8f,
+                72f,
+                index % 3 == 0));
+        }
+
+        GroundOpsCeilingLightsController controller =
+            GetOrAddComponent<GroundOpsCeilingLightsController>(parent.gameObject);
+        controller.Configure(
+            lights.ToArray(),
+            luminousRenderers.ToArray(),
+            lightsOnMaterial,
+            lightsOffMaterial,
+            initialState);
+        return controller;
+    }
+
+    private static Light CreateLight(
+        string name,
+        Transform parent,
+        Vector3 localPosition,
+        Vector3 localDirection,
+        LightType type,
+        Color color,
+        float intensity,
+        float range,
+        float spotAngle,
+        bool castShadows,
+        float innerSpotRatio = 0.62f)
+    {
+        GameObject gameObject = AcquireObject(name, parent, () => new GameObject(name));
+        gameObject.transform.localPosition = localPosition;
+        gameObject.transform.localRotation = type == LightType.Spot
+            ? Quaternion.LookRotation(localDirection, Vector3.forward)
+            : Quaternion.identity;
+        gameObject.transform.localScale = Vector3.one;
+        Light light = GetOrAddComponent<Light>(gameObject);
+        light.type = type;
+        light.color = color;
+        light.intensity = intensity;
+        light.range = range;
+        if (type == LightType.Spot)
+        {
+            light.spotAngle = spotAngle;
+            light.innerSpotAngle = spotAngle * innerSpotRatio;
+        }
+        light.shadows = castShadows ? LightShadows.Soft : LightShadows.None;
+        return light;
     }
 
     private static void BuildWalls(
@@ -1392,8 +1649,7 @@ public static class GroundOpsSceneBuilder
         camera.fieldOfView = 68f;
         camera.nearClipPlane = 0.05f;
         camera.farClipPlane = 180f;
-        camera.clearFlags = CameraClearFlags.SolidColor;
-        camera.backgroundColor = new Color(0.055f, 0.065f, 0.075f);
+        camera.clearFlags = CameraClearFlags.Skybox;
 
         FirstPersonPlayerController controller =
             GetOrAddComponent<FirstPersonPlayerController>(player.gameObject);
@@ -1425,6 +1681,68 @@ public static class GroundOpsSceneBuilder
 
         mesh.vertices = boundary;
         mesh.triangles = triangles;
+        mesh.RecalculateNormals();
+        mesh.RecalculateBounds();
+        EditorUtility.SetDirty(mesh);
+        return mesh;
+    }
+
+    private static Mesh GetSlabMesh(
+        string name,
+        Vector3[] boundary,
+        float bottomY,
+        float topY)
+    {
+        string path = $"{MeshFolder}/{name}.asset";
+        Mesh mesh = AssetDatabase.LoadAssetAtPath<Mesh>(path);
+        if (mesh == null)
+        {
+            mesh = new Mesh { name = name };
+            AssetDatabase.CreateAsset(mesh, path);
+        }
+        else
+        {
+            mesh.Clear();
+        }
+
+        int count = boundary.Length;
+        List<Vector3> vertices = new(count * 2);
+        for (int index = 0; index < count; index++)
+        {
+            vertices.Add(new Vector3(boundary[index].x, bottomY, boundary[index].z));
+        }
+        for (int index = 0; index < count; index++)
+        {
+            vertices.Add(new Vector3(boundary[index].x, topY, boundary[index].z));
+        }
+
+        List<int> triangles = new((count - 2) * 6 + count * 6);
+        for (int index = 1; index < count - 1; index++)
+        {
+            triangles.Add(0);
+            triangles.Add(index + 1);
+            triangles.Add(index);
+            triangles.Add(count);
+            triangles.Add(count + index);
+            triangles.Add(count + index + 1);
+        }
+        for (int index = 0; index < count; index++)
+        {
+            int next = (index + 1) % count;
+            int bottomCurrent = index;
+            int bottomNext = next;
+            int topCurrent = count + index;
+            int topNext = count + next;
+            triangles.Add(bottomCurrent);
+            triangles.Add(topCurrent);
+            triangles.Add(topNext);
+            triangles.Add(bottomCurrent);
+            triangles.Add(topNext);
+            triangles.Add(bottomNext);
+        }
+
+        mesh.SetVertices(vertices);
+        mesh.SetTriangles(triangles, 0);
         mesh.RecalculateNormals();
         mesh.RecalculateBounds();
         EditorUtility.SetDirty(mesh);
@@ -1619,6 +1937,23 @@ public static class GroundOpsSceneBuilder
         if (material.HasProperty("_BaseColor")) material.SetColor("_BaseColor", color);
         if (material.HasProperty("_Metallic")) material.SetFloat("_Metallic", metallic);
         if (material.HasProperty("_Smoothness")) material.SetFloat("_Smoothness", smoothness);
+        EditorUtility.SetDirty(material);
+        return material;
+    }
+
+    private static Material GetEmissiveMaterial(
+        string name,
+        Color color,
+        float emissionIntensity)
+    {
+        Material material = GetMaterial(name, color, 0f, 0.58f);
+        Color emission = color * emissionIntensity;
+        if (material.HasProperty("_EmissionColor"))
+        {
+            material.SetColor("_EmissionColor", emission);
+        }
+        material.EnableKeyword("_EMISSION");
+        material.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
         EditorUtility.SetDirty(material);
         return material;
     }

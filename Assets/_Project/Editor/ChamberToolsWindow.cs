@@ -55,6 +55,11 @@ public sealed class ChamberToolsWindow : EditorWindow
             DrawSkySection();
             EditorGUILayout.Space(6f);
         }
+        if (FindController<GroundOpsCeilingLightsController>() != null)
+        {
+            DrawGroundOpsLightingSection();
+            EditorGUILayout.Space(6f);
+        }
         if (FindController<MotionSensitiveChamberLights>() != null)
         {
             DrawLightingSection();
@@ -105,6 +110,31 @@ public sealed class ChamberToolsWindow : EditorWindow
         EditorGUILayout.LabelField("Time zone", controller.TimeZoneAbbreviation);
         EditorGUILayout.LabelField("Sun azimuth", $"{controller.SolarAzimuthDegrees:0.00}° true");
         EditorGUILayout.LabelField("Sun elevation", $"{controller.SolarElevationDegrees:+0.00;-0.00;0.00}°");
+        EditorGUILayout.EndVertical();
+    }
+
+    private static void DrawGroundOpsLightingSection()
+    {
+        EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+        EditorGUILayout.LabelField("Ground Ops Lighting", EditorStyles.boldLabel);
+        GroundOpsCeilingLightsController controller =
+            FindController<GroundOpsCeilingLightsController>();
+        if (controller == null)
+        {
+            EditorGUILayout.HelpBox(
+                "The generated Ground Ops ceiling-light controller was not found.",
+                MessageType.Warning);
+            EditorGUILayout.EndVertical();
+            return;
+        }
+
+        bool lightsOn = EditorGUILayout.Toggle("Ceiling lights", controller.LightsOn);
+        if (lightsOn != controller.LightsOn)
+        {
+            RecordUndo(controller, "Toggle Ground Ops Ceiling Lights");
+            controller.SetLightsOn(lightsOn);
+            FinishChange(controller);
+        }
         EditorGUILayout.EndVertical();
     }
 
