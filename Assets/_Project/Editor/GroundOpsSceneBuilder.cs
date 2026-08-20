@@ -18,6 +18,10 @@ public static class GroundOpsSceneBuilder
     private const string RootName = "Ground Ops Blockout";
     private const string MaterialFolder = "Assets/_Project/Materials";
     private const string MeshFolder = "Assets/_Project/Generated/Meshes";
+    private static readonly Vector2 ExteriorViewOrigin = new(-1.5f, -2.5f);
+    private static readonly Vector2 ExteriorViewDirection = new Vector2(-0.48f, 0.88f).normalized;
+    private static readonly Vector2 ExteriorLateralDirection =
+        new(ExteriorViewDirection.y, -ExteriorViewDirection.x);
 
     private static GameObject syncRoot;
     private static HashSet<GameObject> staleObjects;
@@ -101,6 +105,8 @@ public static class GroundOpsSceneBuilder
         Material monitorScreenMaterial = GetMaterial("GroundOpsMonitorScreen", new Color(0.010f, 0.016f, 0.022f), 0f, 0.38f);
         Material rackMaterial = GetMaterial("GroundOpsDsnRack", new Color(0.25f, 0.27f, 0.28f), 0.15f, 0.18f);
         Material kvmScreenMaterial = GetMaterial("GroundOpsKvmScreen", new Color(0.015f, 0.025f, 0.030f), 0f, 0.35f);
+        Material terrainMaterial = GetMaterial("GroundOpsMountainTerrain", new Color(0.16f, 0.21f, 0.13f), 0f, 0.02f);
+        Material dishMaterial = GetMaterial("GroundOpsExteriorDish", new Color(0.66f, 0.68f, 0.65f), 0.05f, 0.15f);
 
         Transform root = NewGroup(RootName, null);
         Transform architecture = NewGroup("Architecture", root);
@@ -143,6 +149,11 @@ public static class GroundOpsSceneBuilder
             wallHeight,
             glassMaterial,
             trimMaterial);
+
+        BuildExteriorLandscape(
+            NewGroup("Exterior Landscape", root),
+            terrainMaterial,
+            dishMaterial);
 
         ShellVisualBinding[] wallVisuals = CreateCameraVisuals(
             wallPhysicalRenderers, transparentWallMaterial);
@@ -746,6 +757,151 @@ public static class GroundOpsSceneBuilder
             rackMaterial);
     }
 
+    private static void BuildExteriorLandscape(
+        Transform parent,
+        Material terrainMaterial,
+        Material dishMaterial)
+    {
+        Mesh terrainMesh = GetMountainTerrainMesh("GroundOps_MountainTerrain");
+        MeshObject("Low-poly Mountain Ridge", parent, terrainMesh, terrainMaterial, false);
+
+        // The actual antennas are roughly 2,500 feet (762 m) from the DOC. Their
+        // diameters remain at 1:10 scale, but the complex is deliberately staged
+        // only 25.4 m away so it reads about three times closer/larger than reality.
+        Vector2 smallDishPosition =
+            ExteriorViewOrigin
+            + ExteriorViewDirection * 25.4f
+            - ExteriorLateralDirection * 3.0f;
+        Vector2 largeDishPosition =
+            ExteriorViewOrigin
+            + ExteriorViewDirection * 25.4f
+            + ExteriorLateralDirection * 3.0f;
+        BuildDishProxy("13-meter Dish Proxy", parent,
+            smallDishPosition, 1.30f, 2.0f,
+            new Vector3(0.68f, 0.70f, 0.18f), dishMaterial);
+        BuildDishProxy("21-meter Dish Proxy", parent,
+            largeDishPosition, 2.10f, 2.6f,
+            new Vector3(0.58f, 0.79f, -0.20f), dishMaterial);
+    }
+
+    private static void BuildDishProxy(
+        string name,
+        Transform parent,
+        Vector2 horizontalPosition,
+        float diameter,
+        float postHeight,
+        Vector3 dishNormal,
+        Material material)
+    {
+        Transform dish = NewGroup(name, parent);
+        float groundY = MountainHeight(horizontalPosition.x, horizontalPosition.y);
+        Cylinder("Post", dish,
+            new Vector3(horizontalPosition.x, groundY + postHeight / 2f, horizontalPosition.y),
+            0.075f, postHeight, material);
+        GameObject reflector = Cylinder("Dish Circle", dish,
+            new Vector3(horizontalPosition.x, groundY + postHeight, horizontalPosition.y),
+            diameter / 2f, 0.07f, material);
+        reflector.transform.localRotation =
+            Quaternion.FromToRotation(Vector3.up, dishNormal.normalized);
+    }
+
+    private static Mesh GetMountainTerrainMesh(string name)
+    {
+        string path = $"{MeshFolder}/{name}.asset";
+        Mesh mesh = AssetDatabase.LoadAssetAtPath<Mesh>(path);
+        if (mesh == null)
+        {
+            mesh = new Mesh { name = name };
+            AssetDatabase.CreateAsset(mesh, path);
+        }
+        else
+        {
+            mesh.Clear();
+        }
+
+        const int depthSegments = 20;
+        const int widthSegments = 32;
+        const float nearDepth = 8f;
+        const float farDepth = 108f;
+        const float minimumLateral = -65f;
+        const float maximumLateral = 65f;
+        List<Vector3> vertices = new(depthSegments * widthSegments * 6);
+        List<int> triangles = new(depthSegments * widthSegments * 6);
+
+        for (int depth = 0; depth < depthSegments; depth++)
+        {
+            float t0 = depth / (float)depthSegments;
+            float t1 = (depth + 1) / (float)depthSegments;
+            float depth0 = Mathf.Lerp(nearDepth, farDepth, t0);
+            float depth1 = Mathf.Lerp(nearDepth, farDepth, t1);
+            for (int across = 0; across < widthSegments; across++)
+            {
+                float s0 = across / (float)widthSegments;
+                float s1 = (across + 1) / (float)widthSegments;
+                float lateral0 = Mathf.Lerp(minimumLateral, maximumLateral, s0);
+                float lateral1 = Mathf.Lerp(minimumLateral, maximumLateral, s1);
+                Vector3 p00 = MountainPoint(depth0, lateral0);
+                Vector3 p10 = MountainPoint(depth1, lateral0);
+                Vector3 p11 = MountainPoint(depth1, lateral1);
+                Vector3 p01 = MountainPoint(depth0, lateral1);
+                AddFlatTriangle(vertices, triangles, p00, p10, p11);
+                AddFlatTriangle(vertices, triangles, p00, p11, p01);
+            }
+        }
+
+        mesh.SetVertices(vertices);
+        mesh.SetTriangles(triangles, 0);
+        mesh.RecalculateNormals();
+        mesh.RecalculateBounds();
+        EditorUtility.SetDirty(mesh);
+        return mesh;
+    }
+
+    private static float MountainHeight(float x, float z)
+    {
+        Vector2 offset = new Vector2(x, z) - ExteriorViewOrigin;
+        float distance = Vector2.Dot(offset, ExteriorViewDirection);
+        float lateral = Vector2.Dot(offset, ExteriorLateralDirection);
+        float depth = Mathf.InverseLerp(8f, 108f, distance);
+        float rise = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.04f, 0.92f, depth));
+        float skyline =
+            2.4f * Mathf.Sin(lateral * 0.055f + 0.5f)
+            + 1.15f * Mathf.Sin(lateral * 0.135f - 0.8f)
+            + 0.55f * Mathf.Sin(lateral * 0.31f + 1.1f);
+        float broadSlope = Mathf.Lerp(-2.2f, 13.5f, rise);
+        float foldedSlope =
+            Mathf.Sin(depth * Mathf.PI * 4.2f + lateral * 0.045f) * 0.9f * rise;
+        return broadSlope + skyline * rise + foldedSlope;
+    }
+
+    private static Vector3 MountainPoint(float depth, float lateral)
+    {
+        Vector2 horizontal =
+            ExteriorViewOrigin
+            + ExteriorViewDirection * depth
+            + ExteriorLateralDirection * lateral;
+        return new Vector3(
+            horizontal.x,
+            MountainHeight(horizontal.x, horizontal.y),
+            horizontal.y);
+    }
+
+    private static void AddFlatTriangle(
+        List<Vector3> vertices,
+        List<int> triangles,
+        Vector3 first,
+        Vector3 second,
+        Vector3 third)
+    {
+        int start = vertices.Count;
+        vertices.Add(first);
+        vertices.Add(second);
+        vertices.Add(third);
+        triangles.Add(start);
+        triangles.Add(start + 1);
+        triangles.Add(start + 2);
+    }
+
     private static void BuildCameraAndLight(Transform parent)
     {
         GameObject cameraObject = AcquireObject("Main Camera", parent, () => new GameObject("Main Camera"));
@@ -757,7 +913,7 @@ public static class GroundOpsSceneBuilder
             Vector3.up);
         camera.fieldOfView = 58f;
         camera.nearClipPlane = 0.05f;
-        camera.farClipPlane = 80f;
+        camera.farClipPlane = 180f;
         camera.clearFlags = CameraClearFlags.SolidColor;
         camera.backgroundColor = new Color(0.055f, 0.065f, 0.075f);
 
@@ -800,7 +956,12 @@ public static class GroundOpsSceneBuilder
         return mesh;
     }
 
-    private static GameObject MeshObject(string name, Transform parent, Mesh mesh, Material material)
+    private static GameObject MeshObject(
+        string name,
+        Transform parent,
+        Mesh mesh,
+        Material material,
+        bool addCollider = true)
     {
         GameObject gameObject = AcquireObject(name, parent, () => new GameObject(name));
         gameObject.transform.localPosition = Vector3.zero;
@@ -810,8 +971,16 @@ public static class GroundOpsSceneBuilder
         filter.sharedMesh = mesh;
         MeshRenderer renderer = GetOrAddComponent<MeshRenderer>(gameObject);
         renderer.sharedMaterial = material;
-        MeshCollider collider = GetOrAddComponent<MeshCollider>(gameObject);
-        collider.sharedMesh = mesh;
+        MeshCollider collider = gameObject.GetComponent<MeshCollider>();
+        if (addCollider)
+        {
+            collider = collider != null ? collider : gameObject.AddComponent<MeshCollider>();
+            collider.sharedMesh = mesh;
+        }
+        else if (collider != null)
+        {
+            Object.DestroyImmediate(collider);
+        }
         return gameObject;
     }
 

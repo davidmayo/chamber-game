@@ -427,6 +427,8 @@ public static class CodexEditorBridge
         Camera camera = sceneView.camera;
         bool captureTopView = string.Equals(
             request.argument?.Trim(), "top", StringComparison.OrdinalIgnoreCase);
+        bool captureGroundOpsWindow = string.Equals(
+            request.argument?.Trim(), "ground-ops-window", StringComparison.OrdinalIgnoreCase);
         int width = request.width > 0 ? Mathf.Clamp(request.width, 64, 4096) : 1280;
         int height = request.height > 0 ? Mathf.Clamp(request.height, 64, 4096) : 720;
         RenderTexture renderTexture = new(width, height, 24, RenderTextureFormat.ARGB32);
@@ -453,6 +455,16 @@ public static class CodexEditorBridge
                 camera.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
                 camera.orthographic = true;
                 camera.orthographicSize = Mathf.Max(1f, framedSize);
+            }
+            else if (captureGroundOpsWindow)
+            {
+                Vector3 viewPosition = new(-1.5f, 1.65f, -2.5f);
+                Vector3 ridgeTarget = new(-39.8f, 10.5f, 67.7f);
+                camera.transform.position = viewPosition;
+                camera.transform.rotation = Quaternion.LookRotation(
+                    ridgeTarget - viewPosition,
+                    Vector3.up);
+                camera.orthographic = false;
             }
             camera.targetTexture = renderTexture;
             camera.Render();
