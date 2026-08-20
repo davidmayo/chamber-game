@@ -287,7 +287,7 @@ public static class GroundOpsSceneBuilder
 
         Transform furniture = NewGroup("Furniture Blockout", root);
         Transform frontLeftStation = BuildStationDesk(
-            "Dish Station 1", furniture, new Vector3(-3.540f, 0f, -2.680f), 17.181f,
+            "Hardware Control Station", furniture, new Vector3(-3.540f, 0f, -2.680f), 17.181f,
             deskMaterial, deskBaseMaterial, chairMaterial, monitorMaterial, monitorScreenMaterial);
         BuildStationDesk("Dish Station 2", furniture, new Vector3(-2.870f, 0f, -0.700f), 21.625f,
             deskMaterial, deskBaseMaterial, chairMaterial, monitorMaterial, monitorScreenMaterial);
@@ -303,7 +303,7 @@ public static class GroundOpsSceneBuilder
             monitorMaterial,
             monitorScreenMaterial);
         Transform serverRoomEquipment = NewGroup("Server Room Equipment", root);
-        BuildDsnRackPair(
+        Transform dsnRackPair = BuildDsnRackPair(
             serverRoomEquipment,
             new Vector3(-2.160f, 0f, 7.30f),
             rackMaterial,
@@ -332,6 +332,7 @@ public static class GroundOpsSceneBuilder
         FirstPersonPlayerController playerController =
             BuildPlayer(NewGroup("Player", root), playerMaterial);
         BuildDishStationConsole(frontLeftStation, playerController, dishController);
+        BuildDsnRackConsole(dsnRackPair, playerController);
         FinishSync();
 
         RenderSettings.skybox = skyMaterial;
@@ -1031,7 +1032,7 @@ public static class GroundOpsSceneBuilder
             textPosition,
             screenWidth * 0.92f,
             screenHeight * 0.86f,
-            "W/S: elevation\nA/D: azimuth\nShift: 1/5 speed\nCtrl: 5x speed\nMouse: look\nWheel: zoom\n\nF or ESC: stand up",
+            "W/S: elevation +/-\nA/D: azimuth -/+\nShift: 1/5 speed\nCtrl: 5x speed\nMouse: look\nWheel: zoom\n\nF or ESC: stand up",
             48);
         Text readout = CreateWorldDisplayText(
             "Dish Pointing Readout",
@@ -1176,7 +1177,7 @@ public static class GroundOpsSceneBuilder
         }
     }
 
-    private static void BuildDsnRackPair(
+    private static Transform BuildDsnRackPair(
         Transform parent,
         Vector3 floorPosition,
         Material rackMaterial,
@@ -1195,7 +1196,7 @@ public static class GroundOpsSceneBuilder
         Transform pair = NewGroup("DSN Server Rack", parent);
         pair.localPosition = floorPosition;
 
-        Transform leftRack = NewGroup("Left 19-inch Rack", pair);
+        Transform leftRack = NewGroup("DSN Uplink Rack", pair);
         leftRack.localPosition = new Vector3(-rackOffset, 0f, 0f);
         Box("Plain Cabinet", leftRack,
             new Vector3(0f, rackHeight / 2f, 0f),
@@ -1208,31 +1209,32 @@ public static class GroundOpsSceneBuilder
         // keyboard and mouse perched on a crude shelf bolted across the rack.
         // Preserve that improvised, mildly alarming character.
         const float frontZ = -rackDepth / 2f;
+        const float monitorCenterY = 1.27f;
         Transform kludgedConsole = NewGroup("Kludged Beige Console", leftRack);
         Box("Open Rack Bay", kludgedConsole,
-            new Vector3(0f, 1.25f, frontZ - 0.008f),
+            new Vector3(0f, monitorCenterY - 0.02f, frontZ - 0.008f),
             new Vector3(0.54f, 0.52f, 0.018f),
             Quaternion.identity,
             trimMaterial);
         Box("Loose 4-by-3 Monitor Body", kludgedConsole,
-            new Vector3(-0.025f, 1.27f, frontZ - 0.045f),
+            new Vector3(-0.025f, monitorCenterY, frontZ - 0.045f),
             new Vector3(0.48f, 0.39f, 0.10f),
-            Quaternion.Euler(0f, 0f, -1.5f),
+            Quaternion.Euler(0f, -12f, -1.5f),
             legacyBeigeMaterial);
         Box("Loose Monitor Screen", kludgedConsole,
-            new Vector3(-0.025f, 1.27f, frontZ - 0.101f),
+            new Vector3(-0.025f, monitorCenterY, frontZ - 0.101f),
             new Vector3(0.40f, 0.30f, 0.012f),
-            Quaternion.Euler(0f, 0f, -1.5f),
+            Quaternion.Euler(0f, -12f, -1.5f),
             screenMaterial);
         Text signalReadout = CreateWorldDisplayText(
             "Signal Readout",
             kludgedConsole,
-            new Vector3(-0.025f, 1.27f, frontZ - 0.109f),
+            new Vector3(-0.025f, monitorCenterY, frontZ - 0.109f),
             0.36f,
             0.24f,
             "Power: -85.2 dBm\nFrequency: 8220.000 MHz\nID: GOES-19",
-            46,
-            Quaternion.identity);
+            64,
+            Quaternion.Euler(0f, -12f, 0f));
         GroundOpsSignalDisplay signalDisplay =
             GetOrAddComponent<GroundOpsSignalDisplay>(kludgedConsole.gameObject);
         signalDisplay.Configure(
@@ -1257,7 +1259,7 @@ public static class GroundOpsSceneBuilder
             Quaternion.Euler(0f, -8f, 0f),
             legacyBeigeMaterial);
 
-        Transform rightRack = NewGroup("Right 19-inch Rack", pair);
+        Transform rightRack = NewGroup("DSN Downlink Rack", pair);
         rightRack.localPosition = new Vector3(rackOffset, 0f, 0f);
         Box("Cabinet", rightRack,
             new Vector3(0f, rackHeight / 2f, 0f),
@@ -1287,6 +1289,45 @@ public static class GroundOpsSceneBuilder
             new Vector3(0.45f, 0.025f, 0.20f),
             Quaternion.identity,
             rackMaterial);
+
+        Transform stool = NewGroup("DSN Console Stool", pair);
+        stool.localPosition = new Vector3(0f, 0f, -1.08f);
+        Cylinder("Floor Base", stool, new Vector3(0f, 0.025f, 0f),
+            0.25f, 0.05f, trimMaterial);
+        Cylinder("Trunk", stool, new Vector3(0f, 0.29f, 0f),
+            0.04f, 0.50f, trimMaterial);
+        Cylinder("Seat", stool, new Vector3(0f, 0.57f, 0f),
+            0.23f, 0.08f, legacyBeigeMaterial);
+        RemoveColliders(stool);
+        return pair;
+    }
+
+    private static void BuildDsnRackConsole(
+        Transform rackPair,
+        FirstPersonPlayerController playerController)
+    {
+        Transform seatedCameraPose = NewGroup("Seated Camera Pose", rackPair);
+        Vector3 seatedPosition = new(0f, 1.22f, -1.08f);
+        Vector3 seatedTarget = new(0f, 1.34f, -0.48f);
+        seatedCameraPose.localPosition = seatedPosition;
+        seatedCameraPose.localRotation = Quaternion.LookRotation(
+            seatedTarget - seatedPosition,
+            Vector3.up);
+
+        Transform interactionZone = NewGroup("Console Interaction Zone", rackPair);
+        interactionZone.localPosition = new Vector3(0f, 0.9f, -1.08f);
+        BoxCollider trigger = GetOrAddComponent<BoxCollider>(interactionZone.gameObject);
+        trigger.size = new Vector3(1.25f, 1.8f, 1.25f);
+        trigger.isTrigger = true;
+        Rigidbody triggerBody = GetOrAddComponent<Rigidbody>(interactionZone.gameObject);
+        triggerBody.isKinematic = true;
+        triggerBody.useGravity = false;
+        SimpleSeatedConsoleController consoleController =
+            GetOrAddComponent<SimpleSeatedConsoleController>(interactionZone.gameObject);
+        consoleController.Configure(
+            playerController,
+            playerController.PlayerCamera,
+            seatedCameraPose);
     }
 
     private static GroundOpsDishController BuildExteriorLandscape(

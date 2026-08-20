@@ -474,7 +474,7 @@ public static class CodexEditorBridge
             else if (captureGroundOpsConsole)
             {
                 GameObject poseObject = GameObject.Find(
-                    "Ground Ops Blockout/Furniture Blockout/Dish Station 1/Seated Camera Pose");
+                    "Ground Ops Blockout/Furniture Blockout/Hardware Control Station/Seated Camera Pose");
                 if (poseObject == null)
                 {
                     throw new InvalidOperationException(

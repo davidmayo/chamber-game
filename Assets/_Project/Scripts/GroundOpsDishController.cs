@@ -10,6 +10,7 @@ public sealed class GroundOpsDishController : MonoBehaviour
     [SerializeField] private float elevationDegrees = 20f;
     [SerializeField, Min(0f)] private float azimuthSpeedDegreesPerSecond = 12f;
     [SerializeField, Min(0f)] private float elevationSpeedDegreesPerSecond = 12f;
+    [SerializeField] private Vector2 azimuthLimitsDegrees = new(-180f, 180f);
     [SerializeField] private Vector2 elevationLimitsDegrees = new(0f, 90f);
 
     public float AzimuthDegrees => azimuthDegrees;
@@ -27,7 +28,10 @@ public sealed class GroundOpsDishController : MonoBehaviour
         worldEast = Vector3.ProjectOnPlane(east, Vector3.up).normalized;
         azimuthSpeedDegreesPerSecond = 12f;
         elevationSpeedDegreesPerSecond = 12f;
-        azimuthDegrees = NormalizeSigned(initialAzimuth);
+        azimuthDegrees = Mathf.Clamp(
+            initialAzimuth,
+            azimuthLimitsDegrees.x,
+            azimuthLimitsDegrees.y);
         elevationDegrees = Mathf.Clamp(
             initialElevation,
             elevationLimitsDegrees.x,
@@ -37,11 +41,13 @@ public sealed class GroundOpsDishController : MonoBehaviour
 
     public void ApplyInput(float azimuthInput, float elevationInput, float deltaTime)
     {
-        azimuthDegrees = NormalizeSigned(
+        azimuthDegrees = Mathf.Clamp(
             azimuthDegrees
             + Mathf.Clamp(azimuthInput, -5f, 5f)
             * azimuthSpeedDegreesPerSecond
-            * deltaTime);
+            * deltaTime,
+            azimuthLimitsDegrees.x,
+            azimuthLimitsDegrees.y);
         elevationDegrees = Mathf.Clamp(
             elevationDegrees
             + Mathf.Clamp(elevationInput, -5f, 5f)
@@ -54,7 +60,10 @@ public sealed class GroundOpsDishController : MonoBehaviour
 
     public void SetPose(float azimuth, float elevation)
     {
-        azimuthDegrees = NormalizeSigned(azimuth);
+        azimuthDegrees = Mathf.Clamp(
+            azimuth,
+            azimuthLimitsDegrees.x,
+            azimuthLimitsDegrees.y);
         elevationDegrees = Mathf.Clamp(
             elevation,
             elevationLimitsDegrees.x,
@@ -97,8 +106,4 @@ public sealed class GroundOpsDishController : MonoBehaviour
         }
     }
 
-    private static float NormalizeSigned(float degrees)
-    {
-        return Mathf.DeltaAngle(0f, degrees);
-    }
 }

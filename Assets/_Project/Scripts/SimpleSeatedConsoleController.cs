@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 
 [RequireComponent(typeof(BoxCollider))]
-public sealed class GroundOpsDishConsoleController : MonoBehaviour
+public sealed class SimpleSeatedConsoleController : MonoBehaviour
 {
     private enum InteractionState
     {
@@ -13,7 +13,6 @@ public sealed class GroundOpsDishConsoleController : MonoBehaviour
     }
 
     [SerializeField] private FirstPersonPlayerController playerController;
-    [SerializeField] private GroundOpsDishController dishController;
     [SerializeField] private Camera playerCamera;
     [SerializeField] private Transform seatedCameraPose;
     [SerializeField, Min(0.05f)] private float transitionSeconds = 0.65f;
@@ -40,12 +39,10 @@ public sealed class GroundOpsDishConsoleController : MonoBehaviour
 
     public void Configure(
         FirstPersonPlayerController player,
-        GroundOpsDishController dishes,
         Camera camera,
         Transform seatedPose)
     {
         playerController = player;
-        dishController = dishes;
         playerCamera = camera;
         seatedCameraPose = seatedPose;
         scrollZoomDegreesPerUnit = 5f;
@@ -53,12 +50,9 @@ public sealed class GroundOpsDishConsoleController : MonoBehaviour
 
     private void Awake()
     {
-        if (playerController == null
-            || dishController == null
-            || playerCamera == null
-            || seatedCameraPose == null)
+        if (playerController == null || playerCamera == null || seatedCameraPose == null)
         {
-            Debug.LogError("Ground Ops dish console is missing required references.", this);
+            Debug.LogError("Seated console is missing required references.", this);
             enabled = false;
             return;
         }
@@ -101,36 +95,36 @@ public sealed class GroundOpsDishConsoleController : MonoBehaviour
             return;
         }
 
-        if (Mouse.current != null && Cursor.lockState == CursorLockMode.Locked)
+        if (Mouse.current == null || Cursor.lockState != CursorLockMode.Locked)
         {
-            Vector2 mouseDelta = Mouse.current.delta.ReadValue();
-            seatedLookAzimuth = Mathf.Clamp(
-                seatedLookAzimuth + mouseDelta.x * mouseSensitivity,
-                lookAzimuthLimits.x,
-                lookAzimuthLimits.y);
-            seatedLookElevation = Mathf.Clamp(
-                seatedLookElevation - mouseDelta.y * mouseSensitivity,
-                lookElevationLimits.x,
-                lookElevationLimits.y);
-            playerCamera.transform.SetPositionAndRotation(
-                seatedCameraPose.position,
-                seatedCameraPose.rotation
-                    * Quaternion.Euler(seatedLookElevation, seatedLookAzimuth, 0f));
+            return;
+        }
 
-            float rawScroll = Mouse.current.scroll.ReadValue().y;
-            if (Mathf.Abs(rawScroll) > 0.01f)
-            {
-                // Input System reports a wheel notch as either roughly 1 or
-                // 120 depending on the platform/device. Normalize both to one
-                // notch so the serialized value has a predictable meaning.
-                float scrollNotches = Mathf.Abs(rawScroll) > 10f
-                    ? rawScroll / 120f
-                    : rawScroll;
-                seatedTargetFieldOfView = Mathf.Clamp(
-                    seatedTargetFieldOfView - scrollNotches * scrollZoomDegreesPerUnit,
-                    seatedZoomLimits.x,
-                    seatedZoomLimits.y);
-            }
+        Vector2 mouseDelta = Mouse.current.delta.ReadValue();
+        seatedLookAzimuth = Mathf.Clamp(
+            seatedLookAzimuth + mouseDelta.x * mouseSensitivity,
+            lookAzimuthLimits.x,
+            lookAzimuthLimits.y);
+        seatedLookElevation = Mathf.Clamp(
+            seatedLookElevation - mouseDelta.y * mouseSensitivity,
+            lookElevationLimits.x,
+            lookElevationLimits.y);
+        playerCamera.transform.SetPositionAndRotation(
+            seatedCameraPose.position,
+            seatedCameraPose.rotation
+                * Quaternion.Euler(seatedLookElevation, seatedLookAzimuth, 0f));
+
+        float rawScroll = Mouse.current.scroll.ReadValue().y;
+        if (Mathf.Abs(rawScroll) > 0.01f)
+        {
+            // Normalize both common Input System wheel conventions to notches.
+            float scrollNotches = Mathf.Abs(rawScroll) > 10f
+                ? rawScroll / 120f
+                : rawScroll;
+            seatedTargetFieldOfView = Mathf.Clamp(
+                seatedTargetFieldOfView - scrollNotches * scrollZoomDegreesPerUnit,
+                seatedZoomLimits.x,
+                seatedZoomLimits.y);
         }
 
         float zoomT = 1f - Mathf.Exp(-zoomSmoothing * Time.unscaledDeltaTime);
@@ -138,26 +132,6 @@ public sealed class GroundOpsDishConsoleController : MonoBehaviour
             playerCamera.fieldOfView,
             seatedTargetFieldOfView,
             zoomT);
-
-        // D turns right/increases azimuth, A turns left/decreases it, W raises,
-        // and S lowers.
-        float azimuthInput = ButtonAxis(keyboard.aKey.isPressed, keyboard.dKey.isPressed);
-        float elevationInput = ButtonAxis(keyboard.sKey.isPressed, keyboard.wKey.isPressed);
-        bool fineMode = keyboard.leftShiftKey.isPressed || keyboard.rightShiftKey.isPressed;
-        bool fastMode = keyboard.leftCtrlKey.isPressed || keyboard.rightCtrlKey.isPressed;
-        if (fineMode)
-        {
-            const float fineSpeedMultiplier = 0.2f;
-            azimuthInput *= fineSpeedMultiplier;
-            elevationInput *= fineSpeedMultiplier;
-        }
-        else if (fastMode)
-        {
-            const float fastSpeedMultiplier = 5f;
-            azimuthInput *= fastSpeedMultiplier;
-            elevationInput *= fastSpeedMultiplier;
-        }
-        dishController.ApplyInput(azimuthInput, elevationInput, Time.deltaTime);
     }
 
     private void BeginSittingDown()
@@ -279,11 +253,6 @@ public sealed class GroundOpsDishConsoleController : MonoBehaviour
         };
         GUI.Label(panel, "Press F to sit at console", style);
         GUI.color = previousColor;
-    }
-
-    private static float ButtonAxis(bool negativePressed, bool positivePressed)
-    {
-        return (positivePressed ? 1f : 0f) - (negativePressed ? 1f : 0f);
     }
 
     private static void SetCursorCaptured(bool captured)
