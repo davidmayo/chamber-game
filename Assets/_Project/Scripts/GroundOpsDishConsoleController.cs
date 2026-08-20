@@ -20,6 +20,10 @@ public sealed class GroundOpsDishConsoleController : MonoBehaviour
     [SerializeField, Min(0f)] private float mouseSensitivity = 0.1f;
     [SerializeField] private Vector2 lookAzimuthLimits = new(-35f, 35f);
     [SerializeField] private Vector2 lookElevationLimits = new(-25f, 25f);
+    [SerializeField, Range(25f, 100f)] private float seatedDefaultFieldOfView = 68f;
+    [SerializeField] private Vector2 seatedZoomLimits = new(25f, 75f);
+    [SerializeField, Min(0f)] private float scrollZoomDegreesPerUnit = 0.5f;
+    [SerializeField, Min(0f)] private float zoomSmoothing = 12f;
 
     private InteractionState state;
     private bool playerNearby;
@@ -30,6 +34,9 @@ public sealed class GroundOpsDishConsoleController : MonoBehaviour
     private Quaternion standingCameraLocalRotation;
     private float seatedLookAzimuth;
     private float seatedLookElevation;
+    private float standingCameraFieldOfView;
+    private float transitionStartFieldOfView;
+    private float seatedTargetFieldOfView;
 
     public void Configure(
         FirstPersonPlayerController player,
@@ -41,6 +48,7 @@ public sealed class GroundOpsDishConsoleController : MonoBehaviour
         dishController = dishes;
         playerCamera = camera;
         seatedCameraPose = seatedPose;
+        scrollZoomDegreesPerUnit = 0.5f;
     }
 
     private void Awake()
@@ -108,12 +116,41 @@ public sealed class GroundOpsDishConsoleController : MonoBehaviour
                 seatedCameraPose.position,
                 seatedCameraPose.rotation
                     * Quaternion.Euler(seatedLookElevation, seatedLookAzimuth, 0f));
+
+            float scroll = Mouse.current.scroll.ReadValue().y;
+            if (Mathf.Abs(scroll) > 0.01f)
+            {
+                seatedTargetFieldOfView = Mathf.Clamp(
+                    seatedTargetFieldOfView - scroll * scrollZoomDegreesPerUnit,
+                    seatedZoomLimits.x,
+                    seatedZoomLimits.y);
+            }
         }
+
+        float zoomT = 1f - Mathf.Exp(-zoomSmoothing * Time.unscaledDeltaTime);
+        playerCamera.fieldOfView = Mathf.Lerp(
+            playerCamera.fieldOfView,
+            seatedTargetFieldOfView,
+            zoomT);
 
         // Match the chamber console: A increases the horizontal angle, D
         // decreases it, W raises, and S lowers.
         float azimuthInput = ButtonAxis(keyboard.dKey.isPressed, keyboard.aKey.isPressed);
         float elevationInput = ButtonAxis(keyboard.sKey.isPressed, keyboard.wKey.isPressed);
+        bool fineMode = keyboard.leftShiftKey.isPressed || keyboard.rightShiftKey.isPressed;
+        bool fastMode = keyboard.leftCtrlKey.isPressed || keyboard.rightCtrlKey.isPressed;
+        if (fineMode)
+        {
+            const float fineSpeedMultiplier = 0.2f;
+            azimuthInput *= fineSpeedMultiplier;
+            elevationInput *= fineSpeedMultiplier;
+        }
+        else if (fastMode)
+        {
+            const float fastSpeedMultiplier = 5f;
+            azimuthInput *= fastSpeedMultiplier;
+            elevationInput *= fastSpeedMultiplier;
+        }
         dishController.ApplyInput(azimuthInput, elevationInput, Time.deltaTime);
     }
 
@@ -125,6 +162,12 @@ public sealed class GroundOpsDishConsoleController : MonoBehaviour
         transitionStartRotation = playerCamera.transform.rotation;
         standingCameraLocalPosition = playerCamera.transform.localPosition;
         standingCameraLocalRotation = playerCamera.transform.localRotation;
+        standingCameraFieldOfView = playerCamera.fieldOfView;
+        transitionStartFieldOfView = playerCamera.fieldOfView;
+        seatedTargetFieldOfView = Mathf.Clamp(
+            seatedDefaultFieldOfView,
+            seatedZoomLimits.x,
+            seatedZoomLimits.y);
         seatedLookAzimuth = 0f;
         seatedLookElevation = 0f;
         playerController.enabled = false;
@@ -137,6 +180,7 @@ public sealed class GroundOpsDishConsoleController : MonoBehaviour
         transitionElapsed = 0f;
         transitionStartPosition = playerCamera.transform.position;
         transitionStartRotation = playerCamera.transform.rotation;
+        transitionStartFieldOfView = playerCamera.fieldOfView;
     }
 
     private void UpdateTransition(bool sittingDown)
@@ -155,6 +199,10 @@ public sealed class GroundOpsDishConsoleController : MonoBehaviour
         playerCamera.transform.SetPositionAndRotation(
             position,
             Quaternion.Slerp(transitionStartRotation, targetRotation, smoothT));
+        playerCamera.fieldOfView = Mathf.Lerp(
+            transitionStartFieldOfView,
+            sittingDown ? seatedTargetFieldOfView : standingCameraFieldOfView,
+            smoothT);
 
         if (linearT < 1f)
         {
@@ -167,12 +215,14 @@ public sealed class GroundOpsDishConsoleController : MonoBehaviour
             playerCamera.transform.SetPositionAndRotation(
                 seatedCameraPose.position,
                 seatedCameraPose.rotation);
+            playerCamera.fieldOfView = seatedTargetFieldOfView;
         }
         else
         {
             state = InteractionState.Standing;
             playerCamera.transform.localPosition = standingCameraLocalPosition;
             playerCamera.transform.localRotation = standingCameraLocalRotation;
+            playerCamera.fieldOfView = standingCameraFieldOfView;
             playerController.enabled = true;
         }
     }

@@ -60,6 +60,11 @@ public sealed class ChamberToolsWindow : EditorWindow
             DrawGroundOpsLightingSection();
             EditorGUILayout.Space(6f);
         }
+        if (FindController<GroundOpsSatelliteTarget>() != null)
+        {
+            DrawGroundOpsSatelliteTargetSection();
+            EditorGUILayout.Space(6f);
+        }
         if (FindController<MotionSensitiveChamberLights>() != null)
         {
             DrawLightingSection();
@@ -135,6 +140,40 @@ public sealed class ChamberToolsWindow : EditorWindow
             controller.SetLightsOn(lightsOn);
             FinishChange(controller);
         }
+        EditorGUILayout.EndVertical();
+    }
+
+    private static void DrawGroundOpsSatelliteTargetSection()
+    {
+        EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+        EditorGUILayout.LabelField("Ground Ops Target", EditorStyles.boldLabel);
+        GroundOpsSatelliteTarget target = FindController<GroundOpsSatelliteTarget>();
+        if (target == null)
+        {
+            EditorGUILayout.HelpBox(
+                "The generated Ground Ops satellite target was not found.",
+                MessageType.Warning);
+            EditorGUILayout.EndVertical();
+            return;
+        }
+
+        EditorGUILayout.HelpBox(
+            "Azimuth is clockwise from true north. Power is the satellite's published minimum X-band EIRP, not received power at the DOC.",
+            MessageType.Info);
+        EditorGUI.BeginChangeCheck();
+        string name = EditorGUILayout.TextField("Name", target.TargetName);
+        float azimuth = EditorGUILayout.FloatField("Azimuth (deg)", target.AzimuthDegrees);
+        float elevation = EditorGUILayout.FloatField("Elevation (deg)", target.ElevationDegrees);
+        float range = EditorGUILayout.FloatField("Range (km)", target.RangeKilometers);
+        float frequency = EditorGUILayout.FloatField("Frequency (MHz)", target.FrequencyMegahertz);
+        float power = EditorGUILayout.FloatField("Power (dBmi EIRP)", target.PowerDbmiEirp);
+        if (EditorGUI.EndChangeCheck())
+        {
+            RecordUndo(target, "Change Ground Ops Satellite Target");
+            target.Configure(name, azimuth, elevation, range, frequency, power);
+            FinishChange(target);
+        }
+
         EditorGUILayout.EndVertical();
     }
 

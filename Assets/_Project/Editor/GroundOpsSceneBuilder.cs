@@ -98,6 +98,12 @@ public static class GroundOpsSceneBuilder
         bool preserveCeilingLightsOn = true;
         float preserveDishAzimuth = 98f;
         float preserveDishElevation = 20f;
+        string preserveTargetName = "GOES-19 (GOES East)";
+        float preserveTargetAzimuth = 166.823f;
+        float preserveTargetElevation = 44.946f;
+        float preserveTargetRange = 37409.234f;
+        float preserveTargetFrequency = 8220f;
+        float preserveTargetPower = 69.6f;
         if (existingRoot != null)
         {
             ChamberShellVisibilityController existingVisibility =
@@ -118,6 +124,17 @@ public static class GroundOpsSceneBuilder
             {
                 preserveDishAzimuth = existingDishes.AzimuthDegrees;
                 preserveDishElevation = existingDishes.ElevationDegrees;
+            }
+            GroundOpsSatelliteTarget existingTarget =
+                existingRoot.GetComponentInChildren<GroundOpsSatelliteTarget>(true);
+            if (existingTarget != null)
+            {
+                preserveTargetName = existingTarget.TargetName;
+                preserveTargetAzimuth = existingTarget.AzimuthDegrees;
+                preserveTargetElevation = existingTarget.ElevationDegrees;
+                preserveTargetRange = existingTarget.RangeKilometers;
+                preserveTargetFrequency = existingTarget.FrequencyMegahertz;
+                preserveTargetPower = existingTarget.PowerDbmiEirp;
             }
         }
         BeginSync(existingRoot);
@@ -140,6 +157,8 @@ public static class GroundOpsSceneBuilder
         Material monitorMaterial = GetMaterial("GroundOpsMonitor", new Color(0.055f, 0.060f, 0.065f), 0.02f, 0.20f);
         Material monitorScreenMaterial = GetMaterial("GroundOpsMonitorScreen", new Color(0.010f, 0.016f, 0.022f), 0f, 0.38f);
         Material rackMaterial = GetMaterial("GroundOpsDsnRack", new Color(0.25f, 0.27f, 0.28f), 0.15f, 0.18f);
+        Material legacyBeigeMaterial = GetMaterial(
+            "GroundOpsLegacyComputerBeige", new Color(0.68f, 0.65f, 0.53f), 0f, 0.08f);
         Material kvmScreenMaterial = GetMaterial("GroundOpsKvmScreen", new Color(0.015f, 0.025f, 0.030f), 0f, 0.35f);
         Material terrainMaterial = GetMaterial("GroundOpsMountainTerrain", new Color(0.22f, 0.31f, 0.17f), 0f, 0.02f);
         Material forestTrunkMaterial = GetMaterial("GroundOpsForestTrunks", new Color(0.16f, 0.11f, 0.065f), 0f, 0.02f);
@@ -216,8 +235,9 @@ public static class GroundOpsSceneBuilder
             glassMaterial,
             trimMaterial);
 
+        Transform exteriorLandscape = NewGroup("Exterior Landscape", root);
         GroundOpsDishController dishController = BuildExteriorLandscape(
-            NewGroup("Exterior Landscape", root),
+            exteriorLandscape,
             terrainMaterial,
             forestTrunkMaterial,
             forestCrownMaterials,
@@ -226,6 +246,15 @@ public static class GroundOpsSceneBuilder
             worldEast,
             preserveDishAzimuth,
             preserveDishElevation);
+        GroundOpsSatelliteTarget satelliteTarget =
+            GetOrAddComponent<GroundOpsSatelliteTarget>(exteriorLandscape.gameObject);
+        satelliteTarget.Configure(
+            preserveTargetName,
+            preserveTargetAzimuth,
+            preserveTargetElevation,
+            preserveTargetRange,
+            preserveTargetFrequency,
+            preserveTargetPower);
 
         ShellVisualBinding[] wallVisuals = CreateCameraVisuals(
             wallPhysicalRenderers, transparentWallMaterial)
@@ -277,7 +306,8 @@ public static class GroundOpsSceneBuilder
             new Vector3(-2.160f, 0f, 7.30f),
             rackMaterial,
             deskBaseMaterial,
-            kvmScreenMaterial);
+            kvmScreenMaterial,
+            legacyBeigeMaterial);
         BuildServerRackRow(
             serverRoomEquipment,
             rackMaterial,
@@ -810,6 +840,7 @@ public static class GroundOpsSceneBuilder
             new Vector3(0.48f, 0.11f, 0.48f), Quaternion.identity, chairMaterial);
         Box("Back", chair, new Vector3(0.21f, 0.80f, 0f),
             new Vector3(0.10f, 0.58f, 0.50f), Quaternion.identity, chairMaterial);
+        RemoveColliders(chair);
         return station;
     }
 
@@ -996,7 +1027,7 @@ public static class GroundOpsSceneBuilder
             textPosition,
             screenWidth * 0.92f,
             screenHeight * 0.86f,
-            "W/S: elevation\nA/D: azimuth\nMouse: look\n\nF or ESC: stand up",
+            "W/S: elevation\nA/D: azimuth\nShift: 1/5 speed\nCtrl: 5x speed\nMouse: look\nWheel: zoom\n\nF or ESC: stand up",
             48);
         Text readout = CreateWorldDisplayText(
             "Dish Pointing Readout",
@@ -1042,7 +1073,8 @@ public static class GroundOpsSceneBuilder
         float width,
         float height,
         string content,
-        int fontSize)
+        int fontSize,
+        Quaternion? localRotation = null)
     {
         const float canvasPixelWidth = 1000f;
         float canvasPixelHeight = canvasPixelWidth * height / width;
@@ -1056,7 +1088,7 @@ public static class GroundOpsSceneBuilder
                 typeof(CanvasScaler)));
         RectTransform canvasTransform = GetOrAddComponent<RectTransform>(canvasObject);
         canvasTransform.localPosition = localPosition;
-        canvasTransform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+        canvasTransform.localRotation = localRotation ?? Quaternion.Euler(0f, 180f, 0f);
         canvasTransform.localScale = Vector3.one * (width / canvasPixelWidth);
         canvasTransform.sizeDelta = new Vector2(canvasPixelWidth, canvasPixelHeight);
 
@@ -1113,6 +1145,7 @@ public static class GroundOpsSceneBuilder
             ? new Vector3(0.10f, 0.58f, 0.50f)
             : new Vector3(0.50f, 0.58f, 0.10f);
         Box("Back", chair, backPosition, backSize, Quaternion.identity, chairMaterial);
+        RemoveColliders(chair);
     }
 
     private static void BuildServerRackRow(
@@ -1144,7 +1177,8 @@ public static class GroundOpsSceneBuilder
         Vector3 floorPosition,
         Material rackMaterial,
         Material trimMaterial,
-        Material screenMaterial)
+        Material screenMaterial,
+        Material legacyBeigeMaterial)
     {
         const float rackWidth = 0.62f;
         const float rackHeight = 2.10f;
@@ -1163,6 +1197,52 @@ public static class GroundOpsSceneBuilder
             Quaternion.identity,
             rackMaterial);
 
+        // This is intentionally not a tidy rackmount KVM. The reference shows
+        // an ordinary old monitor stuffed into an open bay, with a desktop
+        // keyboard and mouse perched on a crude shelf bolted across the rack.
+        // Preserve that improvised, mildly alarming character.
+        const float frontZ = -rackDepth / 2f;
+        Transform kludgedConsole = NewGroup("Kludged Beige Console", leftRack);
+        Box("Open Rack Bay", kludgedConsole,
+            new Vector3(0f, 1.25f, frontZ - 0.008f),
+            new Vector3(0.54f, 0.52f, 0.018f),
+            Quaternion.identity,
+            trimMaterial);
+        Box("Loose 4-by-3 Monitor Body", kludgedConsole,
+            new Vector3(-0.025f, 1.27f, frontZ - 0.045f),
+            new Vector3(0.48f, 0.39f, 0.10f),
+            Quaternion.Euler(0f, 0f, -1.5f),
+            legacyBeigeMaterial);
+        Box("Loose Monitor Screen", kludgedConsole,
+            new Vector3(-0.025f, 1.27f, frontZ - 0.101f),
+            new Vector3(0.40f, 0.30f, 0.012f),
+            Quaternion.Euler(0f, 0f, -1.5f),
+            screenMaterial);
+        CreateWorldDisplayText(
+            "Signal Readout",
+            kludgedConsole,
+            new Vector3(-0.025f, 1.27f, frontZ - 0.109f),
+            0.36f,
+            0.24f,
+            "Signal: -85.2 dBm",
+            54,
+            Quaternion.identity);
+        Box("Improvised Shelf", kludgedConsole,
+            new Vector3(0f, 0.92f, frontZ - 0.22f),
+            new Vector3(0.58f, 0.045f, 0.43f),
+            Quaternion.Euler(0f, -1.5f, 0f),
+            legacyBeigeMaterial);
+        Box("Desktop Keyboard", kludgedConsole,
+            new Vector3(-0.035f, 0.955f, frontZ - 0.25f),
+            new Vector3(0.40f, 0.035f, 0.18f),
+            Quaternion.Euler(0f, 2f, 0f),
+            legacyBeigeMaterial);
+        Box("Desktop Mouse", kludgedConsole,
+            new Vector3(0.215f, 0.962f, frontZ - 0.27f),
+            new Vector3(0.09f, 0.045f, 0.12f),
+            Quaternion.Euler(0f, -8f, 0f),
+            legacyBeigeMaterial);
+
         Transform rightRack = NewGroup("Right 19-inch Rack", pair);
         rightRack.localPosition = new Vector3(rackOffset, 0f, 0f);
         Box("Cabinet", rightRack,
@@ -1173,7 +1253,6 @@ public static class GroundOpsSceneBuilder
 
         // The rack faces world -Z. This simplified KVM follows the reference:
         // inset monitor above a pull-out keyboard shelf on the right cabinet.
-        const float frontZ = -rackDepth / 2f;
         Box("KVM Bezel", rightRack,
             new Vector3(0f, 1.24f, frontZ - 0.022f),
             new Vector3(0.50f, 0.39f, 0.045f),
@@ -2256,5 +2335,13 @@ public static class GroundOpsSceneBuilder
     {
         T component = gameObject.GetComponent<T>();
         return component != null ? component : gameObject.AddComponent<T>();
+    }
+
+    private static void RemoveColliders(Transform root)
+    {
+        foreach (Collider collider in root.GetComponentsInChildren<Collider>(true))
+        {
+            Object.DestroyImmediate(collider);
+        }
     }
 }

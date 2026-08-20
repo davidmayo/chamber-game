@@ -431,6 +431,8 @@ public static class CodexEditorBridge
             request.argument?.Trim(), "ground-ops-window", StringComparison.OrdinalIgnoreCase);
         bool captureGroundOpsConsole = string.Equals(
             request.argument?.Trim(), "ground-ops-console", StringComparison.OrdinalIgnoreCase);
+        bool captureGroundOpsDsnRack = string.Equals(
+            request.argument?.Trim(), "ground-ops-dsn", StringComparison.OrdinalIgnoreCase);
         int width = request.width > 0 ? Mathf.Clamp(request.width, 64, 4096) : 1280;
         int height = request.height > 0 ? Mathf.Clamp(request.height, 64, 4096) : 720;
         RenderTexture renderTexture = new(width, height, 24, RenderTextureFormat.ARGB32);
@@ -483,6 +485,17 @@ public static class CodexEditorBridge
                     poseObject.transform.rotation);
                 camera.orthographic = false;
                 camera.fieldOfView = 68f;
+            }
+            else if (captureGroundOpsDsnRack)
+            {
+                Vector3 viewPosition = new(-2.49f, 1.30f, 5.55f);
+                Vector3 rackTarget = new(-2.49f, 1.18f, 6.83f);
+                camera.transform.position = viewPosition;
+                camera.transform.rotation = Quaternion.LookRotation(
+                    rackTarget - viewPosition,
+                    Vector3.up);
+                camera.orthographic = false;
+                camera.fieldOfView = 58f;
             }
             camera.targetTexture = renderTexture;
             camera.Render();

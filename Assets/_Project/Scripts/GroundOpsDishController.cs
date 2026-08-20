@@ -8,8 +8,8 @@ public sealed class GroundOpsDishController : MonoBehaviour
     [SerializeField] private Vector3 worldEast = Vector3.right;
     [SerializeField] private float azimuthDegrees = 98f;
     [SerializeField] private float elevationDegrees = 20f;
-    [SerializeField, Min(0f)] private float azimuthSpeedDegreesPerSecond = 60f;
-    [SerializeField, Min(0f)] private float elevationSpeedDegreesPerSecond = 60f;
+    [SerializeField, Min(0f)] private float azimuthSpeedDegreesPerSecond = 12f;
+    [SerializeField, Min(0f)] private float elevationSpeedDegreesPerSecond = 12f;
     [SerializeField] private Vector2 elevationLimitsDegrees = new(0f, 90f);
 
     public float AzimuthDegrees => azimuthDegrees;
@@ -25,6 +25,8 @@ public sealed class GroundOpsDishController : MonoBehaviour
         reflectors = dishReflectors;
         worldNorth = Vector3.ProjectOnPlane(north, Vector3.up).normalized;
         worldEast = Vector3.ProjectOnPlane(east, Vector3.up).normalized;
+        azimuthSpeedDegreesPerSecond = 12f;
+        elevationSpeedDegreesPerSecond = 12f;
         azimuthDegrees = NormalizeSigned(initialAzimuth);
         elevationDegrees = Mathf.Clamp(
             initialElevation,
@@ -37,12 +39,12 @@ public sealed class GroundOpsDishController : MonoBehaviour
     {
         azimuthDegrees = NormalizeSigned(
             azimuthDegrees
-            + Mathf.Clamp(azimuthInput, -1f, 1f)
+            + Mathf.Clamp(azimuthInput, -5f, 5f)
             * azimuthSpeedDegreesPerSecond
             * deltaTime);
         elevationDegrees = Mathf.Clamp(
             elevationDegrees
-            + Mathf.Clamp(elevationInput, -1f, 1f)
+            + Mathf.Clamp(elevationInput, -5f, 5f)
             * elevationSpeedDegreesPerSecond
             * deltaTime,
             elevationLimitsDegrees.x,
