@@ -81,6 +81,17 @@ Useful commands include `editor_state`, `refresh`, `save_scene`, `rebuild_chambe
 - Wall visualization is editor-only and is controlled from `Window > Scene Tools`.
 - `RuntimeSceneSwitcher` provides the shared runtime pause menu. While the player is standing, `Escape` pauses and opens the menu; it can resume or load either `Main` (Anechoic Chamber) or `GroundOps`. It uses a runtime-created uGUI Canvas plus an `EventSystem`/`InputSystemUIInputModule`; explicitly assign that module's default UI actions so Point and Click remain wired when Enter Play Mode Options skip domain reload. Do not replace interactive runtime controls with IMGUI/`OnGUI`, because this project uses the new Input System exclusively and IMGUI will render without receiving pointer events. Keep the end-to-end Play Mode test that sends real Input System pointer events and verifies both scene transitions. Do not show the scene switcher during normal play. While seated at a console or using the lift, the first `Escape` retains its interaction-specific exit behavior; press `Escape` again after standing to pause.
 
+### Runtime UI requirements
+
+The pause menu previously rendered correctly while its buttons were completely unclickable. Preserve all of the following; a visible uGUI button is not proof that its input path works.
+
+- Every runtime-created uGUI Canvas containing interactive controls must have a `GraphicRaycaster`.
+- There must be an active `EventSystem` with an enabled `InputSystemUIInputModule`. Explicitly call `AssignDefaultActions()` for a runtime-created module; verify that its Point and Click actions are assigned and enabled.
+- While the pause menu is open, it exclusively owns pointer input. `FirstPersonPlayerController`, `ComputerConsoleController`, and any future component with click-to-capture behavior must not lock or hide the cursor, consume the click, or process look/movement input.
+- Loading a scene from a button callback must be deferred until the next frame so the EventSystem can finish the pointer-release event. Reset the persistent UI input module after the new scene loads so stale pointer state cannot affect the next menu interaction.
+- Do not accept a test that invokes `Button.onClick` directly or calls the scene-loading method directly. `RuntimePauseMenuTests` must drive pointer movement, press, and release through the new Input System, assert the Canvas/EventSystem/raycaster/action wiring, and prove both `GroundOps -> Main` and `Main -> GroundOps` transitions.
+- When runtime UI fails, first check cursor ownership and every independent cursor-recapture handler. The chamber computer controller previously duplicated the player's recapture behavior and stole clicks only in the chamber scene.
+
 ## Ground Ops scene
 
 - `Assets/_Project/Editor/GroundOpsSceneBuilder.cs` is the source of truth for the generated Dish Operations Center blockout in `GroundOps.unity`.
