@@ -69,6 +69,7 @@ public sealed class ScissorLiftStationController : MonoBehaviour
 
     private void OnDisable()
     {
+        InteractionPromptDisplay.Hide(this);
         if (Application.isPlaying && controllingLift && playerController != null)
         {
             playerController.enabled = true;
@@ -76,15 +77,21 @@ public sealed class ScissorLiftStationController : MonoBehaviour
         controllingLift = false;
     }
 
-    private void OnGUI()
+    private void LateUpdate()
     {
         if (controllingLift)
         {
-            DrawPrompt("Q lower / E raise     F or ESC to stop");
+            InteractionPromptDisplay.Show(
+                this,
+                "Q lower / E raise     F or ESC to stop");
         }
         else if (playerNearby)
         {
-            DrawPrompt("Press F to use scissor lift");
+            InteractionPromptDisplay.Show(this, "Press F to use scissor lift");
+        }
+        else
+        {
+            InteractionPromptDisplay.Hide(this);
         }
     }
 
@@ -99,23 +106,4 @@ public sealed class ScissorLiftStationController : MonoBehaviour
         Cursor.visible = !captured;
     }
 
-    private static void DrawPrompt(string message)
-    {
-        const float width = 360f;
-        const float height = 42f;
-        Rect panel = new((Screen.width - width) / 2f, Screen.height - 82f, width, height);
-        Color previousColor = GUI.color;
-        GUI.color = new Color(0.025f, 0.035f, 0.05f, 0.9f);
-        GUI.DrawTexture(panel, Texture2D.whiteTexture);
-        GUI.color = Color.white;
-        GUIStyle style = new(GUI.skin.label)
-        {
-            alignment = TextAnchor.MiddleCenter,
-            fontSize = 16,
-            fontStyle = FontStyle.Bold,
-            normal = { textColor = Color.white },
-        };
-        GUI.Label(panel, message, style);
-        GUI.color = previousColor;
-    }
 }

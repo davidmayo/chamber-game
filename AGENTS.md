@@ -73,6 +73,7 @@ Useful commands include `editor_state`, `refresh`, `save_scene`, `rebuild_chambe
 - `Scene Tools` exposes the active scene's wall opacity. In the chamber it also exposes chamber-light mode/timeout/status, floodlight state, and editable positioner pan/tilt/height. Generator rebuilds must preserve these editor values.
 - `Scene Tools` is an editor-only visualization and debugging panel. Its saved values are useful for inspecting scenes and for Editor Play Mode, but standalone builds intentionally use opaque walls and start chamber gameplay from `ChamberBuildDefaults`: chamber lights Auto with a 30-second timer, floodlights off, pan/tilt/polarity at 0 degrees, and height at 0.2 m.
 - Player mode uses `WASD` movement and mouse look. While standing, `Escape` opens the shared pause menu and releases the mouse; resuming captures it again.
+- `InteractionPromptDisplay` is the shared display-only runtime UI for proximity/control prompts. Controllers register their current message instead of drawing fixed-pixel `OnGUI` panels. Preserve its screen-space Canvas, `CanvasScaler` reference resolution of 1920 by 1080, and non-raycastable graphics so prompts remain readable across windowed, fullscreen, and high-DPI builds without interfering with the pause menu.
 - Near the computer console, `F` enters the seated console mode; `F` or `Escape` exits it.
 - Every seated console should support normalized mouse-wheel camera zoom by default and restore the player's standing field of view on exit. Omit zoom only when a task explicitly calls for different behavior.
 - Console mode uses `A`/`D` for pan, `W`/`S` for tilt, and `Q`/`E` for source-antenna polarity. It must never expose, display, or change positioner height.
@@ -91,6 +92,12 @@ The pause menu previously rendered correctly while its buttons were completely u
 - Loading a scene from a button callback must be deferred until the next frame so the EventSystem can finish the pointer-release event. Reset the persistent UI input module after the new scene loads so stale pointer state cannot affect the next menu interaction.
 - Do not accept a test that invokes `Button.onClick` directly or calls the scene-loading method directly. `RuntimePauseMenuTests` must drive pointer movement, press, and release through the new Input System, assert the Canvas/EventSystem/raycaster/action wiring, and prove both `GroundOps -> Main` and `Main -> GroundOps` transitions.
 - When runtime UI fails, first check cursor ownership and every independent cursor-recapture handler. The chamber computer controller previously duplicated the player's recapture behavior and stole clicks only in the chamber scene.
+
+## Player builds
+
+- Standalone players default to a resizable 1600 by 900 window. Unity's normal fullscreen switching remains enabled, and `-screen-fullscreen`, `-screen-width`, and `-screen-height` command-line overrides remain supported.
+- `Assets/_Project/Editor/ProjectBuildPipeline.cs` owns the local release build workflow. Run `Tools > Build > Clean and Build Windows + Linux` to delete only the validated project-root `Builds` directory, then create `Builds/Windows/Chamber.exe` and `Builds/Linux/Chamber.x86_64` from every enabled scene in Build Profiles.
+- The same pipeline entry point is `ProjectBuildPipeline.CleanAndBuildAll` for a later `-batchmode -executeMethod` wrapper. It must fail clearly when scenes are missing, a platform module is unavailable, or either player build fails. Never weaken its exact `Builds` path validation.
 
 ## Ground Ops scene
 

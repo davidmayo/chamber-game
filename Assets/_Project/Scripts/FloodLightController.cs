@@ -100,35 +100,24 @@ public sealed class FloodLightController : MonoBehaviour
         }
     }
 
-    private void OnGUI()
+    private void LateUpdate()
     {
-        if (!playerNearby)
+        if (playerNearby)
         {
-            return;
+            InteractionPromptDisplay.Show(
+                this,
+                lightsOn
+                    ? "Press F to turn off floodlights"
+                    : "Press F to turn on floodlights");
         }
-
-        DrawPrompt(lightsOn
-            ? "Press F to turn off floodlights"
-            : "Press F to turn on floodlights");
+        else
+        {
+            InteractionPromptDisplay.Hide(this);
+        }
     }
 
-    private static void DrawPrompt(string message)
+    private void OnDisable()
     {
-        const float width = 340f;
-        const float height = 42f;
-        Rect panel = new((Screen.width - width) / 2f, Screen.height - 82f, width, height);
-        Color previousColor = GUI.color;
-        GUI.color = new Color(0.025f, 0.035f, 0.05f, 0.9f);
-        GUI.DrawTexture(panel, Texture2D.whiteTexture);
-        GUI.color = Color.white;
-        GUIStyle style = new(GUI.skin.label)
-        {
-            alignment = TextAnchor.MiddleCenter,
-            fontSize = 16,
-            fontStyle = FontStyle.Bold,
-            normal = { textColor = Color.white },
-        };
-        GUI.Label(panel, message, style);
-        GUI.color = previousColor;
+        InteractionPromptDisplay.Hide(this);
     }
 }

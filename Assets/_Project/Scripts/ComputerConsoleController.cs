@@ -267,6 +267,7 @@ public sealed class ComputerConsoleController : MonoBehaviour
 
     private void OnDisable()
     {
+        InteractionPromptDisplay.Hide(this);
         if (!Application.isPlaying)
         {
             return;
@@ -283,29 +284,16 @@ public sealed class ComputerConsoleController : MonoBehaviour
         SetCursorCaptured(false);
     }
 
-    private void OnGUI()
+    private void LateUpdate()
     {
-        if (state != InteractionState.Standing || !playerNearby)
+        if (state == InteractionState.Standing && playerNearby)
         {
-            return;
+            InteractionPromptDisplay.Show(this, "Press F to control table");
         }
-
-        const float width = 300f;
-        const float height = 42f;
-        Rect panel = new((Screen.width - width) / 2f, Screen.height - 82f, width, height);
-        Color previousColor = GUI.color;
-        GUI.color = new Color(0.025f, 0.035f, 0.05f, 0.9f);
-        GUI.DrawTexture(panel, Texture2D.whiteTexture);
-        GUI.color = Color.white;
-        GUIStyle style = new(GUI.skin.label)
+        else
         {
-            alignment = TextAnchor.MiddleCenter,
-            fontSize = 16,
-            fontStyle = FontStyle.Bold,
-            normal = { textColor = Color.white },
-        };
-        GUI.Label(panel, "Press F to control table", style);
-        GUI.color = previousColor;
+            InteractionPromptDisplay.Hide(this);
+        }
     }
 
     private static float ButtonAxis(bool negativePressed, bool positivePressed)
