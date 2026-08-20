@@ -23,6 +23,10 @@ public static class GroundOpsSceneBuilder
     private static readonly Vector2 ExteriorLateralDirection =
         new(ExteriorViewDirection.y, -ExteriorViewDirection.x);
     private static readonly Vector3 DishComplexOffset = new(-41.5f, 13.7f, 18.01f);
+    private static readonly Vector3 SmallDishRootPosition = new(-18.124f, 13.554f, -8.329f);
+    private static readonly Vector3 LargeDishRootPosition = new(-24.988f, 12.640f, -13.781f);
+    private const float SmallDishRootScale = 2.434f;
+    private const float LargeDishRootScale = 2.497f;
     private static readonly Vector2 DishTerrainCenter = new(-55.16f, 37.81f);
     private const float TerrainHorizontalScale = 0.08641784f;
     private const float TerrainVerticalScale = 0.14127464f;
@@ -78,7 +82,7 @@ public static class GroundOpsSceneBuilder
         const float serverBackZ = 8.0f;
         const float rightWallX = 5.5f;
         const float serverLeftX = -4.2f;
-        const float wallHeight = 3.0f;
+        const float wallHeight = 12f * 0.3048f;
         const float wallThickness = 0.12f;
         const float doorWidth = 1.05f;
         const float doorHeight = 2.15f;
@@ -101,7 +105,8 @@ public static class GroundOpsSceneBuilder
         Material transparentWallMaterial = GetTransparentMaterial(
             "GroundOpsWallTransparent", new Color(0.76f, 0.75f, 0.70f, 0.50f));
         Material trimMaterial = GetMaterial("GroundOpsWindowTrim", new Color(0.16f, 0.18f, 0.20f), 0.15f, 0.25f);
-        Material glassMaterial = GetTransparentMaterial("GroundOpsWindowGlass", new Color(0.32f, 0.48f, 0.58f, 0.28f));
+        Material glassMaterial = GetTransparentMaterial(
+            "GroundOpsWindowGlass", new Color(0.32f, 0.48f, 0.58f, 0.12f));
         Material carpetMaterial = GetMaterial("GroundOpsCarpet", new Color(0.12f, 0.14f, 0.16f), 0f, 0.02f);
         Material deskMaterial = GetMaterial("GroundOpsDesk", new Color(0.30f, 0.32f, 0.34f), 0.05f, 0.12f);
         Material deskBaseMaterial = GetMaterial("GroundOpsDeskBase", new Color(0.12f, 0.13f, 0.14f), 0.08f, 0.10f);
@@ -122,7 +127,7 @@ public static class GroundOpsSceneBuilder
             new Vector3(serverLeftX, 0f, partitionZ),
             new Vector3(-5.1f, 0f, opsFrontZ),
             new Vector3(-7.0f, 0f, -0.2f),
-            8);
+            4);
 
         BuildFloor(
             NewGroup("Floors", architecture),
@@ -786,10 +791,12 @@ public static class GroundOpsSceneBuilder
             + ExteriorLateralDirection * 3.0f;
         BuildDishProxy("13-meter Dish Proxy", parent,
             smallDishPosition, 1.30f, 2.0f,
-            new Vector3(0.68f, 0.70f, 0.18f), DishComplexOffset, dishMaterial);
+            new Vector3(0.68f, 0.70f, 0.18f),
+            SmallDishRootPosition, SmallDishRootScale, dishMaterial);
         BuildDishProxy("21-meter Dish Proxy", parent,
             largeDishPosition, 2.10f, 2.6f,
-            new Vector3(0.58f, 0.79f, -0.20f), DishComplexOffset, dishMaterial);
+            new Vector3(0.58f, 0.79f, -0.20f),
+            LargeDishRootPosition, LargeDishRootScale, dishMaterial);
     }
 
     private static void BuildDishProxy(
@@ -799,16 +806,23 @@ public static class GroundOpsSceneBuilder
         float diameter,
         float postHeight,
         Vector3 dishNormal,
-        Vector3 rootOffset,
+        Vector3 rootPosition,
+        float rootScale,
         Material material)
     {
         Transform dish = NewGroup(name, parent);
-        dish.localPosition = rootOffset;
+        dish.localPosition = rootPosition;
+        dish.localScale = Vector3.one * rootScale;
+
+        // The user scaled each whole proxy around its visible geometry. Retain
+        // the pre-scale terrain reference for child placement so the recorded
+        // compensating root positions and the enlarged geometry reproduce that
+        // exact Editor composition.
         Vector2 worldHorizontalPosition =
-            horizontalPosition + new Vector2(rootOffset.x, rootOffset.z);
+            horizontalPosition + new Vector2(DishComplexOffset.x, DishComplexOffset.z);
         float groundY =
             MountainHeight(worldHorizontalPosition.x, worldHorizontalPosition.y)
-            - rootOffset.y;
+            - DishComplexOffset.y;
         Cylinder("Post", dish,
             new Vector3(horizontalPosition.x, groundY + postHeight / 2f, horizontalPosition.y),
             0.075f, postHeight, material);
@@ -1268,6 +1282,7 @@ public static class GroundOpsSceneBuilder
     private static Material GetTransparentMaterial(string name, Color color)
     {
         Material material = GetMaterial(name, color, 0f, 0.45f);
+        if (material.HasProperty("_Color")) material.SetColor("_Color", color);
         material.SetOverrideTag("RenderType", "Transparent");
         if (material.HasProperty("_Surface")) material.SetFloat("_Surface", 1f);
         if (material.HasProperty("_Blend")) material.SetFloat("_Blend", 0f);
