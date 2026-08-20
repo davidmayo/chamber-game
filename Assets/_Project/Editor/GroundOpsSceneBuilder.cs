@@ -5,6 +5,7 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
 /// <summary>
 /// Builds the deliberately simple Dish Operations Center blockout from the
@@ -95,6 +96,8 @@ public static class GroundOpsSceneBuilder
             .FirstOrDefault(candidate => candidate.name == RootName);
         float preserveWallOpacity = 100f;
         bool preserveCeilingLightsOn = true;
+        float preserveDishAzimuth = 98f;
+        float preserveDishElevation = 20f;
         if (existingRoot != null)
         {
             ChamberShellVisibilityController existingVisibility =
@@ -108,6 +111,13 @@ public static class GroundOpsSceneBuilder
             if (existingCeilingLights != null)
             {
                 preserveCeilingLightsOn = existingCeilingLights.LightsOn;
+            }
+            GroundOpsDishController existingDishes =
+                existingRoot.GetComponentInChildren<GroundOpsDishController>(true);
+            if (existingDishes != null)
+            {
+                preserveDishAzimuth = existingDishes.AzimuthDegrees;
+                preserveDishElevation = existingDishes.ElevationDegrees;
             }
         }
         BeginSync(existingRoot);
@@ -206,12 +216,16 @@ public static class GroundOpsSceneBuilder
             glassMaterial,
             trimMaterial);
 
-        BuildExteriorLandscape(
+        GroundOpsDishController dishController = BuildExteriorLandscape(
             NewGroup("Exterior Landscape", root),
             terrainMaterial,
             forestTrunkMaterial,
             forestCrownMaterials,
-            dishMaterial);
+            dishMaterial,
+            worldNorth,
+            worldEast,
+            preserveDishAzimuth,
+            preserveDishElevation);
 
         ShellVisualBinding[] wallVisuals = CreateCameraVisuals(
             wallPhysicalRenderers, transparentWallMaterial)
@@ -241,7 +255,8 @@ public static class GroundOpsSceneBuilder
             preserveCeilingLightsOn);
 
         Transform furniture = NewGroup("Furniture Blockout", root);
-        BuildStationDesk("Dish Station 1", furniture, new Vector3(-3.540f, 0f, -2.680f), 17.181f,
+        Transform frontLeftStation = BuildStationDesk(
+            "Dish Station 1", furniture, new Vector3(-3.540f, 0f, -2.680f), 17.181f,
             deskMaterial, deskBaseMaterial, chairMaterial, monitorMaterial, monitorScreenMaterial);
         BuildStationDesk("Dish Station 2", furniture, new Vector3(-2.870f, 0f, -0.700f), 21.625f,
             deskMaterial, deskBaseMaterial, chairMaterial, monitorMaterial, monitorScreenMaterial);
@@ -280,7 +295,9 @@ public static class GroundOpsSceneBuilder
             skyMaterial,
             worldNorth,
             worldEast);
-        BuildPlayer(NewGroup("Player", root), playerMaterial);
+        FirstPersonPlayerController playerController =
+            BuildPlayer(NewGroup("Player", root), playerMaterial);
+        BuildDishStationConsole(frontLeftStation, playerController, dishController);
         FinishSync();
 
         RenderSettings.skybox = skyMaterial;
@@ -717,7 +734,7 @@ public static class GroundOpsSceneBuilder
         }
     }
 
-    private static void BuildStationDesk(
+    private static Transform BuildStationDesk(
         string name,
         Transform parent,
         Vector3 floorPosition,
@@ -793,6 +810,7 @@ public static class GroundOpsSceneBuilder
             new Vector3(0.48f, 0.11f, 0.48f), Quaternion.identity, chairMaterial);
         Box("Back", chair, new Vector3(0.21f, 0.80f, 0f),
             new Vector3(0.10f, 0.58f, 0.50f), Quaternion.identity, chairMaterial);
+        return station;
     }
 
     private static void BuildNonDishStations(
@@ -952,6 +970,128 @@ public static class GroundOpsSceneBuilder
             new Vector3(screenWidth, screenHeight, 0.006f), Quaternion.identity, screenMaterial);
     }
 
+    private static void BuildDishStationConsole(
+        Transform station,
+        FirstPersonPlayerController playerController,
+        GroundOpsDishController dishController)
+    {
+        const float metersPerInch = 0.0254f;
+        const float diagonal = 27f * metersPerInch;
+        const float tabletopY = 0.76f;
+        const float baseHeight = 0.025f;
+        const float standHeight = 0.16f;
+        const float bezel = 0.022f;
+        const float bodyDepth = 0.055f;
+        float screenHeight = diagonal / Mathf.Sqrt(16f * 16f + 9f * 9f) * 9f;
+        float screenWidth = screenHeight * 16f / 9f;
+        float bodyHeight = screenHeight + bezel * 2f;
+        float bodyY = tabletopY + baseHeight + standHeight + bodyHeight / 2f;
+        Vector3 textPosition = new(0f, bodyY, bodyDepth / 2f + 0.008f);
+
+        Transform leftMonitor = station.Find("Left 27-inch Monitor");
+        Transform rightMonitor = station.Find("Right 27-inch Monitor");
+        CreateWorldDisplayText(
+            "Movement Instructions",
+            leftMonitor,
+            textPosition,
+            screenWidth * 0.92f,
+            screenHeight * 0.86f,
+            "W/S: elevation\nA/D: azimuth\nMouse: look\n\nF or ESC: stand up",
+            48);
+        Text readout = CreateWorldDisplayText(
+            "Dish Pointing Readout",
+            rightMonitor,
+            textPosition,
+            screenWidth * 0.92f,
+            screenHeight * 0.86f,
+            "Azimuth: +98°\nElevation: +20°",
+            52);
+        GroundOpsDishReadoutDisplay display =
+            GetOrAddComponent<GroundOpsDishReadoutDisplay>(rightMonitor.gameObject);
+        display.Configure(dishController, readout);
+
+        Transform seatedCameraPose = NewGroup("Seated Camera Pose", station);
+        Vector3 seatedPosition = new(0.82f, 1.16f, 0f);
+        Vector3 seatedTarget = new(-0.10f, 1.12f, 0f);
+        seatedCameraPose.localPosition = seatedPosition;
+        seatedCameraPose.localRotation = Quaternion.LookRotation(
+            seatedTarget - seatedPosition,
+            Vector3.up);
+
+        Transform interactionZone = NewGroup("Console Interaction Zone", station);
+        interactionZone.localPosition = new Vector3(0.88f, 0.9f, 0f);
+        BoxCollider trigger = GetOrAddComponent<BoxCollider>(interactionZone.gameObject);
+        trigger.size = new Vector3(1.15f, 1.8f, 1.55f);
+        trigger.isTrigger = true;
+        Rigidbody triggerBody = GetOrAddComponent<Rigidbody>(interactionZone.gameObject);
+        triggerBody.isKinematic = true;
+        triggerBody.useGravity = false;
+        GroundOpsDishConsoleController consoleController =
+            GetOrAddComponent<GroundOpsDishConsoleController>(interactionZone.gameObject);
+        consoleController.Configure(
+            playerController,
+            dishController,
+            playerController.PlayerCamera,
+            seatedCameraPose);
+    }
+
+    private static Text CreateWorldDisplayText(
+        string name,
+        Transform parent,
+        Vector3 localPosition,
+        float width,
+        float height,
+        string content,
+        int fontSize)
+    {
+        const float canvasPixelWidth = 1000f;
+        float canvasPixelHeight = canvasPixelWidth * height / width;
+        GameObject canvasObject = AcquireObject(
+            name,
+            parent,
+            () => new GameObject(
+                name,
+                typeof(RectTransform),
+                typeof(Canvas),
+                typeof(CanvasScaler)));
+        RectTransform canvasTransform = GetOrAddComponent<RectTransform>(canvasObject);
+        canvasTransform.localPosition = localPosition;
+        canvasTransform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+        canvasTransform.localScale = Vector3.one * (width / canvasPixelWidth);
+        canvasTransform.sizeDelta = new Vector2(canvasPixelWidth, canvasPixelHeight);
+
+        Canvas canvas = GetOrAddComponent<Canvas>(canvasObject);
+        canvas.renderMode = RenderMode.WorldSpace;
+        canvas.overrideSorting = true;
+        canvas.sortingOrder = 10;
+        CanvasScaler scaler = GetOrAddComponent<CanvasScaler>(canvasObject);
+        scaler.dynamicPixelsPerUnit = 2f;
+
+        GameObject textObject = AcquireObject(
+            "Text",
+            canvasTransform,
+            () => new GameObject(
+                "Text",
+                typeof(RectTransform),
+                typeof(CanvasRenderer),
+                typeof(Text)));
+        RectTransform textTransform = GetOrAddComponent<RectTransform>(textObject);
+        textTransform.anchorMin = Vector2.zero;
+        textTransform.anchorMax = Vector2.one;
+        textTransform.offsetMin = new Vector2(22f, 16f);
+        textTransform.offsetMax = new Vector2(-22f, -16f);
+
+        Text text = GetOrAddComponent<Text>(textObject);
+        text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        text.fontSize = fontSize;
+        text.alignment = TextAnchor.MiddleCenter;
+        text.color = Color.white;
+        text.text = content;
+        text.horizontalOverflow = HorizontalWrapMode.Wrap;
+        text.verticalOverflow = VerticalWrapMode.Overflow;
+        return text;
+    }
+
     private static void BuildSimpleChair(
         string name,
         Transform parent,
@@ -1056,12 +1196,16 @@ public static class GroundOpsSceneBuilder
             rackMaterial);
     }
 
-    private static void BuildExteriorLandscape(
+    private static GroundOpsDishController BuildExteriorLandscape(
         Transform parent,
         Material terrainMaterial,
         Material forestTrunkMaterial,
         Material[] forestCrownMaterials,
-        Material dishMaterial)
+        Material dishMaterial,
+        Vector3 worldNorth,
+        Vector3 worldEast,
+        float initialAzimuth,
+        float initialElevation)
     {
         Mesh terrainMesh = GetMountainTerrainMesh("GroundOps_MountainTerrain");
         MeshObject("Low-poly Mountain Ridge", parent, terrainMesh, terrainMaterial, false);
@@ -1082,14 +1226,23 @@ public static class GroundOpsSceneBuilder
             ExteriorViewOrigin
             + ExteriorViewDirection * 25.4f
             + ExteriorLateralDirection * 3.0f;
-        BuildDishProxy("13-meter Dish Proxy", parent,
+        Transform smallReflector = BuildDishProxy("13-meter Dish Proxy", parent,
             smallDishPosition, 1.30f, 2.0f,
             new Vector3(0.68f, 0.70f, 0.18f),
             SmallDishRootPosition, SmallDishRootScale, dishMaterial);
-        BuildDishProxy("21-meter Dish Proxy", parent,
+        Transform largeReflector = BuildDishProxy("21-meter Dish Proxy", parent,
             largeDishPosition, 2.10f, 2.6f,
             new Vector3(0.58f, 0.79f, -0.20f),
             LargeDishRootPosition, LargeDishRootScale, dishMaterial);
+        GroundOpsDishController controller =
+            GetOrAddComponent<GroundOpsDishController>(parent.gameObject);
+        controller.Configure(
+            new[] { smallReflector, largeReflector },
+            worldNorth,
+            worldEast,
+            initialAzimuth,
+            initialElevation);
+        return controller;
     }
 
     private static void BuildForest(
@@ -1317,7 +1470,7 @@ public static class GroundOpsSceneBuilder
         return mesh;
     }
 
-    private static void BuildDishProxy(
+    private static Transform BuildDishProxy(
         string name,
         Transform parent,
         Vector2 horizontalPosition,
@@ -1349,6 +1502,7 @@ public static class GroundOpsSceneBuilder
             diameter / 2f, 0.07f, material);
         reflector.transform.localRotation =
             Quaternion.FromToRotation(Vector3.up, dishNormal.normalized);
+        return reflector.transform;
     }
 
     private static Mesh GetMountainTerrainMesh(string name)

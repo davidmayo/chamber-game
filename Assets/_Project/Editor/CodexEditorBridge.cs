@@ -429,6 +429,8 @@ public static class CodexEditorBridge
             request.argument?.Trim(), "top", StringComparison.OrdinalIgnoreCase);
         bool captureGroundOpsWindow = string.Equals(
             request.argument?.Trim(), "ground-ops-window", StringComparison.OrdinalIgnoreCase);
+        bool captureGroundOpsConsole = string.Equals(
+            request.argument?.Trim(), "ground-ops-console", StringComparison.OrdinalIgnoreCase);
         int width = request.width > 0 ? Mathf.Clamp(request.width, 64, 4096) : 1280;
         int height = request.height > 0 ? Mathf.Clamp(request.height, 64, 4096) : 720;
         RenderTexture renderTexture = new(width, height, 24, RenderTextureFormat.ARGB32);
@@ -439,6 +441,7 @@ public static class CodexEditorBridge
         Quaternion previousRotation = camera.transform.rotation;
         bool previousOrthographic = camera.orthographic;
         float previousOrthographicSize = camera.orthographicSize;
+        float previousFieldOfView = camera.fieldOfView;
         try
         {
             if (captureTopView)
@@ -466,6 +469,21 @@ public static class CodexEditorBridge
                     Vector3.up);
                 camera.orthographic = false;
             }
+            else if (captureGroundOpsConsole)
+            {
+                GameObject poseObject = GameObject.Find(
+                    "Ground Ops Blockout/Furniture Blockout/Dish Station 1/Seated Camera Pose");
+                if (poseObject == null)
+                {
+                    throw new InvalidOperationException(
+                        "The Ground Ops front-left seated camera pose was not found.");
+                }
+                camera.transform.SetPositionAndRotation(
+                    poseObject.transform.position,
+                    poseObject.transform.rotation);
+                camera.orthographic = false;
+                camera.fieldOfView = 68f;
+            }
             camera.targetTexture = renderTexture;
             camera.Render();
             RenderTexture.active = renderTexture;
@@ -483,6 +501,7 @@ public static class CodexEditorBridge
             camera.transform.rotation = previousRotation;
             camera.orthographic = previousOrthographic;
             camera.orthographicSize = previousOrthographicSize;
+            camera.fieldOfView = previousFieldOfView;
             RenderTexture.active = previousActive;
             UnityEngine.Object.DestroyImmediate(renderTexture);
             UnityEngine.Object.DestroyImmediate(image);
