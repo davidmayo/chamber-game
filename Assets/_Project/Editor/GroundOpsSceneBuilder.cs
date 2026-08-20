@@ -107,6 +107,7 @@ public static class GroundOpsSceneBuilder
         Material kvmScreenMaterial = GetMaterial("GroundOpsKvmScreen", new Color(0.015f, 0.025f, 0.030f), 0f, 0.35f);
         Material terrainMaterial = GetMaterial("GroundOpsMountainTerrain", new Color(0.16f, 0.21f, 0.13f), 0f, 0.02f);
         Material dishMaterial = GetMaterial("GroundOpsExteriorDish", new Color(0.66f, 0.68f, 0.65f), 0.05f, 0.15f);
+        Material playerMaterial = GetMaterial("GroundOpsPlayer", new Color(0.12f, 0.32f, 0.58f), 0f, 0.18f);
 
         Transform root = NewGroup(RootName, null);
         Transform architecture = NewGroup("Architecture", root);
@@ -198,6 +199,7 @@ public static class GroundOpsSceneBuilder
             deskBaseMaterial);
 
         BuildCameraAndLight(NewGroup("Scene Setup", root));
+        BuildPlayer(NewGroup("Player", root), playerMaterial);
         FinishSync();
 
         RenderSettings.skybox = null;
@@ -776,12 +778,13 @@ public static class GroundOpsSceneBuilder
             ExteriorViewOrigin
             + ExteriorViewDirection * 25.4f
             + ExteriorLateralDirection * 3.0f;
+        Vector3 movedDishComplexOffset = new(-41.5f, 13.7f, 18.01f);
         BuildDishProxy("13-meter Dish Proxy", parent,
             smallDishPosition, 1.30f, 2.0f,
-            new Vector3(0.68f, 0.70f, 0.18f), dishMaterial);
+            new Vector3(0.68f, 0.70f, 0.18f), movedDishComplexOffset, dishMaterial);
         BuildDishProxy("21-meter Dish Proxy", parent,
             largeDishPosition, 2.10f, 2.6f,
-            new Vector3(0.58f, 0.79f, -0.20f), dishMaterial);
+            new Vector3(0.58f, 0.79f, -0.20f), movedDishComplexOffset, dishMaterial);
     }
 
     private static void BuildDishProxy(
@@ -791,10 +794,16 @@ public static class GroundOpsSceneBuilder
         float diameter,
         float postHeight,
         Vector3 dishNormal,
+        Vector3 rootOffset,
         Material material)
     {
         Transform dish = NewGroup(name, parent);
-        float groundY = MountainHeight(horizontalPosition.x, horizontalPosition.y);
+        dish.localPosition = rootOffset;
+        Vector2 worldHorizontalPosition =
+            horizontalPosition + new Vector2(rootOffset.x, rootOffset.z);
+        float groundY =
+            MountainHeight(worldHorizontalPosition.x, worldHorizontalPosition.y)
+            - rootOffset.y;
         Cylinder("Post", dish,
             new Vector3(horizontalPosition.x, groundY + postHeight / 2f, horizontalPosition.y),
             0.075f, postHeight, material);
@@ -868,10 +877,22 @@ public static class GroundOpsSceneBuilder
             2.4f * Mathf.Sin(lateral * 0.055f + 0.5f)
             + 1.15f * Mathf.Sin(lateral * 0.135f - 0.8f)
             + 0.55f * Mathf.Sin(lateral * 0.31f + 1.1f);
-        float broadSlope = Mathf.Lerp(-2.2f, 13.5f, rise);
+        // The Ops floor is on the second story; nearby exterior grade begins
+        // roughly 4.2 m below it before climbing toward the ridge.
+        float broadSlope = Mathf.Lerp(-4.2f, 13.5f, rise);
         float foldedSlope =
             Mathf.Sin(depth * Mathf.PI * 4.2f + lateral * 0.045f) * 0.9f * rise;
-        return broadSlope + skyline * rise + foldedSlope;
+        float naturalHeight = broadSlope + skyline * rise + foldedSlope;
+
+        // A broad shoulder rises to the manually placed dish complex. Both post
+        // bases are near y=12.56 after applying their shared transform.
+        Vector2 dishPlateauCenter = new(-55.16f, 37.81f);
+        float plateauDistance = Vector2.Distance(new Vector2(x, z), dishPlateauCenter);
+        float plateauWeight = 1f - Mathf.SmoothStep(
+            0f,
+            1f,
+            Mathf.InverseLerp(8f, 24f, plateauDistance));
+        return Mathf.Lerp(naturalHeight, 12.56f, plateauWeight);
     }
 
     private static Vector3 MountainPoint(float depth, float lateral)
@@ -904,19 +925,6 @@ public static class GroundOpsSceneBuilder
 
     private static void BuildCameraAndLight(Transform parent)
     {
-        GameObject cameraObject = AcquireObject("Main Camera", parent, () => new GameObject("Main Camera"));
-        cameraObject.tag = "MainCamera";
-        Camera camera = GetOrAddComponent<Camera>(cameraObject);
-        cameraObject.transform.position = new Vector3(10.5f, 9.0f, -12.0f);
-        cameraObject.transform.rotation = Quaternion.LookRotation(
-            new Vector3(-0.5f, 1.0f, 1.2f) - cameraObject.transform.position,
-            Vector3.up);
-        camera.fieldOfView = 58f;
-        camera.nearClipPlane = 0.05f;
-        camera.farClipPlane = 180f;
-        camera.clearFlags = CameraClearFlags.SolidColor;
-        camera.backgroundColor = new Color(0.055f, 0.065f, 0.075f);
-
         GameObject lightObject = AcquireObject("Directional Light", parent, () => new GameObject("Directional Light"));
         Light light = GetOrAddComponent<Light>(lightObject);
         light.type = LightType.Directional;
@@ -924,6 +932,53 @@ public static class GroundOpsSceneBuilder
         light.color = new Color(1f, 0.96f, 0.90f);
         light.shadows = LightShadows.Soft;
         lightObject.transform.rotation = Quaternion.Euler(52f, -35f, 0f);
+    }
+
+    private static FirstPersonPlayerController BuildPlayer(
+        Transform player,
+        Material material)
+    {
+        // Start just inside the main Ops entrance, facing toward the server room.
+        player.localPosition = new Vector3(4.15f, 0f, -4.65f);
+        player.localRotation = Quaternion.identity;
+
+        GameObject body = AcquireObject(
+            "Capsule Body",
+            player,
+            () => GameObject.CreatePrimitive(PrimitiveType.Capsule));
+        body.transform.SetParent(player, false);
+        body.transform.localPosition = new Vector3(0f, 0.9f, 0f);
+        body.transform.localRotation = Quaternion.identity;
+        body.transform.localScale = new Vector3(0.6f, 0.9f, 0.6f);
+        body.GetComponent<Renderer>().sharedMaterial = material;
+        Collider bodyCollider = body.GetComponent<Collider>();
+        if (bodyCollider != null) Object.DestroyImmediate(bodyCollider);
+
+        CharacterController characterController =
+            GetOrAddComponent<CharacterController>(player.gameObject);
+        characterController.center = new Vector3(0f, 0.9f, 0f);
+        characterController.height = 1.8f;
+        characterController.radius = 0.3f;
+        characterController.stepOffset = 0.3f;
+        characterController.skinWidth = 0.05f;
+
+        GameObject cameraObject = AcquireObject(
+            "Main Camera", player, () => new GameObject("Main Camera"));
+        cameraObject.tag = "MainCamera";
+        cameraObject.transform.localPosition = new Vector3(0f, 1.65f, 0f);
+        cameraObject.transform.localRotation = Quaternion.identity;
+        cameraObject.transform.localScale = Vector3.one;
+        Camera camera = GetOrAddComponent<Camera>(cameraObject);
+        camera.fieldOfView = 68f;
+        camera.nearClipPlane = 0.05f;
+        camera.farClipPlane = 180f;
+        camera.clearFlags = CameraClearFlags.SolidColor;
+        camera.backgroundColor = new Color(0.055f, 0.065f, 0.075f);
+
+        FirstPersonPlayerController controller =
+            GetOrAddComponent<FirstPersonPlayerController>(player.gameObject);
+        controller.Configure(camera);
+        return controller;
     }
 
     private static Mesh GetFloorMesh(string name, Vector3[] boundary)
@@ -1249,11 +1304,12 @@ public static class GroundOpsSceneBuilder
         // A sync may promote an old primitive into a logical parent. Remove its
         // former visible/collidable shell while retaining the stable object path.
         MeshRenderer meshRenderer = gameObject.GetComponent<MeshRenderer>();
-        if (meshRenderer != null) Object.DestroyImmediate(meshRenderer);
         MeshFilter meshFilter = gameObject.GetComponent<MeshFilter>();
+        bool wasPrimitive = meshRenderer != null || meshFilter != null;
+        if (meshRenderer != null) Object.DestroyImmediate(meshRenderer);
         if (meshFilter != null) Object.DestroyImmediate(meshFilter);
         Collider collider = gameObject.GetComponent<Collider>();
-        if (collider != null) Object.DestroyImmediate(collider);
+        if (wasPrimitive && collider != null) Object.DestroyImmediate(collider);
         gameObject.transform.localPosition = Vector3.zero;
         gameObject.transform.localRotation = Quaternion.identity;
         gameObject.transform.localScale = Vector3.one;

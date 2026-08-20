@@ -40,6 +40,17 @@ public sealed class FirstPersonPlayerController : MonoBehaviour
             return;
         }
 
+        if (keyboard.escapeKey.wasPressedThisFrame)
+        {
+            SetCursorCaptured(false);
+        }
+        else if (Mouse.current != null
+            && Mouse.current.leftButton.wasPressedThisFrame
+            && Cursor.lockState != CursorLockMode.Locked)
+        {
+            SetCursorCaptured(true);
+        }
+
         if (Cursor.lockState == CursorLockMode.Locked && Mouse.current != null)
         {
             ApplyMouseLook(Mouse.current.delta.ReadValue());
@@ -82,5 +93,11 @@ public sealed class FirstPersonPlayerController : MonoBehaviour
     private static float NormalizeAngle(float degrees)
     {
         return degrees > 180f ? degrees - 360f : degrees;
+    }
+
+    private static void SetCursorCaptured(bool captured)
+    {
+        Cursor.lockState = captured ? CursorLockMode.Locked : CursorLockMode.None;
+        Cursor.visible = !captured;
     }
 }

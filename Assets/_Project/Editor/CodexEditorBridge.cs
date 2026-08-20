@@ -459,7 +459,7 @@ public static class CodexEditorBridge
             else if (captureGroundOpsWindow)
             {
                 Vector3 viewPosition = new(-1.5f, 1.65f, -2.5f);
-                Vector3 ridgeTarget = new(-39.8f, 10.5f, 67.7f);
+                Vector3 ridgeTarget = new(-55.2f, 12.8f, 37.8f);
                 camera.transform.position = viewPosition;
                 camera.transform.rotation = Quaternion.LookRotation(
                     ridgeTarget - viewPosition,
