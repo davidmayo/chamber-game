@@ -894,15 +894,24 @@ public static class GroundOpsSceneBuilder
             0f, 1f, Mathf.InverseLerp(8f, 22f, worldOffset.magnitude));
         naturalHeight = Mathf.Lerp(naturalHeight, -4.2f, docGradeWeight);
 
-        // A broad shoulder rises to the manually placed dish complex. Both post
-        // bases are near y=12.56 after applying their shared transform.
-        float plateauDistance = Vector2.Distance(
-            new Vector2(x, z), DishTerrainCenter);
-        float plateauWeight = 1f - Mathf.SmoothStep(
-            0f,
-            1f,
-            Mathf.InverseLerp(5f, 16f, plateauDistance));
-        return Mathf.Lerp(naturalHeight, 12.56f, plateauWeight);
+        // The real complex follows a ridge, not an isolated summit. Extend the
+        // crest through both dishes along their shared lateral axis, then blend
+        // it gradually into the sampled terrain across and beyond the complex.
+        Vector2 ridgeOffset = new Vector2(x, z) - DishTerrainCenter;
+        Vector2 ridgeAxis = ExteriorLateralDirection.normalized;
+        Vector2 ridgeAcrossAxis = new(-ridgeAxis.y, ridgeAxis.x);
+        float alongRidge = Vector2.Dot(ridgeOffset, ridgeAxis);
+        float acrossRidge = Vector2.Dot(ridgeOffset, ridgeAcrossAxis);
+        float acrossWeight = 1f - Mathf.SmoothStep(
+            0f, 1f, Mathf.InverseLerp(5f, 20f, Mathf.Abs(acrossRidge)));
+        float alongWeight = 1f - Mathf.SmoothStep(
+            0f, 1f, Mathf.InverseLerp(36f, 78f, Mathf.Abs(alongRidge)));
+        float ridgeWeight = acrossWeight * alongWeight;
+        float crestHeight =
+            12.56f
+            - 0.010f * Mathf.Abs(alongRidge)
+            + 0.18f * Mathf.Sin(alongRidge * 0.10f);
+        return Mathf.Lerp(naturalHeight, crestHeight, ridgeWeight);
     }
 
     private static float SampleRealTerrain(float eastMeters, float northMeters)
