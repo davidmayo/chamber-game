@@ -114,6 +114,7 @@ public sealed class ComputerConsoleController : MonoBehaviour
 
         if (Mouse.current != null
             && Mouse.current.leftButton.wasPressedThisFrame
+            && !RuntimeSceneSwitcher.IsOpen
             && Cursor.lockState != CursorLockMode.Locked)
         {
             SetCursorCaptured(true);

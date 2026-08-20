@@ -177,6 +177,10 @@ public static class CodexEditorBridge
                     string.Empty, EditorStateJson());
                 return false;
 
+            case "game_view_info":
+                WriteGameViewInfo(request);
+                return false;
+
             case "refresh":
                 BeginRefresh(request);
                 return true;
@@ -346,6 +350,34 @@ public static class CodexEditorBridge
         File.WriteAllText(artifactPath, output.ToString(), Encoding.UTF8);
         WriteResponse(request.id, request.command, true, "Scene hierarchy captured.", artifactPath,
             $"{scene.rootCount} root objects; {CountSceneObjects(scene)} total GameObjects.");
+    }
+
+    private static void WriteGameViewInfo(BridgeRequest request)
+    {
+        Type gameViewType = typeof(EditorWindow).Assembly.GetType("UnityEditor.GameView");
+        EditorWindow gameView = gameViewType == null
+            ? null
+            : Resources.FindObjectsOfTypeAll(gameViewType)
+                .OfType<EditorWindow>()
+                .OrderByDescending(window => window.hasFocus)
+                .FirstOrDefault();
+        if (gameView == null)
+        {
+            throw new InvalidOperationException("No open Game View was found.");
+        }
+
+        Rect rect = gameView.position;
+        string details = JsonUtility.ToJson(new GameViewInfo
+        {
+            x = rect.x,
+            y = rect.y,
+            width = rect.width,
+            height = rect.height,
+            focused = gameView.hasFocus,
+            title = gameView.titleContent.text,
+        }, true);
+        WriteResponse(request.id, request.command, true, "Game View bounds captured.",
+            string.Empty, details);
     }
 
     private static void AppendHierarchy(StringBuilder output, Transform transform, int depth)
@@ -708,6 +740,17 @@ public static class CodexEditorBridge
 
         public void TestStarted(ITestAdaptor test) { }
         public void TestFinished(ITestResultAdaptor result) { }
+    }
+
+    [Serializable]
+    private sealed class GameViewInfo
+    {
+        public float x;
+        public float y;
+        public float width;
+        public float height;
+        public bool focused;
+        public string title;
     }
 
     [Serializable]

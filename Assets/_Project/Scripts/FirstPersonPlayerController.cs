@@ -34,6 +34,14 @@ public sealed class FirstPersonPlayerController : MonoBehaviour
 
     private void Update()
     {
+        // The standing controller normally lets a click recapture the mouse.
+        // Pause-menu clicks belong exclusively to the UI; recapturing here
+        // moves/locks the pointer before uGUI can complete its click event.
+        if (RuntimeSceneSwitcher.IsOpen)
+        {
+            return;
+        }
+
         Keyboard keyboard = Keyboard.current;
         if (keyboard == null)
         {

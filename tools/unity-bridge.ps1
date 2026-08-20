@@ -4,6 +4,7 @@ param(
     [ValidateSet(
         'ping',
         'editor_state',
+        'game_view_info',
         'refresh',
         'save_scene',
         'hierarchy',
