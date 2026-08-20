@@ -22,7 +22,7 @@ public sealed class GroundOpsDishConsoleController : MonoBehaviour
     [SerializeField] private Vector2 lookElevationLimits = new(-25f, 25f);
     [SerializeField, Range(25f, 100f)] private float seatedDefaultFieldOfView = 68f;
     [SerializeField] private Vector2 seatedZoomLimits = new(25f, 75f);
-    [SerializeField, Min(0f)] private float scrollZoomDegreesPerUnit = 0.5f;
+    [SerializeField, Min(0f)] private float scrollZoomDegreesPerUnit = 5f;
     [SerializeField, Min(0f)] private float zoomSmoothing = 12f;
 
     private InteractionState state;
@@ -48,7 +48,7 @@ public sealed class GroundOpsDishConsoleController : MonoBehaviour
         dishController = dishes;
         playerCamera = camera;
         seatedCameraPose = seatedPose;
-        scrollZoomDegreesPerUnit = 0.5f;
+        scrollZoomDegreesPerUnit = 5f;
     }
 
     private void Awake()
@@ -117,11 +117,17 @@ public sealed class GroundOpsDishConsoleController : MonoBehaviour
                 seatedCameraPose.rotation
                     * Quaternion.Euler(seatedLookElevation, seatedLookAzimuth, 0f));
 
-            float scroll = Mouse.current.scroll.ReadValue().y;
-            if (Mathf.Abs(scroll) > 0.01f)
+            float rawScroll = Mouse.current.scroll.ReadValue().y;
+            if (Mathf.Abs(rawScroll) > 0.01f)
             {
+                // Input System reports a wheel notch as either roughly 1 or
+                // 120 depending on the platform/device. Normalize both to one
+                // notch so the serialized value has a predictable meaning.
+                float scrollNotches = Mathf.Abs(rawScroll) > 10f
+                    ? rawScroll / 120f
+                    : rawScroll;
                 seatedTargetFieldOfView = Mathf.Clamp(
-                    seatedTargetFieldOfView - scroll * scrollZoomDegreesPerUnit,
+                    seatedTargetFieldOfView - scrollNotches * scrollZoomDegreesPerUnit,
                     seatedZoomLimits.x,
                     seatedZoomLimits.y);
             }

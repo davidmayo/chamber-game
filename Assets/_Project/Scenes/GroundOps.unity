@@ -479,6 +479,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 38071081}
+  - component: {fileID: 38071082}
   m_Layer: 0
   m_Name: Kludged Beige Console
   m_TagString: Untagged
@@ -508,6 +509,24 @@ Transform:
   - {fileID: 600004007}
   m_Father: {fileID: 1091360305}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &38071082
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 38071080}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c3ddcb92cc3a4db18beb4ce7c95d2611, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::GroundOpsSignalDisplay
+  dishController: {fileID: 2056076408}
+  satelliteTarget: {fileID: 2056076409}
+  readout: {fileID: 1348169910}
+  perfectAlignmentPowerDbm: -85.2
+  halfPowerBeamWidthDegrees: 15
+  minimumDisplayedPowerDbm: -160
 --- !u!1 &44679156
 GameObject:
   m_ObjectHideFlags: 0
@@ -4846,7 +4865,7 @@ MonoBehaviour:
   lookElevationLimits: {x: -25, y: 25}
   seatedDefaultFieldOfView: 68
   seatedZoomLimits: {x: 25, y: 75}
-  scrollZoomDegreesPerUnit: 0.5
+  scrollZoomDegreesPerUnit: 5
   zoomSmoothing: 12
 --- !u!54 &313629881
 Rigidbody:
@@ -6202,7 +6221,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: f4be0d7793f318b459fea68a001cb640, type: 2}
+  - {fileID: 2100000, guid: 361a8391edce5b645abb29c8d710e270, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -10647,7 +10666,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: f4be0d7793f318b459fea68a001cb640, type: 2}
+  - {fileID: 2100000, guid: 361a8391edce5b645abb29c8d710e270, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -13586,7 +13605,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: f4be0d7793f318b459fea68a001cb640, type: 2}
+  - {fileID: 2100000, guid: 361a8391edce5b645abb29c8d710e270, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -18651,7 +18670,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: f4be0d7793f318b459fea68a001cb640, type: 2}
+  - {fileID: 2100000, guid: 361a8391edce5b645abb29c8d710e270, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -18966,7 +18985,7 @@ MonoBehaviour:
   - {fileID: 779195889}
   - {fileID: 44679159}
   - {fileID: 571253198}
-  roomOpacityPercent: 27.2
+  roomOpacityPercent: 100
   chamberPhysicalRenderers: []
   chamberVisuals: []
   chamberCutawayRenderers: []
@@ -19762,7 +19781,7 @@ MonoBehaviour:
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 1
     m_LineSpacing: 1
-  m_Text: "Azimuth: +98\xB0\nElevation: +20\xB0"
+  m_Text: "Azimuth: +98.00\xB0\nElevation: +20.00\xB0"
 --- !u!222 &1077025356
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -22298,7 +22317,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: b3cf4f090a6a0274ca4100071a91d128, type: 2}
+  - {fileID: 2100000, guid: e3c2d47ed74343b48a5173fb31555487, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -24212,7 +24231,7 @@ MonoBehaviour:
       m_Calls: []
   m_FontData:
     m_Font: {fileID: 10102, guid: 0000000000000000e000000000000000, type: 0}
-    m_FontSize: 54
+    m_FontSize: 46
     m_FontStyle: 0
     m_BestFit: 0
     m_MinSize: 10
@@ -24223,7 +24242,11 @@ MonoBehaviour:
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 1
     m_LineSpacing: 1
-  m_Text: 'Signal: -85.2 dBm'
+  m_Text: 'Power: -160.0 dBm
+
+    Frequency: 8220.000 MHz
+
+    ID: GOES-19'
 --- !u!222 &1348169911
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -29980,7 +30003,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: f4be0d7793f318b459fea68a001cb640, type: 2}
+  - {fileID: 2100000, guid: 361a8391edce5b645abb29c8d710e270, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -33981,7 +34004,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: f4be0d7793f318b459fea68a001cb640, type: 2}
+  - {fileID: 2100000, guid: 361a8391edce5b645abb29c8d710e270, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -34273,7 +34296,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: f4be0d7793f318b459fea68a001cb640, type: 2}
+  - {fileID: 2100000, guid: 361a8391edce5b645abb29c8d710e270, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -36429,7 +36452,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0d27cb8a977840debf422b9d0b5f173c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GroundOpsSatelliteTarget
-  targetName: GOES-19 (GOES East)
+  targetName: GOES-19
   azimuthDegrees: 166.823
   elevationDegrees: 44.946
   rangeKilometers: 37409.234
@@ -36501,7 +36524,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: f4be0d7793f318b459fea68a001cb640, type: 2}
+  - {fileID: 2100000, guid: 361a8391edce5b645abb29c8d710e270, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -37634,7 +37657,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: b3cf4f090a6a0274ca4100071a91d128, type: 2}
+  - {fileID: 2100000, guid: e3c2d47ed74343b48a5173fb31555487, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -38311,7 +38334,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: f4be0d7793f318b459fea68a001cb640, type: 2}
+  - {fileID: 2100000, guid: 361a8391edce5b645abb29c8d710e270, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0

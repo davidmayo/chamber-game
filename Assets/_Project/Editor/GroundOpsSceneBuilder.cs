@@ -98,7 +98,7 @@ public static class GroundOpsSceneBuilder
         bool preserveCeilingLightsOn = true;
         float preserveDishAzimuth = 98f;
         float preserveDishElevation = 20f;
-        string preserveTargetName = "GOES-19 (GOES East)";
+        string preserveTargetName = "GOES-19";
         float preserveTargetAzimuth = 166.823f;
         float preserveTargetElevation = 44.946f;
         float preserveTargetRange = 37409.234f;
@@ -129,7 +129,9 @@ public static class GroundOpsSceneBuilder
                 existingRoot.GetComponentInChildren<GroundOpsSatelliteTarget>(true);
             if (existingTarget != null)
             {
-                preserveTargetName = existingTarget.TargetName;
+                preserveTargetName = existingTarget.TargetName == "GOES-19 (GOES East)"
+                    ? "GOES-19"
+                    : existingTarget.TargetName;
                 preserveTargetAzimuth = existingTarget.AzimuthDegrees;
                 preserveTargetElevation = existingTarget.ElevationDegrees;
                 preserveTargetRange = existingTarget.RangeKilometers;
@@ -307,7 +309,9 @@ public static class GroundOpsSceneBuilder
             rackMaterial,
             deskBaseMaterial,
             kvmScreenMaterial,
-            legacyBeigeMaterial);
+            legacyBeigeMaterial,
+            dishController,
+            satelliteTarget);
         BuildServerRackRow(
             serverRoomEquipment,
             rackMaterial,
@@ -1178,7 +1182,9 @@ public static class GroundOpsSceneBuilder
         Material rackMaterial,
         Material trimMaterial,
         Material screenMaterial,
-        Material legacyBeigeMaterial)
+        Material legacyBeigeMaterial,
+        GroundOpsDishController dishController,
+        GroundOpsSatelliteTarget satelliteTarget)
     {
         const float rackWidth = 0.62f;
         const float rackHeight = 2.10f;
@@ -1218,15 +1224,23 @@ public static class GroundOpsSceneBuilder
             new Vector3(0.40f, 0.30f, 0.012f),
             Quaternion.Euler(0f, 0f, -1.5f),
             screenMaterial);
-        CreateWorldDisplayText(
+        Text signalReadout = CreateWorldDisplayText(
             "Signal Readout",
             kludgedConsole,
             new Vector3(-0.025f, 1.27f, frontZ - 0.109f),
             0.36f,
             0.24f,
-            "Signal: -85.2 dBm",
-            54,
+            "Power: -85.2 dBm\nFrequency: 8220.000 MHz\nID: GOES-19",
+            46,
             Quaternion.identity);
+        GroundOpsSignalDisplay signalDisplay =
+            GetOrAddComponent<GroundOpsSignalDisplay>(kludgedConsole.gameObject);
+        signalDisplay.Configure(
+            dishController,
+            satelliteTarget,
+            signalReadout,
+            -85.2f,
+            15f);
         Box("Improvised Shelf", kludgedConsole,
             new Vector3(0f, 0.92f, frontZ - 0.22f),
             new Vector3(0.58f, 0.045f, 0.43f),

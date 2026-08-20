@@ -32,10 +32,10 @@ public sealed class GroundOpsDishReadoutDisplay : MonoBehaviour
 
     private static string FormatAngle(float degrees)
     {
-        return degrees > 0.049f
-            ? $"+{degrees:0}°"
-            : degrees < -0.049f
-                ? $"{degrees:0}°"
-                : "0°";
+        return degrees > 0.0049f
+            ? $"+{degrees:0.00}\u00B0"
+            : degrees < -0.0049f
+                ? $"{degrees:0.00}\u00B0"
+                : "0.00\u00B0";
     }
 }

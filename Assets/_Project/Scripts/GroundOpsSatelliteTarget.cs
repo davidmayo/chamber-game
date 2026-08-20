@@ -3,7 +3,7 @@ using UnityEngine;
 [ExecuteAlways]
 public sealed class GroundOpsSatelliteTarget : MonoBehaviour
 {
-    [SerializeField] private string targetName = "GOES-19 (GOES East)";
+    [SerializeField] private string targetName = "GOES-19";
     [SerializeField] private float azimuthDegrees = 166.823f;
     [SerializeField] private float elevationDegrees = 44.946f;
     [SerializeField] private float rangeKilometers = 37409.234f;
