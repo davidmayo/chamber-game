@@ -596,7 +596,7 @@ public static class CodexEditorBridge
             {
                 Transform groundOpsRoot = RequireGroundOpsRoot();
                 Vector3 viewPosition = groundOpsRoot.TransformPoint(new Vector3(7.45f, 1.65f, 19.5f));
-                Vector3 target = groundOpsRoot.TransformPoint(new Vector3(18f, 1.4f, 19.5f));
+                Vector3 target = groundOpsRoot.TransformPoint(new Vector3(17f, -1.25f, 7f));
                 camera.transform.SetPositionAndRotation(
                     viewPosition,
                     Quaternion.LookRotation(target - viewPosition, Vector3.up));
@@ -808,7 +808,7 @@ public static class CodexEditorBridge
             {
                 Transform groundOpsRoot = RequireGroundOpsRoot();
                 Vector3 viewPosition = groundOpsRoot.TransformPoint(new Vector3(7.45f, 1.65f, 19.5f));
-                Vector3 target = groundOpsRoot.TransformPoint(new Vector3(18f, 1.4f, 19.5f));
+                Vector3 target = groundOpsRoot.TransformPoint(new Vector3(17f, -1.25f, 7f));
                 camera.transform.position = viewPosition;
                 camera.transform.rotation = Quaternion.LookRotation(target - viewPosition, Vector3.up);
                 camera.orthographic = false;

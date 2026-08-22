@@ -211,6 +211,16 @@ public static class GroundOpsSceneBuilder
             "GroundOpsHighBayLightHousing", new Color(0.72f, 0.75f, 0.77f), 0.22f, 0.52f);
         Material highBayLightMaterial = GetEmissiveMaterial(
             "GroundOpsHighBayLights", new Color(0.88f, 0.95f, 1f), 2.8f);
+        Material cleanroomWhiteMaterial = GetMaterial(
+            "GroundOpsCleanroomWhite", new Color(0.94f, 0.96f, 0.98f), 0.08f, 0.72f);
+        Material cleanroomFloorMaterial = GetMaterial(
+            "GroundOpsCleanroomFloor", new Color(0.96f, 0.975f, 0.99f), 0.10f, 0.86f);
+        Material cleanroomMetalMaterial = GetMaterial(
+            "GroundOpsCleanroomMetal", new Color(0.64f, 0.68f, 0.72f), 0.88f, 0.82f);
+        Material cleanroomGlassMaterial = GetTransparentMaterial(
+            "GroundOpsCleanroomPlexiglass", new Color(0.72f, 0.88f, 0.96f, 0.10f));
+        Material cleanroomLightMaterial = GetEmissiveMaterial(
+            "GroundOpsCleanroomLights", Color.white, 5.5f);
         Material northMaterial = GetMaterial("GroundOpsTrueNorth", new Color(0.16f, 0.40f, 0.95f), 0f, 0.12f);
         Material eastMaterial = GetMaterial("GroundOpsTrueEast", new Color(0.95f, 0.20f, 0.14f), 0f, 0.12f);
         Material skyMaterial = GetSkyMaterial("GroundOpsSky");
@@ -295,6 +305,11 @@ public static class GroundOpsSceneBuilder
             highBayCeilingMaterial,
             highBayLightHousingMaterial,
             highBayLightMaterial,
+            cleanroomWhiteMaterial,
+            cleanroomFloorMaterial,
+            cleanroomMetalMaterial,
+            cleanroomGlassMaterial,
+            cleanroomLightMaterial,
             wallPhysicalRenderers,
             wallCutawayRenderers,
             ceilingPhysicalRenderers);
@@ -951,6 +966,11 @@ public static class GroundOpsSceneBuilder
         Material highBayCeilingMaterial,
         Material highBayLightHousingMaterial,
         Material highBayLightMaterial,
+        Material cleanroomWhiteMaterial,
+        Material cleanroomFloorMaterial,
+        Material cleanroomMetalMaterial,
+        Material cleanroomGlassMaterial,
+        Material cleanroomLightMaterial,
         List<Renderer> physicalRenderers,
         List<Renderer> cutawayRenderers,
         List<Renderer> ceilingPhysicalRenderers)
@@ -1114,6 +1134,12 @@ public static class GroundOpsSceneBuilder
         // Giant empty first-floor high-bay box. It is deliberately an alluring,
         // brightly lit volume seen only through glass, not an explorable room.
         Transform highBay = NewGroup("Empty High Bay", parent);
+        Box("High Bay Hall Lower Wall", highBay,
+            new Vector3(hallwayOuterX, highBayFloorY / 2f,
+                (hallwayOuterFrontZ + hallwayBackZ) / 2f),
+            new Vector3(wallThickness, -highBayFloorY,
+                hallwayBackZ - hallwayOuterFrontZ),
+            Quaternion.identity, wallMaterial);
         Box("High Bay Floor", highBay,
             new Vector3((hallwayOuterX + highBayOuterX) / 2f, highBayFloorY - 0.08f,
                 (hallwayOuterFrontZ + hallwayBackZ) / 2f),
@@ -1147,6 +1173,9 @@ public static class GroundOpsSceneBuilder
         BuildHighBayLighting(NewGroup("High Bay Lighting", highBay),
             hallwayOuterX, highBayOuterX, hallwayOuterFrontZ, hallwayBackZ,
             highBayTopY, highBayLightHousingMaterial, highBayLightMaterial);
+        BuildCleanroom(NewGroup("Cleanroom", highBay), highBayFloorY,
+            cleanroomWhiteMaterial, cleanroomFloorMaterial, cleanroomMetalMaterial,
+            cleanroomGlassMaterial, cleanroomLightMaterial);
 
         return hallwayLighting;
     }
@@ -1482,8 +1511,115 @@ public static class GroundOpsSceneBuilder
                 if (light == null) light = lightObject.AddComponent<Light>();
                 light.type = LightType.Point;
                 light.color = new Color(0.82f, 0.91f, 1f);
-                light.intensity = 48f;
+                light.intensity = 70f;
                 light.range = 20f;
+                light.shadows = LightShadows.None;
+            }
+        }
+    }
+
+    private static void BuildCleanroom(
+        Transform parent,
+        float highBayFloorY,
+        Material ceilingMaterial,
+        Material floorMaterial,
+        Material metalMaterial,
+        Material plexiglassMaterial,
+        Material luminousMaterial)
+    {
+        // A deliberately simple, sealed pavilion inspired by the real high-bay
+        // cleanroom. It is scenery viewed from the second-floor windows, not an
+        // explorable player space.
+        const float centerX = 17.0f;
+        const float centerZ = 7.0f;
+        const float width = 12.0f;
+        const float depth = 18.0f;
+        const float roomHeight = 5.35f;
+        const float slabThickness = 0.16f;
+        const float strut = 0.10f;
+        float floorY = highBayFloorY + 0.03f;
+        float ceilingY = floorY + roomHeight;
+
+        Box("Cleanroom Floor", parent,
+            new Vector3(centerX, floorY, centerZ),
+            new Vector3(width, slabThickness, depth), Quaternion.identity, floorMaterial);
+        Box("Cleanroom Ceiling", parent,
+            new Vector3(centerX, ceilingY, centerZ),
+            new Vector3(width, slabThickness, depth), Quaternion.identity, ceilingMaterial);
+
+        float minimumX = centerX - width / 2f;
+        float maximumX = centerX + width / 2f;
+        float minimumZ = centerZ - depth / 2f;
+        float maximumZ = centerZ + depth / 2f;
+        float wallCenterY = floorY + roomHeight / 2f;
+
+        Box("Plexiglass West Wall", parent,
+            new Vector3(minimumX, wallCenterY, centerZ),
+            new Vector3(0.035f, roomHeight, depth), Quaternion.identity, plexiglassMaterial);
+        Box("Plexiglass East Wall", parent,
+            new Vector3(maximumX, wallCenterY, centerZ),
+            new Vector3(0.035f, roomHeight, depth), Quaternion.identity, plexiglassMaterial);
+        Box("Plexiglass South Wall", parent,
+            new Vector3(centerX, wallCenterY, minimumZ),
+            new Vector3(width, roomHeight, 0.035f), Quaternion.identity, plexiglassMaterial);
+        Box("Plexiglass North Wall", parent,
+            new Vector3(centerX, wallCenterY, maximumZ),
+            new Vector3(width, roomHeight, 0.035f), Quaternion.identity, plexiglassMaterial);
+
+        int postIndex = 1;
+        foreach (float x in new[] { minimumX, centerX, maximumX })
+        {
+            foreach (float z in new[] { minimumZ, maximumZ })
+            {
+                Box($"Metal Post {postIndex++}", parent,
+                    new Vector3(x, wallCenterY, z),
+                    new Vector3(strut, roomHeight, strut), Quaternion.identity, metalMaterial);
+            }
+        }
+        foreach (float z in new[] { minimumZ + depth / 3f, minimumZ + depth * 2f / 3f })
+        {
+            foreach (float x in new[] { minimumX, maximumX })
+            {
+                Box($"Metal Post {postIndex++}", parent,
+                    new Vector3(x, wallCenterY, z),
+                    new Vector3(strut, roomHeight, strut), Quaternion.identity, metalMaterial);
+            }
+        }
+        float[] frameY = { floorY + strut / 2f, ceilingY - strut / 2f };
+        for (int frameIndex = 0; frameIndex < frameY.Length; frameIndex++)
+        {
+            float y = frameY[frameIndex];
+            string levelName = frameIndex == 0 ? "Bottom" : "Top";
+            Box($"West Horizontal Frame {levelName}", parent,
+                new Vector3(minimumX, y, centerZ),
+                new Vector3(strut, strut, depth - strut * 2f), Quaternion.identity, metalMaterial);
+            Box($"East Horizontal Frame {levelName}", parent,
+                new Vector3(maximumX, y, centerZ),
+                new Vector3(strut, strut, depth - strut * 2f), Quaternion.identity, metalMaterial);
+            Box($"South Horizontal Frame {levelName}", parent,
+                new Vector3(centerX, y, minimumZ),
+                new Vector3(width, strut, strut), Quaternion.identity, metalMaterial);
+            Box($"North Horizontal Frame {levelName}", parent,
+                new Vector3(centerX, y, maximumZ),
+                new Vector3(width, strut, strut), Quaternion.identity, metalMaterial);
+        }
+
+        Transform lighting = NewGroup("Overwhelming White Lighting", parent);
+        int lightIndex = 1;
+        float[] lightX = { centerX - 4.0f, centerX, centerX + 4.0f };
+        float[] lightZ = { centerZ - 6.0f, centerZ - 2.0f, centerZ + 2.0f, centerZ + 6.0f };
+        foreach (float x in lightX)
+        {
+            foreach (float z in lightZ)
+            {
+                Transform fixture = NewGroup($"Cleanroom Light {lightIndex++}", lighting);
+                Box("Luminous Panel", fixture,
+                    new Vector3(x, ceilingY - 0.10f, z),
+                    new Vector3(2.8f, 0.035f, 1.25f), Quaternion.identity, luminousMaterial);
+                Light light = CreateLight("Brutal White Fill", fixture,
+                    new Vector3(x, ceilingY - 0.28f, z), Vector3.down,
+                    LightType.Point, new Color(0.94f, 0.98f, 1f),
+                    150f, 10f, 0f, false);
                 light.shadows = LightShadows.None;
             }
         }
