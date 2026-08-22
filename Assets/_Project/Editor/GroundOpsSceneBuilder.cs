@@ -982,7 +982,7 @@ public static class GroundOpsSceneBuilder
         const float hallwayOuterFrontZ = -8.1f;
         const float hallwayBackZ = 27.5f;
         const float hallwayFrontLeftX = -5.1f;
-        const float highBayOuterX = 25f;
+        const float highBayOuterX = 48f;
         const float highBayFloorY = -4.0f;
         const float highBayTopY = 9.0f;
         const float docHallWindowBottom = 0.85f;
@@ -1488,23 +1488,16 @@ public static class GroundOpsSceneBuilder
         Transform parent, float minimumX, float maximumX, float minimumZ, float maximumZ,
         float ceilingY, Material housingMaterial, Material luminousMaterial)
     {
-        float[] rowX =
-        {
-            Mathf.Lerp(minimumX, maximumX, 0.28f),
-            Mathf.Lerp(minimumX, maximumX, 0.72f),
-        };
-        float[] fixtureZ = { -4.5f, 2.5f, 9.5f, 16.5f, 23.5f };
         int fixtureIndex = 1;
-        foreach (float x in rowX)
+        for (float x = minimumX + 4f; x < maximumX - 2f; x += 6.5f)
         {
-            foreach (float z in fixtureZ)
+            for (float z = minimumZ + 4f; z < maximumZ - 2f; z += 7.0f)
             {
-                if (z <= minimumZ + 1f || z >= maximumZ - 1f) continue;
                 Transform fixture = NewGroup($"High Fixture {fixtureIndex++}", parent);
                 Box("Housing", fixture, new Vector3(x, ceilingY - 0.28f, z),
-                    new Vector3(3.4f, 0.18f, 0.34f), Quaternion.identity, housingMaterial);
+                    new Vector3(0.34f, 0.18f, 3.4f), Quaternion.identity, housingMaterial);
                 Box("Luminous Panel", fixture, new Vector3(x, ceilingY - 0.385f, z),
-                    new Vector3(3.16f, 0.035f, 0.22f), Quaternion.identity, luminousMaterial);
+                    new Vector3(0.22f, 0.035f, 3.16f), Quaternion.identity, luminousMaterial);
                 GameObject lightObject = NewGroup("Diffuse Light", fixture).gameObject;
                 lightObject.transform.localPosition = new Vector3(x, ceilingY - 0.52f, z);
                 Light light = lightObject.GetComponent<Light>();
@@ -1530,22 +1523,23 @@ public static class GroundOpsSceneBuilder
         // A deliberately simple, sealed pavilion inspired by the real high-bay
         // cleanroom. It is scenery viewed from the second-floor windows, not an
         // explorable player space.
-        const float centerX = 17.0f;
+        const float centerX = 25.0f;
         const float centerZ = 7.0f;
-        const float width = 12.0f;
-        const float depth = 18.0f;
+        const float width = 18.0f;
+        const float depth = 12.0f;
         const float roomHeight = 5.35f;
-        const float slabThickness = 0.16f;
+        const float floorThickness = 0.16f;
+        const float ceilingThickness = 0.6096f;
         const float strut = 0.10f;
         float floorY = highBayFloorY + 0.03f;
         float ceilingY = floorY + roomHeight;
 
         Box("Cleanroom Floor", parent,
             new Vector3(centerX, floorY, centerZ),
-            new Vector3(width, slabThickness, depth), Quaternion.identity, floorMaterial);
+            new Vector3(width, floorThickness, depth), Quaternion.identity, floorMaterial);
         Box("Cleanroom Ceiling", parent,
-            new Vector3(centerX, ceilingY, centerZ),
-            new Vector3(width, slabThickness, depth), Quaternion.identity, ceilingMaterial);
+            new Vector3(centerX, ceilingY + ceilingThickness / 2f, centerZ),
+            new Vector3(width, ceilingThickness, depth), Quaternion.identity, ceilingMaterial);
 
         float minimumX = centerX - width / 2f;
         float maximumX = centerX + width / 2f;
@@ -1567,17 +1561,10 @@ public static class GroundOpsSceneBuilder
             new Vector3(width, roomHeight, 0.035f), Quaternion.identity, plexiglassMaterial);
 
         int postIndex = 1;
-        foreach (float x in new[] { minimumX, centerX, maximumX })
+        const int postsAlongDepth = 7;
+        for (int index = 0; index < postsAlongDepth; index++)
         {
-            foreach (float z in new[] { minimumZ, maximumZ })
-            {
-                Box($"Metal Post {postIndex++}", parent,
-                    new Vector3(x, wallCenterY, z),
-                    new Vector3(strut, roomHeight, strut), Quaternion.identity, metalMaterial);
-            }
-        }
-        foreach (float z in new[] { minimumZ + depth / 3f, minimumZ + depth * 2f / 3f })
-        {
+            float z = Mathf.Lerp(minimumZ, maximumZ, index / (postsAlongDepth - 1f));
             foreach (float x in new[] { minimumX, maximumX })
             {
                 Box($"Metal Post {postIndex++}", parent,
@@ -1585,6 +1572,20 @@ public static class GroundOpsSceneBuilder
                     new Vector3(strut, roomHeight, strut), Quaternion.identity, metalMaterial);
             }
         }
+        const int postsAlongWidth = 10;
+        for (int index = 1; index < postsAlongWidth - 1; index++)
+        {
+            float x = Mathf.Lerp(minimumX, maximumX, index / (postsAlongWidth - 1f));
+            foreach (float z in new[] { minimumZ, maximumZ })
+            {
+                Box($"Metal Post {postIndex++}", parent,
+                    new Vector3(x, wallCenterY, z),
+                    new Vector3(strut, roomHeight, strut), Quaternion.identity, metalMaterial);
+            }
+        }
+
+        BuildCleanroomPartitions(parent, centerX, centerZ, width, depth,
+            floorY, ceilingY, strut, metalMaterial, plexiglassMaterial);
         float[] frameY = { floorY + strut / 2f, ceilingY - strut / 2f };
         for (int frameIndex = 0; frameIndex < frameY.Length; frameIndex++)
         {
@@ -1606,21 +1607,101 @@ public static class GroundOpsSceneBuilder
 
         Transform lighting = NewGroup("Overwhelming White Lighting", parent);
         int lightIndex = 1;
-        float[] lightX = { centerX - 4.0f, centerX, centerX + 4.0f };
-        float[] lightZ = { centerZ - 6.0f, centerZ - 2.0f, centerZ + 2.0f, centerZ + 6.0f };
+        float[] lightX = { centerX - 6.0f, centerX - 2.0f, centerX + 2.0f, centerX + 6.0f };
+        float[] lightZ = { centerZ - 4.0f, centerZ, centerZ + 4.0f };
         foreach (float x in lightX)
         {
             foreach (float z in lightZ)
             {
                 Transform fixture = NewGroup($"Cleanroom Light {lightIndex++}", lighting);
                 Box("Luminous Panel", fixture,
-                    new Vector3(x, ceilingY - 0.10f, z),
+                    new Vector3(x, ceilingY - 0.025f, z),
                     new Vector3(2.8f, 0.035f, 1.25f), Quaternion.identity, luminousMaterial);
                 Light light = CreateLight("Brutal White Fill", fixture,
                     new Vector3(x, ceilingY - 0.28f, z), Vector3.down,
                     LightType.Point, new Color(0.94f, 0.98f, 1f),
                     150f, 10f, 0f, false);
                 light.shadows = LightShadows.None;
+            }
+        }
+    }
+
+    private static void BuildCleanroomPartitions(
+        Transform parent, float centerX, float centerZ, float width, float depth,
+        float floorY, float ceilingY, float strut,
+        Material metalMaterial, Material plexiglassMaterial)
+    {
+        Transform partitions = NewGroup("Interior Partitions", parent);
+        float minimumX = centerX - width / 2f;
+        float maximumX = centerX + width / 2f;
+        float minimumZ = centerZ - depth / 2f;
+        float maximumZ = centerZ + depth / 2f;
+        float height = ceilingY - floorY;
+        float wallCenterY = floorY + height / 2f;
+        const float wingWidth = 4f;
+        float leftDividerX = minimumX + wingWidth;
+        float rightDividerX = maximumX - wingWidth;
+
+        foreach ((string name, float x) in new[]
+                 {
+                     ("West Wing Divider", leftDividerX),
+                     ("East Wing Divider", rightDividerX)
+                 })
+        {
+            Box($"{name} Plexiglass", partitions,
+                new Vector3(x, wallCenterY, centerZ),
+                new Vector3(0.035f, height, depth - strut * 2f),
+                Quaternion.identity, plexiglassMaterial);
+            for (int index = 0; index < 7; index++)
+            {
+                float z = Mathf.Lerp(minimumZ + strut, maximumZ - strut, index / 6f);
+                Box($"{name} Post {index + 1}", partitions,
+                    new Vector3(x, wallCenterY, z),
+                    new Vector3(strut, height, strut), Quaternion.identity, metalMaterial);
+            }
+            foreach ((string level, float y) in new[]
+                     {
+                         ("Bottom", floorY + strut / 2f),
+                         ("Top", ceilingY - strut / 2f)
+                     })
+            {
+                Box($"{name} {level} Rail", partitions,
+                    new Vector3(x, y, centerZ),
+                    new Vector3(strut, strut, depth - strut * 2f),
+                    Quaternion.identity, metalMaterial);
+            }
+        }
+
+        foreach ((string name, float startX, float endX) in new[]
+                 {
+                     ("West Wing Cross Divider", minimumX, leftDividerX),
+                     ("East Wing Cross Divider", rightDividerX, maximumX)
+                 })
+        {
+            float insetStart = startX + strut;
+            float insetEnd = endX - strut;
+            float center = (insetStart + insetEnd) / 2f;
+            float length = insetEnd - insetStart;
+            Box($"{name} Plexiglass", partitions,
+                new Vector3(center, wallCenterY, centerZ),
+                new Vector3(length, height, 0.035f),
+                Quaternion.identity, plexiglassMaterial);
+            for (int index = 1; index <= 3; index++)
+            {
+                float x = Mathf.Lerp(startX, endX, index / 4f);
+                Box($"{name} Post {index}", partitions,
+                    new Vector3(x, wallCenterY, centerZ),
+                    new Vector3(strut, height, strut), Quaternion.identity, metalMaterial);
+            }
+            foreach ((string level, float y) in new[]
+                     {
+                         ("Bottom", floorY + strut / 2f),
+                         ("Top", ceilingY - strut / 2f)
+                     })
+            {
+                Box($"{name} {level} Rail", partitions,
+                    new Vector3(center, y, centerZ),
+                    new Vector3(length, strut, strut), Quaternion.identity, metalMaterial);
             }
         }
     }
@@ -2793,7 +2874,7 @@ public static class GroundOpsSceneBuilder
         naturalHeight = Mathf.Lerp(naturalHeight, -4.2f, docGradeWeight);
 
         // Keep the exterior landscape below the enlarged building stage. The
-        // high bay occupies x=8.1..25 and z=-6.7..14.5, with its floor at -4;
+        // high bay occupies x=8.1..48 and z=-8.1..27.5, with its floor at -4;
         // without this broader pad the sampled hillside climbs through its walls.
         float facilityOutsideDistance = FacilityFootprintDistance(x, z);
         float facilityPadWeight = 1f - Mathf.SmoothStep(0f, 1f,
@@ -2828,7 +2909,7 @@ public static class GroundOpsSceneBuilder
         // Ground Ops/DOC/high-bay footprint, followed by the chamber and its
         // exterior landing. The overlapping rectangles form one continuous
         // protected pad without clearing unrelated landscape behind the ridge.
-        float groundOpsDistance = DistanceOutsideRectangle(x, z, -8f, 27f, -10f, 29f);
+        float groundOpsDistance = DistanceOutsideRectangle(x, z, -8f, 50f, -10f, 29f);
         float chamberDistance = DistanceOutsideRectangle(x, z, -4.5f, 9.5f, 8f, 27f);
         return Mathf.Min(groundOpsDistance, chamberDistance);
     }
