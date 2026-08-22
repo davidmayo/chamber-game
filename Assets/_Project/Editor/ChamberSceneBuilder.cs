@@ -381,31 +381,31 @@ public static class ChamberSceneBuilder
 
         Transform shell = NewGroup("Concrete Shell", parent);
         // Closed slabs extend outward, preserving the original room's interior dimensions.
-        ShellBox("Left Wall", shell,
-            new Vector3(-(left - halfThickness), centerY, centerZ),
-            new Vector3(wallThickness, height + wallThickness * 2f, depth + wallThickness * 2f),
-            concrete, shellRenderers);
         const float hallwayDoorCenterZ = 5.5f;
         const float hallwayDoorWidth = 1.8f;
         const float hallwayDoorHeight = 2.2f;
         float hallwayDoorFront = hallwayDoorCenterZ - hallwayDoorWidth / 2f;
         float hallwayDoorRear = hallwayDoorCenterZ + hallwayDoorWidth / 2f;
-        ShellBox("Right Wall Front Segment", shell,
-            new Vector3(-(right + halfThickness), centerY,
+        ShellBox("Left Wall Front Segment", shell,
+            new Vector3(-(left - halfThickness), centerY,
                 front + (hallwayDoorFront - front) / 2f),
             new Vector3(wallThickness, height + wallThickness * 2f,
                 hallwayDoorFront - front), concrete, shellRenderers);
-        ShellBox("Right Wall Rear Segment", shell,
-            new Vector3(-(right + halfThickness), centerY,
+        ShellBox("Left Wall Rear Segment", shell,
+            new Vector3(-(left - halfThickness), centerY,
                 hallwayDoorRear + (rear - hallwayDoorRear) / 2f),
             new Vector3(wallThickness, height + wallThickness * 2f,
                 rear - hallwayDoorRear), concrete, shellRenderers);
-        ShellBox("Right Wall Door Header", shell,
-            new Vector3(-(right + halfThickness),
+        ShellBox("Left Wall Door Header", shell,
+            new Vector3(-(left - halfThickness),
                 hallwayDoorHeight + (top - hallwayDoorHeight) / 2f,
                 hallwayDoorCenterZ),
             new Vector3(wallThickness, top - hallwayDoorHeight,
                 hallwayDoorWidth), concrete, shellRenderers);
+        ShellBox("Right Wall", shell,
+            new Vector3(-(right + halfThickness), centerY, centerZ),
+            new Vector3(wallThickness, height + wallThickness * 2f, depth + wallThickness * 2f),
+            concrete, shellRenderers);
         ShellBox("Front Wall", shell, new Vector3(0f, centerY, front - halfThickness),
             new Vector3(width, height + wallThickness * 2f, wallThickness), concrete, shellRenderers);
         ShellBox("Rear Wall", shell, new Vector3(0f, centerY, rear + halfThickness),
@@ -416,18 +416,18 @@ public static class ChamberSceneBuilder
             new Vector3(width, wallThickness, depth), concrete, shellRenderers);
 
         Transform cutaway = NewGroup("Cutaway Surfaces", parent);
-        CutawayQuad("Left Wall", cutaway, new Vector3(-left, centerY, centerZ),
-            depth, height, Vector3.left, concrete, cutawayRenderers);
-        CutawayQuad("Right Wall Front Segment", cutaway,
-            new Vector3(-right, centerY, front + (hallwayDoorFront - front) / 2f),
-            hallwayDoorFront - front, height, Vector3.right, concrete, cutawayRenderers);
-        CutawayQuad("Right Wall Rear Segment", cutaway,
-            new Vector3(-right, centerY, hallwayDoorRear + (rear - hallwayDoorRear) / 2f),
-            rear - hallwayDoorRear, height, Vector3.right, concrete, cutawayRenderers);
-        CutawayQuad("Right Wall Door Header", cutaway,
-            new Vector3(-right, hallwayDoorHeight + (top - hallwayDoorHeight) / 2f,
+        CutawayQuad("Left Wall Front Segment", cutaway,
+            new Vector3(-left, centerY, front + (hallwayDoorFront - front) / 2f),
+            hallwayDoorFront - front, height, Vector3.left, concrete, cutawayRenderers);
+        CutawayQuad("Left Wall Rear Segment", cutaway,
+            new Vector3(-left, centerY, hallwayDoorRear + (rear - hallwayDoorRear) / 2f),
+            rear - hallwayDoorRear, height, Vector3.left, concrete, cutawayRenderers);
+        CutawayQuad("Left Wall Door Header", cutaway,
+            new Vector3(-left, hallwayDoorHeight + (top - hallwayDoorHeight) / 2f,
                 hallwayDoorCenterZ), hallwayDoorWidth, top - hallwayDoorHeight,
-            Vector3.right, concrete, cutawayRenderers);
+            Vector3.left, concrete, cutawayRenderers);
+        CutawayQuad("Right Wall", cutaway, new Vector3(-right, centerY, centerZ),
+            depth, height, Vector3.right, concrete, cutawayRenderers);
         CutawayQuad("Front Wall", cutaway, new Vector3(0f, centerY, front),
             width, height, Vector3.forward, concrete, cutawayRenderers);
         CutawayQuad("Rear Wall", cutaway, new Vector3(0f, centerY, rear),
@@ -441,18 +441,30 @@ public static class ChamberSceneBuilder
         for (int side = -1; side <= 1; side += 2)
         {
             Box(side < 0 ? "Front Open Leaf" : "Rear Open Leaf", hallwayDoors,
-                new Vector3(-right + hallwayDoorWidth / 4f,
+                new Vector3(-left - 0.08f,
                     bottom + hallwayDoorHeight / 2f,
                     hallwayDoorCenterZ + side * hallwayDoorWidth * 0.75f),
-                new Vector3(hallwayDoorWidth / 2f, hallwayDoorHeight, 0.06f), concrete);
+                new Vector3(0.06f, hallwayDoorHeight, hallwayDoorWidth / 2f), concrete);
+        }
+        GameObject transitionLanding = ShellBox("Hallway Transition Landing", shell,
+            new Vector3(-left + 1.5f, bottom - halfThickness,
+                hallwayDoorCenterZ),
+            new Vector3(3.0f, wallThickness, 3.8f), concrete, shellRenderers);
+        BoxCollider landingCollider = transitionLanding.GetComponent<BoxCollider>();
+        if (landingCollider != null)
+        {
+            landingCollider.enabled = true;
+            landingCollider.isTrigger = false;
         }
         BuildScenePortal("To Ground Ops Hallway", parent,
-            new Vector3(-right, 1.0f, hallwayDoorCenterZ),
-            new Vector3(0.9f, 2.0f, hallwayDoorWidth * 0.92f),
+            new Vector3(-left + 1.0f, 0.6f, hallwayDoorCenterZ),
+            new Vector3(2.0f, 3.2f, hallwayDoorWidth * 0.96f),
             GroundOpsScenePath, GroundOpsChamberArrivalMarker);
         Transform arrival = NewGroup(MainGroundOpsArrivalMarker, parent);
-        arrival.position = new Vector3(-right + 1.45f, bottom + 0.05f, hallwayDoorCenterZ);
-        arrival.rotation = Quaternion.LookRotation(Vector3.right, Vector3.up);
+        arrival.position = MirrorPosition(
+            new Vector3(-left - 1.45f, bottom + 0.05f, hallwayDoorCenterZ));
+        arrival.rotation = MirrorRotation(
+            Quaternion.LookRotation(Vector3.left, Vector3.up));
 
         Transform ceilingLights = NewGroup("Ceiling Lights", parent);
         const float fixtureY = top - 0.04f;
@@ -1649,8 +1661,8 @@ public static class ChamberSceneBuilder
         string destinationScenePath, string destinationArrivalMarker)
     {
         Transform portal = NewGroup(name, parent);
-        portal.position = position;
-        portal.rotation = Quaternion.identity;
+        portal.position = MirrorPosition(position);
+        portal.rotation = MirrorRotation(Quaternion.identity);
         portal.localScale = Vector3.one;
         BoxCollider trigger = GetOrAddComponent<BoxCollider>(portal.gameObject);
         trigger.size = size;
