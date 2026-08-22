@@ -25,6 +25,12 @@ public sealed class RailTruckController : MonoBehaviour
     [SerializeField, Min(0.1f)] private float speedMetersPerSecond = 5f;
     [SerializeField, Min(0.2f)] private float interactionDistanceMeters = 1.8f;
     [SerializeField, Min(0.05f)] private float fadeHalfSeconds = 0.32f;
+    [SerializeField, Min(0f)] private float mouseSensitivity = 0.1f;
+    [SerializeField] private Vector2 lookAzimuthLimits = new(-160f, 160f);
+    [SerializeField] private Vector2 lookElevationLimits = new(-70f, 80f);
+    [SerializeField] private Vector2 zoomLimits = new(25f, 80f);
+    [SerializeField, Min(0f)] private float scrollZoomDegreesPerNotch = 5f;
+    [SerializeField, Min(0f)] private float zoomSmoothing = 12f;
     [SerializeField] private bool drawRouteGizmos = true;
     [SerializeField, Range(0f, 1f)] private float editorPreviewProgress;
 
@@ -38,6 +44,9 @@ public sealed class RailTruckController : MonoBehaviour
     private Vector3 standingCameraLocalPosition;
     private Quaternion standingCameraLocalRotation;
     private float standingFieldOfView;
+    private float lookAzimuth;
+    private float lookElevation;
+    private float targetFieldOfView;
     private CanvasGroup fadeCanvasGroup;
 
     public JourneyState State => state;
@@ -127,6 +136,7 @@ public sealed class RailTruckController : MonoBehaviour
                 break;
 
             case JourneyState.Driving:
+                UpdateDriverView();
                 if (keyboard.wKey.isPressed)
                 {
                     float previousDistance = travelledMeters;
@@ -142,6 +152,7 @@ public sealed class RailTruckController : MonoBehaviour
                 break;
 
             case JourneyState.Arrived:
+                UpdateDriverView();
                 if (keyboard.fKey.wasPressedThisFrame)
                 {
                     StartCoroutine(ExitTruck());
@@ -156,7 +167,8 @@ public sealed class RailTruckController : MonoBehaviour
         {
             playerCamera.transform.SetPositionAndRotation(
                 driverCameraPose.position,
-                driverCameraPose.rotation);
+                driverCameraPose.rotation
+                    * Quaternion.Euler(lookElevation, lookAzimuth, 0f));
         }
 
         if (state == JourneyState.ParkedAtDoc
@@ -168,7 +180,9 @@ public sealed class RailTruckController : MonoBehaviour
         }
         else if (state == JourneyState.Driving && !transitioning)
         {
-            InteractionPromptDisplay.Show(this, "Hold W to drive to the antenna complex");
+            InteractionPromptDisplay.Show(
+                this,
+                "Hold W to drive | Mouse: look | Wheel: zoom");
         }
         else if (state == JourneyState.Arrived && !transitioning)
         {
@@ -187,7 +201,14 @@ public sealed class RailTruckController : MonoBehaviour
         standingCameraLocalPosition = playerCamera.transform.localPosition;
         standingCameraLocalRotation = playerCamera.transform.localRotation;
         standingFieldOfView = playerCamera.fieldOfView;
+        lookAzimuth = 0f;
+        lookElevation = 0f;
+        targetFieldOfView = Mathf.Clamp(
+            playerCamera.fieldOfView,
+            zoomLimits.x,
+            zoomLimits.y);
         playerController.enabled = false;
+        SetCursorCaptured(true);
 
         yield return FadeTo(1f);
         travelledMeters = 0f;
@@ -196,10 +217,48 @@ public sealed class RailTruckController : MonoBehaviour
         playerCamera.transform.SetPositionAndRotation(
             driverCameraPose.position,
             driverCameraPose.rotation);
+        playerCamera.fieldOfView = targetFieldOfView;
         yield return FadeTo(0f);
 
         state = JourneyState.Driving;
         transitioning = false;
+    }
+
+    private void UpdateDriverView()
+    {
+        Mouse mouse = Mouse.current;
+        if (mouse != null)
+        {
+            Vector2 mouseDelta = mouse.delta.ReadValue();
+            lookAzimuth = Mathf.Clamp(
+                lookAzimuth + mouseDelta.x * mouseSensitivity,
+                lookAzimuthLimits.x,
+                lookAzimuthLimits.y);
+            lookElevation = Mathf.Clamp(
+                lookElevation - mouseDelta.y * mouseSensitivity,
+                lookElevationLimits.x,
+                lookElevationLimits.y);
+
+            float rawScroll = mouse.scroll.ReadValue().y;
+            if (Mathf.Abs(rawScroll) > 0.01f)
+            {
+                // Windows commonly reports 120 units per wheel notch; some
+                // backends already report normalized notches.
+                float scrollNotches = Mathf.Abs(rawScroll) > 10f
+                    ? rawScroll / 120f
+                    : rawScroll;
+                targetFieldOfView = Mathf.Clamp(
+                    targetFieldOfView - scrollNotches * scrollZoomDegreesPerNotch,
+                    zoomLimits.x,
+                    zoomLimits.y);
+            }
+        }
+
+        float zoomT = 1f - Mathf.Exp(-zoomSmoothing * Time.unscaledDeltaTime);
+        playerCamera.fieldOfView = Mathf.Lerp(
+            playerCamera.fieldOfView,
+            targetFieldOfView,
+            zoomT);
     }
 
     private IEnumerator ExitTruck()
@@ -386,6 +445,12 @@ public sealed class RailTruckController : MonoBehaviour
     private void OnDisable()
     {
         InteractionPromptDisplay.Hide(this);
+    }
+
+    private static void SetCursorCaptured(bool captured)
+    {
+        Cursor.lockState = captured ? CursorLockMode.Locked : CursorLockMode.None;
+        Cursor.visible = !captured;
     }
 
     private void OnDrawGizmos()

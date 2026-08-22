@@ -11,11 +11,13 @@ using UnityEngine.TestTools;
 public sealed class RailTruckJourneyTests : InputTestFixture
 {
     private Keyboard keyboard;
+    private Mouse mouse;
 
     public override void Setup()
     {
         base.Setup();
         keyboard = InputSystem.AddDevice<Keyboard>();
+        mouse = InputSystem.AddDevice<Mouse>();
     }
 
     [UnityTest]
@@ -35,6 +37,9 @@ public sealed class RailTruckJourneyTests : InputTestFixture
             UnityEngine.Object.FindFirstObjectByType(playerType) as Component;
         Assert.That(railTruck, Is.Not.Null);
         Assert.That(player, Is.Not.Null);
+        Camera playerCamera = Camera.main;
+        Assert.That(playerCamera, Is.Not.Null);
+        float standingFieldOfView = playerCamera.fieldOfView;
 
         GameObject departure = GameObject.Find(
             "Ground Ops Blockout/Exterior Landscape/Rail Truck Journey/Hallway Exterior Interaction");
@@ -68,6 +73,22 @@ public sealed class RailTruckJourneyTests : InputTestFixture
         Assert.That(((Behaviour)player).enabled, Is.False,
             "Standing movement must be disabled while the camera is in the truck.");
 
+        GameObject driverCameraPose = GameObject.Find(
+            "Ground Ops Blockout/Exterior Landscape/Rail Truck Journey/Rail Truck/Driver Camera Pose");
+        Assert.That(driverCameraPose, Is.Not.Null);
+        InputSystem.QueueDeltaStateEvent(mouse.delta, new Vector2(120f, -60f));
+        InputSystem.QueueDeltaStateEvent(mouse.scroll, new Vector2(0f, 120f));
+        yield return null;
+        yield return new WaitForEndOfFrame();
+        Assert.That(
+            Quaternion.Angle(
+                playerCamera.transform.rotation,
+                driverCameraPose.transform.rotation),
+            Is.GreaterThan(1f),
+            "Mouse movement must rotate the view independently of the rail truck.");
+        Assert.That(playerCamera.fieldOfView, Is.LessThan(standingFieldOfView),
+            "Scrolling up must zoom the truck view in.");
+
         PropertyInfo progressProperty = railTruckType.GetProperty("Progress01");
         Press(keyboard.aKey);
         yield return null;
@@ -88,6 +109,8 @@ public sealed class RailTruckJourneyTests : InputTestFixture
         yield return WaitForState(railTruck, "Completed", 1.5f);
         Assert.That(((Behaviour)player).enabled, Is.True,
             "Standing movement must be restored after exiting the truck.");
+        Assert.That(playerCamera.fieldOfView, Is.EqualTo(standingFieldOfView).Within(0.01f),
+            "Exiting the truck must restore the standing field of view.");
         Assert.That(
             Vector3.Distance(player.transform.position, exitPose.transform.position),
             Is.LessThan(0.05f));

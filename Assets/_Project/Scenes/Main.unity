@@ -19275,6 +19275,12 @@ MonoBehaviour:
   speedMetersPerSecond: 5
   interactionDistanceMeters: 1.8
   fadeHalfSeconds: 0.32
+  mouseSensitivity: 0.1
+  lookAzimuthLimits: {x: -160, y: 160}
+  lookElevationLimits: {x: -70, y: 80}
+  zoomLimits: {x: 25, y: 80}
+  scrollZoomDegreesPerNotch: 5
+  zoomSmoothing: 12
   drawRouteGizmos: 1
   editorPreviewProgress: 0
 --- !u!1 &399664180
