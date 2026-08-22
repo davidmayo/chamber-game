@@ -4,6 +4,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
@@ -20,6 +21,13 @@ public static class GroundOpsSceneBuilder
     private static readonly Quaternion FacilityRootRotation = Quaternion.Euler(0f, 180f, 0f);
     private const string MaterialFolder = "Assets/_Project/Materials";
     private const string MeshFolder = "Assets/_Project/Generated/Meshes";
+    private const string VolumeProfileFolder = "Assets/_Project/Generated/VolumeProfiles";
+    private const string ReflectionFolder = "Assets/_Project/Generated/Reflections";
+    private const uint ExteriorRenderingLayer = 1u << 1;
+    private const uint DocRenderingLayer = 1u << 2;
+    private const uint HallwayRenderingLayer = 1u << 3;
+    private const uint ChamberRoomRenderingLayer = 1u << 4;
+    private const uint ChamberInteriorRenderingLayer = 1u << 5;
     private const double DocLatitudeDegrees = 38.1908805555556;
     private const double DocLongitudeDegrees = -83.4300361111111;
     private const double AntennaLatitudeDegrees = 38.1918583333333;
@@ -92,6 +100,9 @@ public static class GroundOpsSceneBuilder
         FirstPersonPlayerController sharedPlayer,
         bool facilityMode)
     {
+        EnsureFolder(VolumeProfileFolder);
+        EnsureFolder(ReflectionFolder);
+
         // Approximate dimensions inferred from standard doors, racks, ceiling
         // tiles, and the supplied plan. Replace these as measurements become known.
         const float opsFrontZ = -5.5f;
@@ -106,7 +117,6 @@ public static class GroundOpsSceneBuilder
 
         GameObject existingRoot = scene.GetRootGameObjects()
             .FirstOrDefault(candidate => candidate.name == RootName);
-        float preserveWallOpacity = 100f;
         bool preserveCeilingLightsOn = true;
         float preserveDishAzimuth = 0f;
         float preserveDishElevation = 90f;
@@ -118,12 +128,6 @@ public static class GroundOpsSceneBuilder
         float preserveTargetPower = 69.6f;
         if (existingRoot != null)
         {
-            ChamberShellVisibilityController existingVisibility =
-                existingRoot.GetComponent<ChamberShellVisibilityController>();
-            if (existingVisibility != null)
-            {
-                preserveWallOpacity = existingVisibility.RoomOpacityPercent;
-            }
             GroundOpsCeilingLightsController existingCeilingLights =
                 existingRoot.GetComponentInChildren<GroundOpsCeilingLightsController>(true);
             if (existingCeilingLights != null)
@@ -160,12 +164,10 @@ public static class GroundOpsSceneBuilder
         BeginSync(existingRoot);
 
         Material wallMaterial = GetMaterial("GroundOpsWall", new Color(0.76f, 0.75f, 0.70f), 0f, 0.08f);
-        Material transparentWallMaterial = GetTransparentMaterial(
-            "GroundOpsWallTransparent", new Color(0.76f, 0.75f, 0.70f, 0.50f));
+        Material hallwayWallMaterial = GetMaterial(
+            "GroundOpsHallwayWall", new Color(0.76f, 0.75f, 0.70f), 0f, 0.08f);
         Material ceilingMaterial = GetMaterial(
             "GroundOpsCeilingPlaster", new Color(0.92f, 0.90f, 0.84f), 0f, 0.04f);
-        Material transparentCeilingMaterial = GetTransparentMaterial(
-            "GroundOpsCeilingPlasterTransparent", new Color(0.92f, 0.90f, 0.84f, 0.50f));
         Material trimMaterial = GetMaterial("GroundOpsWindowTrim", new Color(0.16f, 0.18f, 0.20f), 0.15f, 0.25f);
         Material glassMaterial = GetTransparentMaterial(
             "GroundOpsWindowGlass", new Color(0.32f, 0.48f, 0.58f, 0.12f));
@@ -259,15 +261,9 @@ public static class GroundOpsSceneBuilder
             wallHeight,
             glassMaterial,
             trimMaterial);
-        BuildOpsRoomDoor(
-            NewGroup("Ops Room Door", architecture),
-            opsFrontZ,
-            doorWidth,
-            doorHeight,
-            woodDoorMaterial,
-            trimMaterial);
-        BuildFacilityConnection(
-            NewGroup("Hallway and High Bay Blockout", architecture),
+        Transform facilityConnection = NewGroup("Hallway and High Bay Blockout", architecture);
+        Transform hallwayLighting = BuildFacilityConnection(
+            facilityConnection,
             opsFrontZ,
             partitionZ,
             serverBackZ,
@@ -276,13 +272,17 @@ public static class GroundOpsSceneBuilder
             wallThickness,
             doorWidth,
             doorHeight,
-            wallMaterial,
+            hallwayWallMaterial,
             carpetMaterial,
             glassMaterial,
             trimMaterial,
             woodDoorMaterial,
+            ceilingMaterial,
+            lightHousingMaterial,
+            lightsOnMaterial,
             wallPhysicalRenderers,
-            wallCutawayRenderers);
+            wallCutawayRenderers,
+            ceilingPhysicalRenderers);
 
         Transform exteriorLandscape = NewGroup("Exterior Landscape", root);
         GroundOpsDishController dishController = BuildExteriorLandscape(
@@ -305,28 +305,10 @@ public static class GroundOpsSceneBuilder
             preserveTargetFrequency,
             preserveTargetPower);
 
-        ShellVisualBinding[] wallVisuals = CreateCameraVisuals(
-            wallPhysicalRenderers, transparentWallMaterial)
-            .Concat(CreateCameraVisuals(ceilingPhysicalRenderers, transparentCeilingMaterial))
-            .ToArray();
         GeneratedCeilingSceneVisibility.ApplyToScene(scene);
-        Renderer[] roomPhysicalRenderers = wallPhysicalRenderers
-            .Concat(ceilingPhysicalRenderers)
-            .ToArray();
-        ChamberShellVisibilityController wallVisibility =
-            GetOrAddComponent<ChamberShellVisibilityController>(root.gameObject);
-        wallVisibility.Configure(
-            roomPhysicalRenderers,
-            wallVisuals,
-            wallCutawayRenderers.ToArray(),
-            System.Array.Empty<Renderer>(),
-            System.Array.Empty<ShellVisualBinding>(),
-            System.Array.Empty<Renderer>(),
-            preserveWallOpacity,
-            100f);
-
+        Transform ceilingLighting = NewGroup("Ceiling Lighting", root);
         BuildCeilingLights(
-            NewGroup("Ceiling Lighting", root),
+            ceilingLighting,
             wallHeight,
             lightHousingMaterial,
             lightsOnMaterial,
@@ -366,15 +348,17 @@ public static class GroundOpsSceneBuilder
             rackMaterial,
             deskBaseMaterial);
 
+        Transform geographicReference = NewGroup("Geographic Reference", root);
         BuildGeographicReference(
-            NewGroup("Geographic Reference", root),
+            geographicReference,
             worldNorth,
             worldEast,
             northMaterial,
             eastMaterial,
             trimMaterial);
+        Transform sceneSetup = NewGroup("Scene Setup", root);
         BuildCameraAndLight(
-            NewGroup("Scene Setup", root),
+            sceneSetup,
             skyMaterial,
             facilityMode ? root.TransformDirection(worldNorth) : worldNorth,
             facilityMode ? root.TransformDirection(worldEast) : worldEast);
@@ -389,6 +373,25 @@ public static class GroundOpsSceneBuilder
         }
         BuildDishStationConsole(frontLeftStation, playerController, dishController);
         BuildDsnRackConsole(dsnRackPair, playerController);
+        ConfigureFacilityLighting(
+            scene,
+            root,
+            architecture,
+            facilityConnection,
+            hallwayLighting,
+            exteriorLandscape,
+            ceilingLighting,
+            furniture,
+            serverRoomEquipment,
+            geographicReference,
+            sceneSetup,
+            playerController,
+            wallHeight,
+            opsFrontZ,
+            partitionZ,
+            serverBackZ,
+            rightWallX,
+            serverLeftX);
         FinishSync();
 
         RenderSettings.skybox = skyMaterial;
@@ -460,7 +463,7 @@ public static class GroundOpsSceneBuilder
         List<Renderer> physicalRenderers)
     {
         const float slabThickness = 0.16f;
-        const float lightSealOverlap = 0.18f;
+        const float lightSealOverlap = 0.45f;
         List<Vector3> opsBoundary = new()
         {
             new Vector3(rightWallX, 0f, windowPoints[windowPoints.Length - 1].z),
@@ -471,25 +474,27 @@ public static class GroundOpsSceneBuilder
         }
         opsBoundary.Add(new Vector3(rightWallX, 0f, partitionZ));
 
-        // The ceiling must overlap the wall centerlines instead of merely
-        // touching them. Exact edge contact can leave a one-pixel directional
-        // shadow-map seam that reads as a bright diagonal crack in a corner.
+        // Keep the visible ceiling on the exact architectural boundary. A
+        // separate, elevated ShadowsOnly seal may overlap the walls without
+        // creating coplanar visible faces at the server-room seam.
+        Vector3[] visibleOpsBoundary = opsBoundary.ToArray();
         Vector3 boundaryCenter = Vector3.zero;
         foreach (Vector3 point in opsBoundary)
         {
             boundaryCenter += point;
         }
         boundaryCenter /= opsBoundary.Count;
-        for (int index = 0; index < opsBoundary.Count; index++)
+        List<Vector3> shadowBoundary = new(opsBoundary);
+        for (int index = 0; index < shadowBoundary.Count; index++)
         {
-            Vector3 outward = opsBoundary[index] - boundaryCenter;
+            Vector3 outward = shadowBoundary[index] - boundaryCenter;
             outward.y = 0f;
-            opsBoundary[index] += outward.normalized * lightSealOverlap;
+            shadowBoundary[index] += outward.normalized * lightSealOverlap;
         }
 
         Mesh opsCeilingMesh = GetSlabMesh(
             "GroundOps_OpsCeiling",
-            opsBoundary.ToArray(),
+            visibleOpsBoundary,
             wallHeight,
             wallHeight + slabThickness);
         GameObject opsCeiling = MeshObject(
@@ -507,12 +512,36 @@ public static class GroundOpsSceneBuilder
                 wallHeight + slabThickness / 2f,
                 (partitionZ + serverBackZ) / 2f),
             new Vector3(
-                rightWallX - serverLeftX + lightSealOverlap * 2f,
+                rightWallX - serverLeftX,
                 slabThickness,
-                serverBackZ - partitionZ + lightSealOverlap * 2f),
+                serverBackZ - partitionZ),
             Quaternion.identity,
             material);
         physicalRenderers.Add(serverCeiling.GetComponent<Renderer>());
+
+        Mesh opsShadowMesh = GetSlabMesh(
+            "GroundOps_OpsCeiling_ShadowSeal",
+            shadowBoundary.ToArray(),
+            wallHeight + slabThickness + 0.02f,
+            wallHeight + slabThickness + 0.10f);
+        MakeShadowOnly(MeshObject(
+            "Operations Room Ceiling Shadow Seal",
+            parent,
+            opsShadowMesh,
+            material));
+        MakeShadowOnly(Box(
+            "Server Room Ceiling Shadow Seal",
+            parent,
+            new Vector3(
+                (serverLeftX + rightWallX) / 2f,
+                wallHeight + slabThickness + 0.06f,
+                (partitionZ + serverBackZ) / 2f),
+            new Vector3(
+                rightWallX - serverLeftX + lightSealOverlap * 2f,
+                0.08f,
+                serverBackZ - partitionZ + lightSealOverlap * 2f),
+            Quaternion.identity,
+            material));
     }
 
     private static GroundOpsCeilingLightsController BuildCeilingLights(
@@ -618,7 +647,7 @@ public static class GroundOpsSceneBuilder
                 5.8f,
                 9.5f,
                 72f,
-                index % 3 == 0));
+                false));
         }
 
         Transform roomFillGroup = NewGroup("Diffuse Room Fill", parent);
@@ -670,8 +699,15 @@ public static class GroundOpsSceneBuilder
     {
         GameObject gameObject = AcquireObject(name, parent, () => new GameObject(name));
         gameObject.transform.localPosition = localPosition;
-        gameObject.transform.localRotation = type == LightType.Spot
-            ? Quaternion.LookRotation(localDirection, Vector3.forward)
+        Vector3 direction = localDirection.sqrMagnitude > 0.0001f
+            ? localDirection.normalized
+            : Vector3.forward;
+        Vector3 up = Mathf.Abs(Vector3.Dot(direction, Vector3.up)) > 0.98f
+            ? Vector3.forward
+            : Vector3.up;
+        gameObject.transform.localRotation =
+            type == LightType.Spot || type == LightType.Directional
+            ? Quaternion.LookRotation(direction, up)
             : Quaternion.identity;
         gameObject.transform.localScale = Vector3.one;
         Light light = GetOrAddComponent<Light>(gameObject);
@@ -705,7 +741,7 @@ public static class GroundOpsSceneBuilder
         List<Renderer> cutawayRenderers)
     {
         float centerY = wallHeight / 2f;
-        Transform cutaway = NewGroup("Cutaway Surfaces", parent);
+        Transform cutaway = parent;
 
         // The old solid right wall has become the DOC/server-room side of the
         // second-floor hallway. Its openings and windows are emitted by
@@ -882,7 +918,7 @@ public static class GroundOpsSceneBuilder
             hardwareMaterial);
     }
 
-    private static void BuildFacilityConnection(
+    private static Transform BuildFacilityConnection(
         Transform parent,
         float opsFrontZ,
         float partitionZ,
@@ -897,8 +933,12 @@ public static class GroundOpsSceneBuilder
         Material glassMaterial,
         Material trimMaterial,
         Material doorMaterial,
+        Material ceilingMaterial,
+        Material lightHousingMaterial,
+        Material lightMaterial,
         List<Renderer> physicalRenderers,
-        List<Renderer> cutawayRenderers)
+        List<Renderer> cutawayRenderers,
+        List<Renderer> ceilingPhysicalRenderers)
     {
         // This is intentionally only a spatial sketch. The hallway is on the
         // DOC's second-floor elevation, while the high-bay floor is one story
@@ -913,15 +953,15 @@ public static class GroundOpsSceneBuilder
         const float docHallWindowBottom = 0.85f;
         const float docHallWindowTop = 3.05f;
         const float serverHallDoorCenterZ = 6.25f;
-        Transform cutaway = NewGroup("Cutaway Surfaces", parent);
+        Transform cutaway = parent;
 
         // Complete L-shaped second-floor hallway: a north/south leg beside the
         // rooms and a full-width return across the DOC entrance wall.
         Box("Hallway Floor", parent,
             new Vector3((docWallX + hallwayOuterX) / 2f, -0.04f,
-                (hallwayOuterFrontZ + hallwayBackZ) / 2f),
+                (opsFrontZ + hallwayBackZ) / 2f),
             new Vector3(hallwayOuterX - docWallX, 0.08f,
-                hallwayBackZ - hallwayOuterFrontZ),
+                hallwayBackZ - opsFrontZ),
             Quaternion.identity, floorMaterial);
         Box("Hallway L Return Floor", parent,
             new Vector3((hallwayFrontLeftX + hallwayOuterX) / 2f, -0.04f,
@@ -929,6 +969,48 @@ public static class GroundOpsSceneBuilder
             new Vector3(hallwayOuterX - hallwayFrontLeftX, 0.08f,
                 opsFrontZ - hallwayOuterFrontZ),
             Quaternion.identity, floorMaterial);
+
+        // The hallway is an ordinary interior lighting zone. Its ceiling is
+        // split at the inside corner so the two slabs meet without overlapping
+        // (and therefore without producing editor or runtime Z fighting).
+        const float ceilingThickness = 0.16f;
+        GameObject returnCeiling = Box("Hallway L Return Ceiling Slab", parent,
+            new Vector3((hallwayFrontLeftX + hallwayOuterX) / 2f,
+                wallHeight + ceilingThickness / 2f,
+                (hallwayOuterFrontZ + opsFrontZ) / 2f),
+            new Vector3(
+                hallwayOuterX - hallwayFrontLeftX,
+                ceilingThickness,
+                opsFrontZ - hallwayOuterFrontZ),
+            Quaternion.identity, ceilingMaterial);
+        ceilingPhysicalRenderers.Add(returnCeiling.GetComponent<Renderer>());
+        GameObject longCeiling = Box("Hallway Long Ceiling Slab", parent,
+            new Vector3((docWallX + hallwayOuterX) / 2f,
+                wallHeight + ceilingThickness / 2f,
+                (opsFrontZ + hallwayBackZ) / 2f),
+            new Vector3(
+                hallwayOuterX - docWallX,
+                ceilingThickness,
+                hallwayBackZ - opsFrontZ),
+            Quaternion.identity, ceilingMaterial);
+        ceilingPhysicalRenderers.Add(longCeiling.GetComponent<Renderer>());
+        MakeShadowOnly(Box("Hallway Ceiling Corner Shadow Seal", parent,
+            new Vector3((docWallX + hallwayOuterX) / 2f,
+                wallHeight + ceilingThickness + 0.06f, opsFrontZ),
+            new Vector3(hallwayOuterX - docWallX + 0.30f, 0.08f, 0.40f),
+            Quaternion.identity, ceilingMaterial));
+
+        Transform hallwayLighting = BuildHallwayLighting(
+            NewGroup("Hallway Lighting", parent),
+            docWallX,
+            hallwayOuterX,
+            hallwayOuterFrontZ,
+            opsFrontZ,
+            hallwayBackZ,
+            hallwayFrontLeftX,
+            wallHeight,
+            lightHousingMaterial,
+            lightMaterial);
 
         // DOC-side hallway wall. A broad interior window overlooks the DOC;
         // the server-room section gets a plain doorway into the hall.
@@ -961,10 +1043,6 @@ public static class GroundOpsSceneBuilder
         physicalRenderers.Add(docWindowKnee.GetComponent<Renderer>());
         BuildWindowFrameAlongZ("DOC Hall Window Frame", parent, docWallX, -2.35f,
             6.0f, docHallWindowBottom, docHallWindowTop, trimMaterial);
-        BuildOpenDoor("Server Room Hall Door", parent,
-            new Vector3(docWallX, 0f, serverHallDoorCenterZ), doorWidth, doorHeight,
-            true, doorMaterial, trimMaterial);
-
         // Close the old 0.75 m discontinuity between the generated server wall
         // and the containing-room wall, which begins at local Z=8.75.
         WallBox("Server-to-Chamber Hall Wall Filler", parent, cutaway,
@@ -975,6 +1053,7 @@ public static class GroundOpsSceneBuilder
         // The real chamber containing-room wall occupies this stretch when the
         // region is placed in the continuous facility. Do not build a duplicate
         // frontage, door, arrival marker, or scene-transition trigger here.
+        BuildChamberHallwayFinish(parent, wallHeight, wallMaterial);
 
         // Hallway's high-bay side: opaque knee/header bands and three enormous
         // overlooking windows. No doorway is intentionally provided.
@@ -1040,6 +1119,92 @@ public static class GroundOpsSceneBuilder
                 (highBayFloorY + highBayTopY) / 2f, hallwayBackZ),
             new Vector3(highBayOuterX - hallwayOuterX, highBayTopY - highBayFloorY,
                 wallThickness), Quaternion.identity, wallMaterial);
+
+        return hallwayLighting;
+    }
+
+    private static Transform BuildHallwayLighting(
+        Transform parent,
+        float innerX,
+        float outerX,
+        float frontZ,
+        float returnBackZ,
+        float backZ,
+        float returnLeftX,
+        float ceilingY,
+        Material housingMaterial,
+        Material luminousMaterial)
+    {
+        float fixtureY = ceilingY - 0.075f;
+        int fixtureIndex = 1;
+
+        // North/south leg beside the rooms.
+        float longX = (innerX + outerX) / 2f;
+        for (float z = returnBackZ + 2.0f; z < backZ - 1.0f; z += 4.25f)
+        {
+            BuildHallwayFixture($"Ceiling Fixture {fixtureIndex++}", parent,
+                new Vector3(longX, fixtureY, z), Quaternion.identity,
+                housingMaterial, luminousMaterial);
+        }
+
+        // Short return in front of the DOC.
+        float returnZ = (frontZ + returnBackZ) / 2f;
+        for (float x = returnLeftX + 1.6f; x < outerX - 1.0f; x += 3.6f)
+        {
+            BuildHallwayFixture($"Ceiling Fixture {fixtureIndex++}", parent,
+                new Vector3(x, fixtureY, returnZ), Quaternion.Euler(0f, 90f, 0f),
+                housingMaterial, luminousMaterial);
+        }
+
+        return parent;
+    }
+
+    private static void BuildHallwayFixture(
+        string name,
+        Transform parent,
+        Vector3 position,
+        Quaternion rotation,
+        Material housingMaterial,
+        Material luminousMaterial)
+    {
+        Transform fixture = NewGroup(name, parent);
+        Box("Housing", fixture, position,
+            new Vector3(1.20f, 0.10f, 0.24f), rotation, housingMaterial);
+        Box("Diffuser", fixture, position + Vector3.down * 0.061f,
+            new Vector3(1.08f, 0.025f, 0.18f), rotation, luminousMaterial);
+        CreateLight("Diffuse Light", fixture, position + Vector3.down * 0.14f,
+            Vector3.down, LightType.Point, new Color(1f, 0.98f, 0.94f),
+            1.15f, 5.6f, 0f, false);
+    }
+
+    private static void BuildChamberHallwayFinish(
+        Transform parent,
+        float wallHeight,
+        Material wallMaterial)
+    {
+        // Ground Ops-local coordinates for the chamber containing-room facade.
+        // The containing-room slab's hallway face is local X=5.65 after the
+        // facility transform. Offset this finish 2 mm toward the hallway so it
+        // neither intersects the slab nor sits in its shadow.
+        const float x = 5.652f;
+        const float minimumZ = 8.75f;
+        const float maximumZ = 25.75f;
+        const float doorCenterZ = 11.25f;
+        const float doorWidth = 1.8f;
+        const float doorHeight = 2.2f;
+        Transform finish = NewGroup("Chamber Hallway Wall Finish", parent);
+        float doorStart = doorCenterZ - doorWidth / 2f;
+        float doorEnd = doorCenterZ + doorWidth / 2f;
+        Quad("Front Segment", finish,
+            new Vector3(x, wallHeight / 2f, (minimumZ + doorStart) / 2f),
+            doorStart - minimumZ, wallHeight, Vector3.right, wallMaterial);
+        Quad("Rear Segment", finish,
+            new Vector3(x, wallHeight / 2f, (doorEnd + maximumZ) / 2f),
+            maximumZ - doorEnd, wallHeight, Vector3.right, wallMaterial);
+        Quad("Door Header", finish,
+            new Vector3(x, doorHeight + (wallHeight - doorHeight) / 2f, doorCenterZ),
+            doorWidth, wallHeight - doorHeight, Vector3.right, wallMaterial);
+        RemoveColliders(finish);
     }
 
     private readonly struct WallOpening
@@ -2572,6 +2737,284 @@ public static class GroundOpsSceneBuilder
             material);
     }
 
+    private static void ConfigureFacilityLighting(
+        Scene scene,
+        Transform groundOpsRoot,
+        Transform architecture,
+        Transform facilityConnection,
+        Transform hallwayLighting,
+        Transform exteriorLandscape,
+        Transform ceilingLighting,
+        Transform furniture,
+        Transform serverRoomEquipment,
+        Transform geographicReference,
+        Transform sceneSetup,
+        FirstPersonPlayerController playerController,
+        float wallHeight,
+        float opsFrontZ,
+        float partitionZ,
+        float serverBackZ,
+        float rightWallX,
+        float serverLeftX)
+    {
+        // Rendering layers isolate direct lights without abusing ordinary
+        // GameObject layers. The sun lights the landscape and the windowed DOC,
+        // but cannot illuminate the hallway or either chamber zone.
+        SetRendererMask(architecture, DocRenderingLayer);
+        SetRendererMask(facilityConnection, HallwayRenderingLayer);
+        Transform highBay = facilityConnection.Find("Empty High Bay");
+        if (highBay != null) SetRendererMask(highBay, ExteriorRenderingLayer);
+        SetRendererMask(exteriorLandscape, ExteriorRenderingLayer);
+        SetRendererMask(ceilingLighting, DocRenderingLayer);
+        SetRendererMask(furniture, DocRenderingLayer);
+        SetRendererMask(serverRoomEquipment, DocRenderingLayer);
+        SetRendererMask(geographicReference, DocRenderingLayer);
+        SetLightMask(ceilingLighting, DocRenderingLayer);
+        SetLightMask(hallwayLighting, HallwayRenderingLayer);
+        SetLightMask(sceneSetup, ExteriorRenderingLayer | DocRenderingLayer);
+
+        GameObject chamberRootObject = scene.GetRootGameObjects()
+            .FirstOrDefault(candidate => candidate.name == "Chamber Geometry");
+        if (chamberRootObject != null)
+        {
+            Transform chamberRoot = chamberRootObject.transform;
+            SetRendererMask(chamberRoot, ChamberRoomRenderingLayer);
+            SetLightMask(chamberRoot, ChamberInteriorRenderingLayer);
+            foreach (string childPath in new[]
+            {
+                "Architecture",
+                "Equipment",
+                "Lighting Fixtures",
+                "Scissor Lift Wall Control",
+                "Chamber Wall Camera",
+            })
+            {
+                Transform child = chamberRoot.Find(childPath);
+                if (child != null) SetRendererMask(child, ChamberInteriorRenderingLayer);
+            }
+
+            Transform containingRoom = chamberRoot.Find("Containing Room");
+            if (containingRoom != null)
+            {
+                // The containing-room facade is also a hallway wall. Let the
+                // hallway fixtures illuminate its exterior face so the wall
+                // does not change color abruptly at that architectural seam.
+                SetRendererMask(containingRoom,
+                    ChamberRoomRenderingLayer | HallwayRenderingLayer);
+                SetLightMask(containingRoom, ChamberRoomRenderingLayer);
+            }
+            Transform chamberFixtures = chamberRoot.Find("Lighting Fixtures");
+            if (chamberFixtures != null)
+            {
+                SetLightMask(chamberFixtures, ChamberInteriorRenderingLayer);
+            }
+        }
+
+        if (playerController != null)
+        {
+            uint allZones = ExteriorRenderingLayer | DocRenderingLayer |
+                HallwayRenderingLayer | ChamberRoomRenderingLayer |
+                ChamberInteriorRenderingLayer;
+            SetRendererMask(playerController.transform, allZones);
+            Camera playerCamera = playerController.GetComponentInChildren<Camera>(true);
+            if (playerCamera != null)
+            {
+                UniversalAdditionalCameraData cameraData =
+                    playerCamera.GetUniversalAdditionalCameraData();
+                cameraData.renderPostProcessing = true;
+                cameraData.volumeLayerMask = ~0;
+            }
+        }
+
+        Transform zones = NewGroup("Facility Lighting Zones", groundOpsRoot);
+        VolumeProfile docProfile = GetVolumeProfile(
+            "DOC", 0.20f, 6f, 0f, 0.10f, 1.05f);
+        VolumeProfile hallwayProfile = GetVolumeProfile(
+            "Hallway", 0.08f, 1f, 0f, 0f, 1.20f);
+        VolumeProfile chamberRoomProfile = GetVolumeProfile(
+            "ChamberRoom", -0.35f, 12f, -5f, 0.14f, 0.95f);
+        VolumeProfile chamberInteriorProfile = GetVolumeProfile(
+            "ChamberInterior", -0.70f, 22f, -12f, 0.28f, 0.70f);
+
+        BuildLocalVolume("DOC Camera Volume", zones,
+            new Vector3((serverLeftX + rightWallX) / 2f, wallHeight / 2f,
+                (opsFrontZ + serverBackZ) / 2f),
+            Quaternion.identity,
+            new Vector3(rightWallX - serverLeftX + 1.0f, wallHeight + 0.5f,
+                serverBackZ - opsFrontZ + 1.0f),
+            10f, 1.0f, docProfile);
+        BuildLocalVolume("Hallway Long Camera Volume", zones,
+            new Vector3(6.8f, wallHeight / 2f, 11f), Quaternion.identity,
+            new Vector3(3.2f, wallHeight + 0.5f, 34f),
+            12f, 0.8f, hallwayProfile);
+        BuildLocalVolume("Hallway Return Camera Volume", zones,
+            new Vector3(1.5f, wallHeight / 2f, -6.8f), Quaternion.identity,
+            new Vector3(14.5f, wallHeight + 0.5f, 3.6f),
+            12f, 0.8f, hallwayProfile);
+
+        Vector3 chamberRoomLocal = groundOpsRoot.InverseTransformPoint(
+            new Vector3(0f, 2.6f, -0.5f));
+        Quaternion worldAlignedLocalRotation = Quaternion.Inverse(groundOpsRoot.rotation);
+        BuildLocalVolume("Chamber Room Camera Volume", zones,
+            chamberRoomLocal, worldAlignedLocalRotation,
+            new Vector3(9f, 5.8f, 17f), 20f, 0.55f, chamberRoomProfile);
+        Vector3 chamberInteriorLocal = groundOpsRoot.InverseTransformPoint(
+            new Vector3(0f, 1.75f, 0f));
+        BuildLocalVolume("Chamber Interior Camera Volume", zones,
+            chamberInteriorLocal, worldAlignedLocalRotation,
+            new Vector3(5.1f, 3.5f, 10.1f), 30f, 0.35f, chamberInteriorProfile);
+
+        BuildLocalReflectionProbe("DOC Reflection Probe", zones,
+            new Vector3(0f, 1.8f, 0.5f), Quaternion.identity,
+            new Vector3(12f, 3.6f, 11f), 1.0f,
+            GetSolidCubemap("DOCReflection", new Color(0.24f, 0.28f, 0.31f)));
+        BuildLocalReflectionProbe("Hallway Reflection Probe", zones,
+            new Vector3(6.8f, 1.8f, 10f), Quaternion.identity,
+            new Vector3(3.0f, 3.6f, 34f), 0.8f,
+            GetSolidCubemap("HallwayReflection", new Color(0.20f, 0.19f, 0.16f)));
+        BuildLocalReflectionProbe("Chamber Reflection Probe", zones,
+            chamberInteriorLocal, worldAlignedLocalRotation,
+            new Vector3(5.1f, 3.5f, 10.1f), 0.45f,
+            GetSolidCubemap("ChamberReflection", new Color(0.012f, 0.018f, 0.024f)));
+    }
+
+    private static void SetRendererMask(Transform root, uint mask)
+    {
+        if (root == null) return;
+        foreach (Renderer renderer in root.GetComponentsInChildren<Renderer>(true))
+        {
+            renderer.renderingLayerMask = mask;
+        }
+    }
+
+    private static void SetLightMask(Transform root, uint mask)
+    {
+        if (root == null) return;
+        foreach (Light light in root.GetComponentsInChildren<Light>(true))
+        {
+            light.renderingLayerMask = (int)mask;
+            UniversalAdditionalLightData lightData = light.GetUniversalAdditionalLightData();
+            lightData.renderingLayers = (RenderingLayerMask)mask;
+            lightData.shadowRenderingLayers = (RenderingLayerMask)mask;
+        }
+    }
+
+    private static void BuildLocalVolume(
+        string name,
+        Transform parent,
+        Vector3 localPosition,
+        Quaternion localRotation,
+        Vector3 size,
+        float priority,
+        float blendDistance,
+        VolumeProfile profile)
+    {
+        Transform volumeTransform = NewGroup(name, parent);
+        volumeTransform.localPosition = localPosition;
+        volumeTransform.localRotation = localRotation;
+        BoxCollider bounds = GetOrAddComponent<BoxCollider>(volumeTransform.gameObject);
+        bounds.center = Vector3.zero;
+        bounds.size = size;
+        bounds.isTrigger = true;
+        Volume volume = GetOrAddComponent<Volume>(volumeTransform.gameObject);
+        volume.isGlobal = false;
+        volume.priority = priority;
+        volume.blendDistance = blendDistance;
+        volume.weight = 1f;
+        volume.sharedProfile = profile;
+    }
+
+    private static VolumeProfile GetVolumeProfile(
+        string name,
+        float postExposure,
+        float contrast,
+        float saturation,
+        float bloomIntensity,
+        float bloomThreshold)
+    {
+        string path = $"{VolumeProfileFolder}/{name}.asset";
+        VolumeProfile profile = AssetDatabase.LoadAssetAtPath<VolumeProfile>(path);
+        if (profile == null)
+        {
+            profile = ScriptableObject.CreateInstance<VolumeProfile>();
+            profile.name = name;
+            AssetDatabase.CreateAsset(profile, path);
+        }
+
+        ColorAdjustments color = GetOrAddVolumeComponent<ColorAdjustments>(profile);
+        color.active = true;
+        color.postExposure.Override(postExposure);
+        color.contrast.Override(contrast);
+        color.saturation.Override(saturation);
+        Bloom bloom = GetOrAddVolumeComponent<Bloom>(profile);
+        bloom.active = true;
+        bloom.intensity.Override(bloomIntensity);
+        bloom.threshold.Override(bloomThreshold);
+        bloom.scatter.Override(0.62f);
+        EditorUtility.SetDirty(profile);
+        return profile;
+    }
+
+    private static T GetOrAddVolumeComponent<T>(VolumeProfile profile)
+        where T : VolumeComponent
+    {
+        if (profile.TryGet(out T component)) return component;
+        component = profile.Add<T>(true);
+        if (!AssetDatabase.Contains(component))
+        {
+            AssetDatabase.AddObjectToAsset(component, profile);
+        }
+        return component;
+    }
+
+    private static void BuildLocalReflectionProbe(
+        string name,
+        Transform parent,
+        Vector3 localPosition,
+        Quaternion localRotation,
+        Vector3 size,
+        float blendDistance,
+        Cubemap cubemap)
+    {
+        Transform probeTransform = NewGroup(name, parent);
+        probeTransform.localPosition = localPosition;
+        probeTransform.localRotation = localRotation;
+        ReflectionProbe probe = GetOrAddComponent<ReflectionProbe>(probeTransform.gameObject);
+        probe.mode = ReflectionProbeMode.Custom;
+        probe.customBakedTexture = cubemap;
+        probe.center = Vector3.zero;
+        probe.size = size;
+        probe.blendDistance = blendDistance;
+        probe.boxProjection = true;
+        probe.importance = name.Contains("Chamber") ? 2 : 1;
+        probe.intensity = 0.65f;
+    }
+
+    private static Cubemap GetSolidCubemap(string name, Color color)
+    {
+        string path = $"{ReflectionFolder}/{name}.asset";
+        Cubemap cubemap = AssetDatabase.LoadAssetAtPath<Cubemap>(path);
+        if (cubemap == null)
+        {
+            cubemap = new Cubemap(8, TextureFormat.RGBA32, false) { name = name };
+            AssetDatabase.CreateAsset(cubemap, path);
+        }
+
+        Color[] pixels = Enumerable.Repeat(color, cubemap.width * cubemap.height).ToArray();
+        foreach (CubemapFace face in new[]
+        {
+            CubemapFace.PositiveX, CubemapFace.NegativeX,
+            CubemapFace.PositiveY, CubemapFace.NegativeY,
+            CubemapFace.PositiveZ, CubemapFace.NegativeZ,
+        })
+        {
+            cubemap.SetPixels(pixels, face);
+        }
+        cubemap.Apply(false, false);
+        EditorUtility.SetDirty(cubemap);
+        return cubemap;
+    }
+
     private static void BuildCameraAndLight(
         Transform parent,
         Material skyMaterial,
@@ -2755,6 +3198,8 @@ public static class GroundOpsSceneBuilder
         filter.sharedMesh = mesh;
         MeshRenderer renderer = GetOrAddComponent<MeshRenderer>(gameObject);
         renderer.sharedMaterial = material;
+        renderer.shadowCastingMode = ShadowCastingMode.On;
+        renderer.receiveShadows = true;
         MeshCollider collider = gameObject.GetComponent<MeshCollider>();
         if (addCollider)
         {
@@ -2766,6 +3211,18 @@ public static class GroundOpsSceneBuilder
             Object.DestroyImmediate(collider);
         }
         return gameObject;
+    }
+
+    private static void MakeShadowOnly(GameObject gameObject)
+    {
+        Renderer renderer = gameObject.GetComponent<Renderer>();
+        renderer.shadowCastingMode = ShadowCastingMode.ShadowsOnly;
+        renderer.receiveShadows = false;
+        Collider collider = gameObject.GetComponent<Collider>();
+        if (collider != null)
+        {
+            Object.DestroyImmediate(collider);
+        }
     }
 
     private static GameObject Box(
@@ -2823,23 +3280,6 @@ public static class GroundOpsSceneBuilder
     {
         GameObject physical = Box(name, parent, position, size, Quaternion.identity, material);
         physicalRenderers.Add(physical.GetComponent<Renderer>());
-
-        Vector3 normal = inwardNormal.normalized;
-        float faceOffset = Mathf.Abs(normal.x) > 0.5f ? size.x / 2f : size.z / 2f;
-        float width = Mathf.Abs(normal.x) > 0.5f ? size.z : size.x;
-        GameObject cutaway = Quad(
-            cutawayName ?? name,
-            cutawayParent,
-            position + normal * faceOffset,
-            width,
-            size.y,
-            normal,
-            material);
-        Collider collider = cutaway.GetComponent<Collider>();
-        if (collider != null) Object.DestroyImmediate(collider);
-        Renderer cutawayRenderer = cutaway.GetComponent<Renderer>();
-        cutawayRenderer.shadowCastingMode = ShadowCastingMode.Off;
-        cutawayRenderers.Add(cutawayRenderer);
         return physical;
     }
 
@@ -2869,39 +3309,6 @@ public static class GroundOpsSceneBuilder
         renderer.shadowCastingMode = ShadowCastingMode.Off;
         renderer.receiveShadows = true;
         return gameObject;
-    }
-
-    private static ShellVisualBinding[] CreateCameraVisuals(
-        List<Renderer> physicalRenderers,
-        Material transparentMaterial)
-    {
-        List<ShellVisualBinding> visuals = new();
-        foreach (Renderer physicalRenderer in physicalRenderers)
-        {
-            if (physicalRenderer == null) continue;
-            MeshFilter physicalMesh = physicalRenderer.GetComponent<MeshFilter>();
-            if (physicalMesh == null || physicalMesh.sharedMesh == null) continue;
-
-            GameObject cameraVisual = AcquireObject(
-                "Camera Visual",
-                physicalRenderer.transform,
-                () => new GameObject("Camera Visual"));
-            cameraVisual.transform.localPosition = Vector3.zero;
-            cameraVisual.transform.localRotation = Quaternion.identity;
-            cameraVisual.transform.localScale = Vector3.one;
-            MeshFilter visualMesh = GetOrAddComponent<MeshFilter>(cameraVisual);
-            visualMesh.sharedMesh = physicalMesh.sharedMesh;
-            MeshRenderer visualRenderer = GetOrAddComponent<MeshRenderer>(cameraVisual);
-            visualRenderer.sharedMaterial = physicalRenderer.sharedMaterial;
-            visualRenderer.shadowCastingMode = ShadowCastingMode.Off;
-            visualRenderer.receiveShadows = true;
-            physicalRenderer.shadowCastingMode = ShadowCastingMode.ShadowsOnly;
-            visuals.Add(new ShellVisualBinding(
-                visualRenderer,
-                physicalRenderer.sharedMaterial,
-                transparentMaterial));
-        }
-        return visuals.ToArray();
     }
 
     private static GameObject Cylinder(

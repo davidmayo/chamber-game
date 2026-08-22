@@ -8,6 +8,7 @@ param(
         'refresh',
         'save_scene',
         'hierarchy',
+        'audit_geometry',
         'capture_game_view',
         'capture_scene_view',
         'rebuild_chamber',

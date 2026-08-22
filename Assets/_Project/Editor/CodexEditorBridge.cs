@@ -198,6 +198,10 @@ public static class CodexEditorBridge
                 WriteHierarchy(request);
                 return false;
 
+            case "audit_geometry":
+                AuditGeneratedGeometry(request);
+                return false;
+
             case "capture_game_view":
                 CaptureGameView(request);
                 return false;
@@ -275,7 +279,7 @@ public static class CodexEditorBridge
             default:
                 throw new InvalidOperationException(
                     $"Unknown command '{request.command}'. Allowed commands: ping, editor_state, refresh, " +
-                    "save_scene, hierarchy, capture_game_view, rebuild_chamber, enter_play_mode, " +
+                    "save_scene, hierarchy, audit_geometry, capture_game_view, rebuild_chamber, enter_play_mode, " +
                     "exit_play_mode, run_tests, get_logs, clear_logs.");
         }
     }
@@ -422,6 +426,123 @@ public static class CodexEditorBridge
         return count;
     }
 
+    private static void AuditGeneratedGeometry(BridgeRequest request)
+    {
+        Scene scene = SceneManager.GetActiveScene();
+        List<Renderer> surfaces = scene.GetRootGameObjects()
+            .SelectMany(root => root.GetComponentsInChildren<Renderer>(true))
+            .Where(renderer => renderer != null
+                && renderer.enabled
+                && renderer.gameObject.activeInHierarchy
+                && renderer.shadowCastingMode != UnityEngine.Rendering.ShadowCastingMode.ShadowsOnly
+                && renderer.sharedMaterial != null
+                && renderer.sharedMaterial.renderQueue < 3000)
+            .Where(renderer =>
+            {
+                string path = GetHierarchyPath(renderer.transform);
+                bool architectural = path.StartsWith("Ground Ops Blockout/Architecture/", StringComparison.Ordinal)
+                    || path.StartsWith("Chamber Geometry/Architecture/", StringComparison.Ordinal)
+                    || path.StartsWith("Chamber Geometry/Containing Room/", StringComparison.Ordinal);
+                bool decorativeJoin = path.Contains("/Curved Window/", StringComparison.Ordinal)
+                    || path.Contains("/Frame/", StringComparison.Ordinal)
+                    || path.Contains("/Ceiling Lights/", StringComparison.Ordinal);
+                return architectural && !decorativeJoin;
+            })
+            .ToList();
+
+        StringBuilder output = new();
+        output.AppendLine($"Scene: {scene.path}");
+        output.AppendLine($"Opaque architectural renderers checked: {surfaces.Count}");
+        int issueCount = 0;
+        const float planeTolerance = 0.0005f;
+        const float overlapTolerance = 0.002f;
+        for (int firstIndex = 0; firstIndex < surfaces.Count; firstIndex++)
+        {
+            Renderer first = surfaces[firstIndex];
+            Bounds firstBounds = first.bounds;
+            int firstAxis = ThinAxis(firstBounds.size);
+            if (AxisSize(firstBounds.size, firstAxis) > 0.30f) continue;
+
+            for (int secondIndex = firstIndex + 1; secondIndex < surfaces.Count; secondIndex++)
+            {
+                Renderer second = surfaces[secondIndex];
+                Bounds secondBounds = second.bounds;
+                int secondAxis = ThinAxis(secondBounds.size);
+                if (firstAxis != secondAxis || AxisSize(secondBounds.size, secondAxis) > 0.30f)
+                {
+                    continue;
+                }
+                if (!HasCoplanarFace(firstBounds, secondBounds, firstAxis, planeTolerance)
+                    || !HasProjectedAreaOverlap(firstBounds, secondBounds, firstAxis, overlapTolerance))
+                {
+                    continue;
+                }
+
+                issueCount++;
+                output.AppendLine($"COPLANAR OVERLAP {issueCount}:");
+                output.AppendLine($"  {GetHierarchyPath(first.transform)}");
+                output.AppendLine($"  {GetHierarchyPath(second.transform)}");
+            }
+        }
+
+        if (issueCount == 0)
+        {
+            output.AppendLine("No coplanar overlap was found among thin opaque architectural surfaces.");
+        }
+
+        string artifactPath = Path.Combine(ArtifactFolder, $"{request.id}-geometry-audit.txt");
+        File.WriteAllText(artifactPath, output.ToString(), Encoding.UTF8);
+        WriteResponse(request.id, request.command, issueCount == 0,
+            issueCount == 0 ? "Generated geometry audit passed." : "Generated geometry audit found coplanar overlaps.",
+            artifactPath, $"{issueCount} suspicious coplanar overlap(s).");
+    }
+
+    private static int ThinAxis(Vector3 size)
+    {
+        if (size.x <= size.y && size.x <= size.z) return 0;
+        return size.y <= size.z ? 1 : 2;
+    }
+
+    private static float AxisSize(Vector3 value, int axis)
+    {
+        return axis == 0 ? value.x : axis == 1 ? value.y : value.z;
+    }
+
+    private static bool HasCoplanarFace(Bounds first, Bounds second, int axis, float tolerance)
+    {
+        float firstMin = AxisSize(first.min, axis);
+        float firstMax = AxisSize(first.max, axis);
+        float secondMin = AxisSize(second.min, axis);
+        float secondMax = AxisSize(second.max, axis);
+        // Touching solids legitimately share opposite faces (max-to-min).
+        // Z fighting is instead caused by surfaces occupying the same side of
+        // the same plane, so only compare like faces here.
+        return Mathf.Abs(firstMin - secondMin) <= tolerance
+            || Mathf.Abs(firstMax - secondMax) <= tolerance;
+    }
+
+    private static bool HasProjectedAreaOverlap(Bounds first, Bounds second, int thinAxis, float tolerance)
+    {
+        for (int axis = 0; axis < 3; axis++)
+        {
+            if (axis == thinAxis) continue;
+            float overlap = Mathf.Min(AxisSize(first.max, axis), AxisSize(second.max, axis))
+                - Mathf.Max(AxisSize(first.min, axis), AxisSize(second.min, axis));
+            if (overlap <= tolerance) return false;
+        }
+        return true;
+    }
+
+    private static string GetHierarchyPath(Transform transform)
+    {
+        Stack<string> names = new();
+        for (Transform current = transform; current != null; current = current.parent)
+        {
+            names.Push(current.name);
+        }
+        return string.Join("/", names);
+    }
+
     private static void CaptureGameView(BridgeRequest request)
     {
         Camera camera = Camera.main != null ? Camera.main : UnityEngine.Object.FindFirstObjectByType<Camera>();
@@ -436,8 +557,41 @@ public static class CodexEditorBridge
         Texture2D image = new(width, height, TextureFormat.RGB24, false);
         RenderTexture previousActive = RenderTexture.active;
         RenderTexture previousTarget = camera.targetTexture;
+        Vector3 previousPosition = camera.transform.position;
+        Quaternion previousRotation = camera.transform.rotation;
+        float previousFieldOfView = camera.fieldOfView;
         try
         {
+            string preset = request.argument?.Trim().ToLowerInvariant();
+            if (preset == "hallway-seam")
+            {
+                Transform groundOpsRoot = RequireGroundOpsRoot();
+                Vector3 viewPosition = groundOpsRoot.TransformPoint(new Vector3(6.8f, 1.6f, 6.5f));
+                Vector3 target = groundOpsRoot.TransformPoint(new Vector3(6.8f, 1.45f, 12.5f));
+                camera.transform.SetPositionAndRotation(
+                    viewPosition,
+                    Quaternion.LookRotation(target - viewPosition, Vector3.up));
+                camera.fieldOfView = 72f;
+            }
+            else if (preset == "ground-ops-interior")
+            {
+                Transform groundOpsRoot = RequireGroundOpsRoot();
+                Vector3 viewPosition = groundOpsRoot.TransformPoint(new Vector3(1.5f, 1.6f, -2.5f));
+                Vector3 target = groundOpsRoot.TransformPoint(new Vector3(-2.5f, 2.6f, 3.5f));
+                camera.transform.SetPositionAndRotation(
+                    viewPosition,
+                    Quaternion.LookRotation(target - viewPosition, Vector3.up));
+                camera.fieldOfView = 72f;
+            }
+            else if (preset == "chamber-interior")
+            {
+                Vector3 viewPosition = new(1.8f, 1.55f, 4.35f);
+                Vector3 target = new(-0.25f, 0.15f, -0.75f);
+                camera.transform.SetPositionAndRotation(
+                    viewPosition,
+                    Quaternion.LookRotation(target - viewPosition, Vector3.up));
+                camera.fieldOfView = 72f;
+            }
             camera.targetTexture = renderTexture;
             camera.Render();
             RenderTexture.active = renderTexture;
@@ -451,6 +605,8 @@ public static class CodexEditorBridge
         finally
         {
             camera.targetTexture = previousTarget;
+            camera.transform.SetPositionAndRotation(previousPosition, previousRotation);
+            camera.fieldOfView = previousFieldOfView;
             RenderTexture.active = previousActive;
             UnityEngine.Object.DestroyImmediate(renderTexture);
             UnityEngine.Object.DestroyImmediate(image);

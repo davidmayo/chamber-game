@@ -2,6 +2,7 @@ using System;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 
 /// <summary>
@@ -33,6 +34,17 @@ public static class GeneratedCeilingSceneVisibility
                     SceneVisibilityManager.instance.Hide(renderer.gameObject, true);
                 }
             }
+
+            // Local volumes and reflection probes are useful runtime helpers,
+            // but their large wire boxes obscure the blockout in Scene View.
+            foreach (Volume volume in root.GetComponentsInChildren<Volume>(true))
+            {
+                SceneVisibilityManager.instance.Hide(volume.gameObject, true);
+            }
+            foreach (ReflectionProbe probe in root.GetComponentsInChildren<ReflectionProbe>(true))
+            {
+                SceneVisibilityManager.instance.Hide(probe.gameObject, true);
+            }
         }
 
         SceneView.RepaintAll();
@@ -56,6 +68,8 @@ public static class GeneratedCeilingSceneVisibility
         return objectName.Equals("Ceiling", StringComparison.OrdinalIgnoreCase)
             || objectName.Equals("Frustum Ceiling", StringComparison.OrdinalIgnoreCase)
             || objectName.Equals("Operations Room Ceiling Slab", StringComparison.OrdinalIgnoreCase)
-            || objectName.Equals("Server Room Ceiling Slab", StringComparison.OrdinalIgnoreCase);
+            || objectName.Equals("Server Room Ceiling Slab", StringComparison.OrdinalIgnoreCase)
+            || objectName.Equals("Hallway L Return Ceiling Slab", StringComparison.OrdinalIgnoreCase)
+            || objectName.Equals("Hallway Long Ceiling Slab", StringComparison.OrdinalIgnoreCase);
     }
 }

@@ -1,8 +1,5 @@
 public static class ChamberBuildDefaults
 {
-    public const float RoomOpacityPercent = 100f;
-    public const float ChamberOpacityPercent = 100f;
-
     public const ChamberLightMode ChamberLights = ChamberLightMode.Auto;
     public const float ChamberLightTimeoutSeconds = 30f;
     public const bool FloodLightsOn = false;

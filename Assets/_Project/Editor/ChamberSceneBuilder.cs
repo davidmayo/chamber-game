@@ -46,7 +46,6 @@ public static class ChamberSceneBuilder
     private const float TurnShaftDiameter = 2f * MetersPerInch;
     private const float TiltDiskHousingClearance = 0.01f;
     private const float TurnShaftEndExtension = 0.01f;
-    private const float CutawaySurfaceOffset = 0.002f;
 
     private static readonly Color WallColor = Hex(0x183149);
     private static readonly Color FloorColor = Hex(0x353b42);
@@ -132,8 +131,6 @@ public static class ChamberSceneBuilder
     private static void BuildScene(Scene scene, bool fullRebuild)
     {
         GameObject existing = GameObject.Find(RootName);
-        float preserveRoomOpacity = 100f;
-        float preserveChamberOpacity = 100f;
         ChamberLightMode preserveChamberLightMode = ChamberLightMode.Auto;
         float preserveChamberLightTimeout = 30f;
         bool preserveFloodLightsOn = false;
@@ -147,14 +144,6 @@ public static class ChamberSceneBuilder
             if (existingCamera != null && existingCamera.transform.IsChildOf(existing.transform))
             {
                 existingCamera.transform.SetParent(null, true);
-            }
-
-            ChamberShellVisibilityController existingController =
-                existing.GetComponent<ChamberShellVisibilityController>();
-            if (existingController != null)
-            {
-                preserveRoomOpacity = existingController.RoomOpacityPercent;
-                preserveChamberOpacity = existingController.ChamberOpacityPercent;
             }
 
             MotionSensitiveChamberLights existingMotionLights =
@@ -214,12 +203,6 @@ public static class ChamberSceneBuilder
         Material analyzerScreen = GetRasterScreenMaterial(
             "SpectrumAnalyzerScreen", SpectrumAnalyzerTexturePath);
         Material concrete = GetMaterial("Concrete", ConcreteColor, 0f, 0.05f);
-        Material roomConcreteTransparent = GetTransparentMaterial(
-            "RoomConcreteTransparent", ConcreteColor, 0f, 0.05f);
-        Material chamberWallTransparent = GetTransparentMaterial(
-            "ChamberWallTransparent", WallColor, 0f, 0f);
-        Material chamberFloorTransparent = GetTransparentMaterial(
-            "ChamberFloorTransparent", FloorColor, 0f, 0f);
         Material playerMaterial = GetMaterial("Player", PlayerColor, 0f, 0.25f);
         Material lightPanel = GetMaterial("LightPanel", Color.white, 0f, 0.75f, true, 8f);
         Material cameraWhite = GetMaterial("CameraWhite", Color.white, 0f, 0.3f);
@@ -290,25 +273,7 @@ public static class ChamberSceneBuilder
             monitorScreen,
             tableController,
             sourceAntennaController);
-        ShellVisualBinding[] roomVisuals = CreateCameraVisuals(
-            roomPhysicalRenderers, roomConcreteTransparent);
-        ShellVisualBinding[] chamberVisuals = CreateCameraVisuals(
-            chamberPhysicalRenderers,
-            chamberWallTransparent,
-            floor,
-            chamberFloorTransparent);
         GeneratedCeilingSceneVisibility.ApplyToScene(scene);
-        ChamberShellVisibilityController shellController =
-            GetOrAddComponent<ChamberShellVisibilityController>(root.gameObject);
-        shellController.Configure(
-            roomPhysicalRenderers.ToArray(),
-            roomVisuals,
-            roomCutawayRenderers.ToArray(),
-            chamberPhysicalRenderers.ToArray(),
-            chamberVisuals,
-            chamberCutawayRenderers.ToArray(),
-            preserveRoomOpacity,
-            preserveChamberOpacity);
         ConfigureSceneCameraAndLight();
         FirstPersonPlayerController playerController =
             BuildPlayer(NewGroup("Player", root), playerMaterial);
@@ -423,10 +388,19 @@ public static class ChamberSceneBuilder
             new Vector3(-2.5f - left, -bottom, 5f), concrete, shellRenderers);
         ShellBox("Floor Right", shell, new Vector3((2.5f + right) / 2f, bottom / 2f, 2.5f),
             new Vector3(right - 2.5f, -bottom, 5f), concrete, shellRenderers);
+        // The visible ceiling stops at the shell's exact exterior boundary.
+        // A separate ShadowsOnly cap handles light sealing without changing
+        // visible geometry or overlapping another camera-facing slab.
+        const float ceilingLightSeal = 0.35f;
         ShellBox("Ceiling", shell, new Vector3(0f, top + halfThickness, centerZ),
-            new Vector3(width, wallThickness, depth), concrete, shellRenderers);
+            new Vector3(width + wallThickness * 2f, wallThickness,
+                depth + wallThickness * 2f), concrete, shellRenderers);
+        MakeShadowOnly(Box("Ceiling Shadow Seal", shell,
+            new Vector3(0f, top + wallThickness + 0.04f, centerZ),
+            new Vector3(width + ceilingLightSeal * 2f, 0.08f,
+                depth + ceilingLightSeal * 2f), concrete));
 
-        Transform cutaway = NewGroup("Cutaway Surfaces", parent);
+        Transform cutaway = parent;
         CutawayQuad("Left Wall Front Segment", cutaway,
             new Vector3(left, centerY, front + (hallwayDoorFront - front) / 2f),
             hallwayDoorFront - front, height, Vector3.right, concrete, cutawayRenderers);
@@ -487,7 +461,7 @@ public static class ChamberSceneBuilder
             {
                 SpotLight("Ceiling Illumination", roomIllumination,
                     new Vector3(-x, top - 0.12f, z), Vector3.down,
-                    Color.white, 12f, 10f, 110f, 80f, true);
+                    Color.white, 12f, 10f, 110f, 80f, false);
             }
         }
     }
@@ -542,6 +516,11 @@ public static class ChamberSceneBuilder
             new(-2.5f, 3.5f, 0f), new(-0.5f, 3f, -5f),
             new(0.5f, 3f, -5f), new(2.5f, 3.5f, 0f),
         };
+        Vector3[] ceilingShadowFrustum =
+        {
+            new(-2.70f, 3.5f, 0.15f), new(-0.68f, 3.02f, -5.15f),
+            new(0.68f, 3.02f, -5.15f), new(2.70f, 3.5f, 0.15f),
+        };
         FrustumSlab("Left Wall", frustum, leftFrustum, Vector3.right,
             wallThickness, wall, shellRenderers);
         FrustumSlab("Right Wall", frustum, rightFrustum, Vector3.left,
@@ -550,6 +529,11 @@ public static class ChamberSceneBuilder
             wallThickness, floor, shellRenderers);
         FrustumSlab("Ceiling", frustum, ceilingFrustum, Vector3.down,
             wallThickness, wall, shellRenderers);
+        List<Renderer> unusedShadowSealRenderers = new();
+        GameObject frustumCeilingShadowSeal = FrustumSlab(
+            "Ceiling Shadow Seal", frustum, ceilingShadowFrustum, Vector3.down,
+            0.08f, wall, unusedShadowSealRenderers);
+        MakeShadowOnly(frustumCeilingShadowSeal);
 
         Transform throat = NewGroup("Throat", parent);
         float throatCenterZ = -5f - halfThickness;
@@ -565,10 +549,13 @@ public static class ChamberSceneBuilder
 
         ShellBox("Floor", parent, new Vector3(0f, -halfThickness, 2.5f),
             new Vector3(5f, wallThickness, 5f), floor, shellRenderers);
-        ShellBox("Ceiling", parent, new Vector3(0f, 3.5f + halfThickness, 2.5f),
-            new Vector3(5f, wallThickness, 5f), wall, shellRenderers);
+        ShellBox("Ceiling", parent, new Vector3(0f, 3.5f + halfThickness, 2.575f),
+            new Vector3(5.3f, wallThickness, 5.15f), wall, shellRenderers);
+        MakeShadowOnly(Box("Rectangular Ceiling Shadow Seal", parent,
+            new Vector3(0f, 3.5f + wallThickness + 0.04f, 2.55f),
+            new Vector3(5.65f, 0.08f, 5.50f), wall));
 
-        Transform cutaway = NewGroup("Cutaway Surfaces", parent);
+        Transform cutaway = parent;
         CutawayQuad("Door Wall Rear Section", cutaway,
             new Vector3(-2.5f, 1.75f, 4f), 2f, 3.5f, Vector3.right, wall, cutawayRenderers);
         CutawayQuad("Door Wall Front Section", cutaway,
@@ -1760,25 +1747,10 @@ public static class ChamberSceneBuilder
         Material material,
         List<Renderer> cutawayRenderers)
     {
-        GameObject gameObject = Quad(
-            name,
-            parent,
-            position + inwardNormal.normalized * CutawaySurfaceOffset,
-            width,
-            height,
-            inwardNormal,
-            material);
-        Collider collider = gameObject.GetComponent<Collider>();
-        if (collider != null)
-        {
-            Object.DestroyImmediate(collider);
-        }
-
-        Renderer renderer = gameObject.GetComponent<Renderer>();
-        renderer.enabled = false;
-        renderer.shadowCastingMode = ShadowCastingMode.Off;
-        cutawayRenderers.Add(renderer);
-        return gameObject;
+        // Wall opacity/cutaway rendering was retired. Keeping this no-op helper
+        // until the builder signatures are simplified lets normal in-place sync
+        // delete every previously generated cutaway object as stale.
+        return null;
     }
 
     private static GameObject CutawayPolygon(
@@ -1789,16 +1761,7 @@ public static class ChamberSceneBuilder
         Material material,
         List<Renderer> cutawayRenderers)
     {
-        Vector3[] vertices = OrientPolygon(corners, desiredInwardNormal);
-        Mesh mesh = GetGeneratedMesh($"Frustum_{name}_Cutaway", vertices,
-            new[] { 0, 1, 2, 0, 2, 3 });
-        GameObject gameObject = MeshObject(name, parent, mesh, material, false);
-        gameObject.transform.localPosition = desiredInwardNormal.normalized * CutawaySurfaceOffset;
-        Renderer renderer = gameObject.GetComponent<Renderer>();
-        renderer.enabled = false;
-        renderer.shadowCastingMode = ShadowCastingMode.Off;
-        cutawayRenderers.Add(renderer);
-        return gameObject;
+        return null;
     }
 
     private static GameObject MeshObject(
@@ -1834,54 +1797,16 @@ public static class ChamberSceneBuilder
         return gameObject;
     }
 
-    private static ShellVisualBinding[] CreateCameraVisuals(
-        List<Renderer> physicalRenderers,
-        Material defaultTransparentMaterial,
-        Material alternateOpaqueMaterial = null,
-        Material alternateTransparentMaterial = null)
+    private static void MakeShadowOnly(GameObject gameObject)
     {
-        List<ShellVisualBinding> cameraVisuals = new();
-        foreach (Renderer physicalRenderer in physicalRenderers)
+        Renderer renderer = gameObject.GetComponent<Renderer>();
+        renderer.shadowCastingMode = ShadowCastingMode.ShadowsOnly;
+        renderer.receiveShadows = false;
+        Collider collider = gameObject.GetComponent<Collider>();
+        if (collider != null)
         {
-            if (physicalRenderer == null)
-            {
-                continue;
-            }
-
-            MeshFilter physicalMeshFilter = physicalRenderer.GetComponent<MeshFilter>();
-            if (physicalMeshFilter == null || physicalMeshFilter.sharedMesh == null)
-            {
-                continue;
-            }
-
-            Material opaqueMaterial = physicalRenderer.sharedMaterial;
-            Material transparentMaterial =
-                alternateOpaqueMaterial != null && opaqueMaterial == alternateOpaqueMaterial
-                    ? alternateTransparentMaterial
-                    : defaultTransparentMaterial;
-
-            GameObject cameraVisual = AcquireObject(
-                "Camera Visual",
-                physicalRenderer.transform,
-                () => new GameObject("Camera Visual"));
-            cameraVisual.transform.localPosition = Vector3.zero;
-            cameraVisual.transform.localRotation = Quaternion.identity;
-            cameraVisual.transform.localScale = Vector3.one;
-            MeshFilter meshFilter = GetOrAddComponent<MeshFilter>(cameraVisual);
-            meshFilter.sharedMesh = physicalMeshFilter.sharedMesh;
-            MeshRenderer renderer = GetOrAddComponent<MeshRenderer>(cameraVisual);
-            renderer.sharedMaterial = opaqueMaterial;
-            renderer.shadowCastingMode = ShadowCastingMode.Off;
-            renderer.receiveShadows = true;
-
-            physicalRenderer.shadowCastingMode = ShadowCastingMode.ShadowsOnly;
-            cameraVisuals.Add(new ShellVisualBinding(
-                renderer,
-                opaqueMaterial,
-                transparentMaterial));
+            Object.DestroyImmediate(collider);
         }
-
-        return cameraVisuals.ToArray();
     }
 
     private static Vector3[] OrientPolygon(Vector3[] corners, Vector3 desiredNormal)

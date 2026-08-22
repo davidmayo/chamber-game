@@ -132,7 +132,9 @@ public sealed class GroundOpsSkyController : MonoBehaviour
         // Ambient sky lighting is global even in the continuous facility. Keep
         // it restrained so daylight outside the DOC does not magically flood
         // the sealed anechoic chamber; room fixtures provide the DOC fill light.
-        RenderSettings.ambientIntensity = Mathf.Lerp(0.04f, 0.12f, daylight);
+        // The facility now uses explicit room lights and rendering layers.
+        // Keep global sky ambience low so it cannot wash out the chamber.
+        RenderSettings.ambientIntensity = Mathf.Lerp(0.006f, 0.022f, daylight);
         DynamicGI.UpdateEnvironment();
     }
 
