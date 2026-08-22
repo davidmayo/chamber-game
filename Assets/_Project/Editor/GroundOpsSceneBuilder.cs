@@ -223,6 +223,10 @@ public static class GroundOpsSceneBuilder
             "GroundOpsCleanroomPlexiglass", new Color(0.72f, 0.88f, 0.96f, 0.10f));
         Material cleanroomLightMaterial = GetEmissiveMaterial(
             "GroundOpsCleanroomLights", Color.white, 5.5f);
+        Material lemsAluminumMaterial = GetMaterial(
+            "LemsPolishedAluminum", new Color(0.76f, 0.80f, 0.84f), 0.92f, 0.94f);
+        Material lemsSolarMaterial = GetMaterial(
+            "LemsSolarCells", new Color(0.015f, 0.030f, 0.085f), 0.78f, 0.97f);
         Material northMaterial = GetMaterial("GroundOpsTrueNorth", new Color(0.16f, 0.40f, 0.95f), 0f, 0.12f);
         Material eastMaterial = GetMaterial("GroundOpsTrueEast", new Color(0.95f, 0.20f, 0.14f), 0f, 0.12f);
         Material skyMaterial = GetSkyMaterial("GroundOpsSky");
@@ -313,6 +317,8 @@ public static class GroundOpsSceneBuilder
             cleanroomMetalMaterial,
             cleanroomGlassMaterial,
             cleanroomLightMaterial,
+            lemsAluminumMaterial,
+            lemsSolarMaterial,
             wallPhysicalRenderers,
             wallCutawayRenderers,
             ceilingPhysicalRenderers);
@@ -975,6 +981,8 @@ public static class GroundOpsSceneBuilder
         Material cleanroomMetalMaterial,
         Material cleanroomGlassMaterial,
         Material cleanroomLightMaterial,
+        Material lemsAluminumMaterial,
+        Material lemsSolarMaterial,
         List<Renderer> physicalRenderers,
         List<Renderer> cutawayRenderers,
         List<Renderer> ceilingPhysicalRenderers)
@@ -1198,7 +1206,8 @@ public static class GroundOpsSceneBuilder
         cleanroom.localPosition = cleanroomOffset;
         BuildCleanroom(cleanroom, highBayFloorY,
             cleanroomWhiteMaterial, cleanroomFloorMaterial, cleanroomMetalMaterial,
-            cleanroomGlassMaterial, cleanroomLightMaterial);
+            cleanroomGlassMaterial, cleanroomLightMaterial,
+            lemsAluminumMaterial, lemsSolarMaterial);
 
         return hallwayLighting;
     }
@@ -1541,7 +1550,9 @@ public static class GroundOpsSceneBuilder
         Material floorMaterial,
         Material metalMaterial,
         Material plexiglassMaterial,
-        Material luminousMaterial)
+        Material luminousMaterial,
+        Material lemsAluminumMaterial,
+        Material lemsSolarMaterial)
     {
         // A deliberately simple, sealed pavilion inspired by the real high-bay
         // cleanroom. It is scenery viewed from the second-floor windows, not an
@@ -1609,6 +1620,8 @@ public static class GroundOpsSceneBuilder
 
         BuildCleanroomPartitions(parent, centerX, centerZ, width, depth,
             floorY, ceilingY, strut, metalMaterial, plexiglassMaterial);
+        BuildLemsSpacecraft(parent, floorY, lemsAluminumMaterial,
+            lemsSolarMaterial, ceilingMaterial);
         float[] frameY = { floorY + strut / 2f, ceilingY - strut / 2f };
         for (int frameIndex = 0; frameIndex < frameY.Length; frameIndex++)
         {
@@ -1727,6 +1740,66 @@ public static class GroundOpsSceneBuilder
                     new Vector3(length, strut, strut), Quaternion.identity, metalMaterial);
             }
         }
+    }
+
+    private static void BuildLemsSpacecraft(
+        Transform parent, float floorY, Material aluminumMaterial,
+        Material solarMaterial, Material whiteMaterial)
+    {
+        // LEMS occupies the nearer north-west cleanroom compartment. Its broad
+        // solar-array face points directly toward the hallway overlook.
+        Transform lems = NewGroup("LEMS-A3 (LEMS)", parent);
+        lems.localPosition = new Vector3(18f, floorY, 10f);
+
+        const float bodyDepth = 0.60f;
+        const float bodyHeight = 0.90f;
+        const float bodyWidth = 2.00f;
+        Box("Aluminum Spacecraft Body", lems,
+            new Vector3(0f, bodyHeight / 2f + 0.02f, 0f),
+            new Vector3(bodyDepth, bodyHeight, bodyWidth),
+            Quaternion.identity, aluminumMaterial);
+
+        // The solar array is built as an inset dark panel with a chunky silver
+        // lattice, matching the unmistakable front face in the references.
+        const float panelX = -bodyDepth / 2f - 0.018f;
+        Box("Front Solar Array", lems, new Vector3(panelX, 0.47f, 0f),
+            new Vector3(0.025f, 0.80f, 1.88f), Quaternion.identity, solarMaterial);
+        const float gridX = panelX - 0.019f;
+        foreach ((string name, float y) in new[]
+                 {
+                     ("Bottom", 0.07f), ("Lower", 0.27f), ("Middle", 0.47f),
+                     ("Upper", 0.67f), ("Top", 0.87f)
+                 })
+        {
+            Box($"Solar Grid {name} Rail", lems, new Vector3(gridX, y, 0f),
+                new Vector3(0.018f, 0.030f, 1.94f), Quaternion.identity, whiteMaterial);
+        }
+        for (int column = 0; column <= 13; column++)
+        {
+            float z = Mathf.Lerp(-0.96f, 0.96f, column / 13f);
+            Box($"Solar Grid Column {column + 1}", lems,
+                new Vector3(-0.333f, 0.47f, z),
+                new Vector3(0.018f, 0.83f, 0.026f), Quaternion.identity, whiteMaterial);
+        }
+
+        // The top intentionally contains only the EVA handle and four antenna
+        // panels. Do not infer the other flight hardware visible in photographs.
+        Transform handle = NewGroup("Top EVA Handle", lems);
+        Box("Left Support", handle, new Vector3(0.12f, 0.978f, -0.114f),
+            new Vector3(0.05f, 0.48f, 0.05f), Quaternion.identity, aluminumMaterial);
+        Box("Right Support", handle, new Vector3(0.12f, 0.978f, 0.486f),
+            new Vector3(0.05f, 0.48f, 0.05f), Quaternion.identity, aluminumMaterial);
+        Box("Grip", handle, new Vector3(0.12f, 1.214f, 0.335f),
+            new Vector3(0.06f, 0.06f, 1.00f), Quaternion.identity, aluminumMaterial);
+
+        Box("Top Antenna 1", lems, new Vector3(-0.202f, 1.017f, -0.029f),
+            new Vector3(0.03f, 0.20f, 0.20f), Quaternion.Euler(0f, 0f, -10f), whiteMaterial);
+        Box("Top Antenna 2", lems, new Vector3(-0.202f, 1.017f, -0.236f),
+            new Vector3(0.03f, 0.20f, 0.20f), Quaternion.Euler(0f, 0f, -10f), whiteMaterial);
+        Box("Top Antenna 3", lems, new Vector3(-0.206f, 1.045f, -0.498f),
+            new Vector3(0.03f, 0.30f, 0.30f), Quaternion.Euler(0f, 20f, -10f), whiteMaterial);
+        Box("Top Antenna 4", lems, new Vector3(-0.213f, 1.045f, -0.800f),
+            new Vector3(0.03f, 0.30f, 0.30f), Quaternion.Euler(0f, -20f, -5f), whiteMaterial);
     }
 
     private static void BuildOpenDoor(
