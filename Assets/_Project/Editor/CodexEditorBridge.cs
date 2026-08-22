@@ -252,6 +252,12 @@ public static class CodexEditorBridge
                 return false;
 
             case "run_tests":
+                RequireSafeEditState(request);
+                if (SceneManager.GetActiveScene().isDirty)
+                {
+                    throw new InvalidOperationException(
+                        "The active scene has unsaved changes. Save it before running tests.");
+                }
                 BeginTests(request);
                 return true;
 
@@ -391,6 +397,9 @@ public static class CodexEditorBridge
         output.Append(' ', depth * 2)
             .Append(transform.gameObject.activeSelf ? "+ " : "- ")
             .Append(transform.name)
+            .Append(SceneVisibilityManager.instance.IsHidden(transform.gameObject, false)
+                ? " {SceneView hidden}"
+                : string.Empty)
             .Append(" [").Append(components).Append("] ")
             .AppendFormat(CultureInfo.InvariantCulture,
                 "pos=({0:0.###},{1:0.###},{2:0.###}) rot=({3:0.###},{4:0.###},{5:0.###}) scale=({6:0.###},{7:0.###},{8:0.###})",
@@ -469,8 +478,12 @@ public static class CodexEditorBridge
             request.argument?.Trim(), "facility-hallway", StringComparison.OrdinalIgnoreCase);
         bool captureChamberDoor = string.Equals(
             request.argument?.Trim(), "chamber-door", StringComparison.OrdinalIgnoreCase);
+        bool captureChamberInterior = string.Equals(
+            request.argument?.Trim(), "chamber-interior", StringComparison.OrdinalIgnoreCase);
         bool captureHallwayDoor = string.Equals(
             request.argument?.Trim(), "hallway-door", StringComparison.OrdinalIgnoreCase);
+        bool captureHallwayHeader = string.Equals(
+            request.argument?.Trim(), "hallway-header", StringComparison.OrdinalIgnoreCase);
         bool captureFacilityPlan = string.Equals(
             request.argument?.Trim(), "facility-plan", StringComparison.OrdinalIgnoreCase);
         bool captureHallwaySeam = string.Equals(
@@ -569,6 +582,15 @@ public static class CodexEditorBridge
                 camera.orthographic = false;
                 camera.fieldOfView = 68f;
             }
+            else if (captureChamberInterior)
+            {
+                Vector3 viewPosition = new(1.8f, 1.55f, 4.35f);
+                Vector3 target = new(-0.25f, 0.15f, -0.75f);
+                camera.transform.position = viewPosition;
+                camera.transform.rotation = Quaternion.LookRotation(target - viewPosition, Vector3.up);
+                camera.orthographic = false;
+                camera.fieldOfView = 72f;
+            }
             else if (captureHallwayDoor)
             {
                 Vector3 viewPosition = new(-6.1f, 1.6f, 5.5f);
@@ -577,6 +599,15 @@ public static class CodexEditorBridge
                 camera.transform.rotation = Quaternion.LookRotation(target - viewPosition, Vector3.up);
                 camera.orthographic = false;
                 camera.fieldOfView = 68f;
+            }
+            else if (captureHallwayHeader)
+            {
+                Vector3 viewPosition = new(-7.2f, 6.7f, 5.5f);
+                Vector3 target = new(-4.5f, 5.45f, 5.5f);
+                camera.transform.position = viewPosition;
+                camera.transform.rotation = Quaternion.LookRotation(target - viewPosition, Vector3.up);
+                camera.orthographic = false;
+                camera.fieldOfView = 55f;
             }
             else if (captureFacilityPlan)
             {

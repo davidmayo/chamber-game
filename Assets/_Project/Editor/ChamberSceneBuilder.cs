@@ -46,6 +46,7 @@ public static class ChamberSceneBuilder
     private const float TurnShaftDiameter = 2f * MetersPerInch;
     private const float TiltDiskHousingClearance = 0.01f;
     private const float TurnShaftEndExtension = 0.01f;
+    private const float CutawaySurfaceOffset = 0.002f;
 
     private static readonly Color WallColor = Hex(0x183149);
     private static readonly Color FloorColor = Hex(0x353b42);
@@ -296,6 +297,7 @@ public static class ChamberSceneBuilder
             chamberWallTransparent,
             floor,
             chamberFloorTransparent);
+        GeneratedCeilingSceneVisibility.ApplyToScene(scene);
         ChamberShellVisibilityController shellController =
             GetOrAddComponent<ChamberShellVisibilityController>(root.gameObject);
         shellController.Configure(
@@ -397,9 +399,9 @@ public static class ChamberSceneBuilder
                 rear - hallwayDoorRear), concrete, shellRenderers);
         ShellBox("Left Wall Door Header", shell,
             new Vector3(left - halfThickness,
-                hallwayDoorHeight + (top - hallwayDoorHeight) / 2f,
+                hallwayDoorHeight + (top + wallThickness - hallwayDoorHeight) / 2f,
                 hallwayDoorCenterZ),
-            new Vector3(wallThickness, top - hallwayDoorHeight,
+            new Vector3(wallThickness, top + wallThickness - hallwayDoorHeight,
                 hallwayDoorWidth), concrete, shellRenderers);
         ShellBox("Right Wall", shell,
             new Vector3(right + halfThickness, centerY, centerZ),
@@ -409,10 +411,18 @@ public static class ChamberSceneBuilder
             new Vector3(width, height + wallThickness * 2f, wallThickness), concrete, shellRenderers);
         ShellBox("Rear Wall", shell, new Vector3(0f, centerY, rear + halfThickness),
             new Vector3(width, height + wallThickness * 2f, wallThickness), concrete, shellRenderers);
-        // The containing room still extends 0.3 m below the chamber, but its
-        // walkable floor surface is flush with the chamber and hallway at Y=0.
-        ShellBox("Floor", shell, new Vector3(0f, bottom / 2f, centerZ),
-            new Vector3(width, -bottom, depth), concrete, shellRenderers);
+        // Keep the room floor flush with the chamber at Y=0, but do not run a
+        // second coplanar slab beneath the chamber's rectangular floor. The
+        // room floor remains beneath the elevated frustum, where it is a
+        // genuinely separate visible surface outside the chamber shell.
+        ShellBox("Floor Front", shell, new Vector3(0f, bottom / 2f, front / 2f),
+            new Vector3(width, -bottom, -front), concrete, shellRenderers);
+        ShellBox("Floor Rear", shell, new Vector3(0f, bottom / 2f, (5f + rear) / 2f),
+            new Vector3(width, -bottom, rear - 5f), concrete, shellRenderers);
+        ShellBox("Floor Left", shell, new Vector3((left - 2.5f) / 2f, bottom / 2f, 2.5f),
+            new Vector3(-2.5f - left, -bottom, 5f), concrete, shellRenderers);
+        ShellBox("Floor Right", shell, new Vector3((2.5f + right) / 2f, bottom / 2f, 2.5f),
+            new Vector3(right - 2.5f, -bottom, 5f), concrete, shellRenderers);
         ShellBox("Ceiling", shell, new Vector3(0f, top + halfThickness, centerZ),
             new Vector3(width, wallThickness, depth), concrete, shellRenderers);
 
@@ -433,21 +443,17 @@ public static class ChamberSceneBuilder
             width, height, Vector3.forward, concrete, cutawayRenderers);
         CutawayQuad("Rear Wall", cutaway, new Vector3(0f, centerY, rear),
             width, height, Vector3.back, concrete, cutawayRenderers);
-        CutawayQuad("Floor", cutaway, new Vector3(0f, 0f, centerZ),
-            width, depth, Vector3.up, concrete, cutawayRenderers);
+        CutawayQuad("Floor Front", cutaway, new Vector3(0f, 0f, front / 2f),
+            width, -front, Vector3.up, concrete, cutawayRenderers);
+        CutawayQuad("Floor Rear", cutaway, new Vector3(0f, 0f, (5f + rear) / 2f),
+            width, rear - 5f, Vector3.up, concrete, cutawayRenderers);
+        CutawayQuad("Floor Left", cutaway, new Vector3((left - 2.5f) / 2f, 0f, 2.5f),
+            -2.5f - left, 5f, Vector3.up, concrete, cutawayRenderers);
+        CutawayQuad("Floor Right", cutaway, new Vector3((2.5f + right) / 2f, 0f, 2.5f),
+            right - 2.5f, 5f, Vector3.up, concrete, cutawayRenderers);
         CutawayQuad("Ceiling", cutaway, new Vector3(0f, top, centerZ),
             width, depth, Vector3.down, concrete, cutawayRenderers);
 
-        GameObject transitionLanding = ShellBox("Hallway Transition Landing", shell,
-            new Vector3(left - 1.3f, -0.04f,
-                hallwayDoorCenterZ),
-            new Vector3(2.6f, 0.08f, 3.8f), concrete, shellRenderers);
-        BoxCollider landingCollider = transitionLanding.GetComponent<BoxCollider>();
-        if (landingCollider != null)
-        {
-            landingCollider.enabled = true;
-            landingCollider.isTrigger = false;
-        }
         Transform ceilingLights = NewGroup("Ceiling Lights", parent);
         const float fixtureY = top - 0.04f;
         Vector3 fixtureSize = new(1.15f, 0.08f, 0.28f);
@@ -1754,7 +1760,14 @@ public static class ChamberSceneBuilder
         Material material,
         List<Renderer> cutawayRenderers)
     {
-        GameObject gameObject = Quad(name, parent, position, width, height, inwardNormal, material);
+        GameObject gameObject = Quad(
+            name,
+            parent,
+            position + inwardNormal.normalized * CutawaySurfaceOffset,
+            width,
+            height,
+            inwardNormal,
+            material);
         Collider collider = gameObject.GetComponent<Collider>();
         if (collider != null)
         {
@@ -1780,6 +1793,7 @@ public static class ChamberSceneBuilder
         Mesh mesh = GetGeneratedMesh($"Frustum_{name}_Cutaway", vertices,
             new[] { 0, 1, 2, 0, 2, 3 });
         GameObject gameObject = MeshObject(name, parent, mesh, material, false);
+        gameObject.transform.localPosition = desiredInwardNormal.normalized * CutawaySurfaceOffset;
         Renderer renderer = gameObject.GetComponent<Renderer>();
         renderer.enabled = false;
         renderer.shadowCastingMode = ShadowCastingMode.Off;

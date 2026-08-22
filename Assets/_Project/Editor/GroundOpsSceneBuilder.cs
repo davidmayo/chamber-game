@@ -309,6 +309,7 @@ public static class GroundOpsSceneBuilder
             wallPhysicalRenderers, transparentWallMaterial)
             .Concat(CreateCameraVisuals(ceilingPhysicalRenderers, transparentCeilingMaterial))
             .ToArray();
+        GeneratedCeilingSceneVisibility.ApplyToScene(scene);
         Renderer[] roomPhysicalRenderers = wallPhysicalRenderers
             .Concat(ceilingPhysicalRenderers)
             .ToArray();

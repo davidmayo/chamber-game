@@ -26,12 +26,32 @@ public sealed class FacilityContinuousWorldTests
         Assert.That(GameObject.Find(
             "Chamber Geometry/Containing Room/Hallway Double Door"), Is.Null,
             "The hallway connection should be a plain wall opening for now.");
+        Renderer hallwayHeader = GameObject.Find(
+            "Chamber Geometry/Containing Room/Concrete Shell/Left Wall Door Header")
+            .GetComponent<Renderer>();
+        Renderer hallwayWall = GameObject.Find(
+            "Chamber Geometry/Containing Room/Concrete Shell/Left Wall Front Segment")
+            .GetComponent<Renderer>();
+        Assert.That(hallwayHeader.bounds.max.y, Is.EqualTo(hallwayWall.bounds.max.y).Within(0.001f),
+            "The doorway header must be flush with the top of the adjacent room wall.");
         Assert.That(GameObject.Find(
             "Chamber Geometry/Architecture/Left Wall - Door/Open Chamber Door"), Is.Null,
             "The chamber connection should be a plain wall opening for now.");
         Assert.That(GameObject.Find(
             "Chamber Geometry/Architecture/Left Wall - Door/Door Frame Header"), Is.Null,
             "The chamber connection should not retain formal door trim.");
+        Assert.That(GameObject.Find(
+            "Chamber Geometry/Containing Room/Concrete Shell/Hallway Transition Landing"), Is.Null,
+            "The continuous hallway floor must not be duplicated by an overlapping landing.");
+        Assert.That(GameObject.Find(
+            "Chamber Geometry/Containing Room/Concrete Shell/Floor"), Is.Null,
+            "The containing-room floor must not overlap the chamber's own floor.");
+        foreach (string section in new[] { "Floor Front", "Floor Rear", "Floor Left", "Floor Right" })
+        {
+            Assert.That(GameObject.Find(
+                $"Chamber Geometry/Containing Room/Concrete Shell/{section}"), Is.Not.Null,
+                $"The non-overlapping containing-room section '{section}' must exist.");
+        }
         Assert.That(GameObject.Find(
             "Ground Ops Blockout/Architecture/Hallway and High Bay Blockout/Hallway End Door Wall"),
             Is.Null, "The former wall across the L turn must not return.");
