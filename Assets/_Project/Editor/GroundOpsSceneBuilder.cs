@@ -203,6 +203,14 @@ public static class GroundOpsSceneBuilder
             "GroundOpsLightsOn", new Color(1f, 0.89f, 0.70f), 1.35f);
         Material lightsOffMaterial = GetMaterial(
             "GroundOpsLightsOff", new Color(0.22f, 0.22f, 0.20f), 0f, 0.18f);
+        Material highBayCeilingMaterial = GetMaterial(
+            "GroundOpsHighBayCeiling", new Color(0.075f, 0.085f, 0.095f), 0.12f, 0.18f);
+        Material highBayFloorMaterial = GetMaterial(
+            "GroundOpsHighBayFloor", new Color(0.58f, 0.62f, 0.65f), 0.18f, 0.72f);
+        Material highBayLightHousingMaterial = GetMaterial(
+            "GroundOpsHighBayLightHousing", new Color(0.72f, 0.75f, 0.77f), 0.22f, 0.52f);
+        Material highBayLightMaterial = GetEmissiveMaterial(
+            "GroundOpsHighBayLights", new Color(0.88f, 0.95f, 1f), 2.8f);
         Material northMaterial = GetMaterial("GroundOpsTrueNorth", new Color(0.16f, 0.40f, 0.95f), 0f, 0.12f);
         Material eastMaterial = GetMaterial("GroundOpsTrueEast", new Color(0.95f, 0.20f, 0.14f), 0f, 0.12f);
         Material skyMaterial = GetSkyMaterial("GroundOpsSky");
@@ -283,6 +291,10 @@ public static class GroundOpsSceneBuilder
             ceilingMaterial,
             lightHousingMaterial,
             lightsOnMaterial,
+            highBayFloorMaterial,
+            highBayCeilingMaterial,
+            highBayLightHousingMaterial,
+            highBayLightMaterial,
             wallPhysicalRenderers,
             wallCutawayRenderers,
             ceilingPhysicalRenderers);
@@ -766,19 +778,15 @@ public static class GroundOpsSceneBuilder
                 new HorizontalWallOpening(opsDoorCenterX, doorWidth, doorHeight),
             },
             material, Vector3.forward, physicalRenderers, cutawayRenderers);
-        Box("Front Hall Window Glass", parent,
-            new Vector3(frontWindowCenterX, (frontWindowBottom + frontWindowTop) / 2f, opsFrontZ),
-            new Vector3(frontWindowWidth, frontWindowTop - frontWindowBottom, 0.045f),
-            Quaternion.identity, GetTransparentMaterial(
-                "GroundOpsWindowGlass", new Color(0.32f, 0.48f, 0.58f, 0.12f)));
+        BuildPaneledWindowAlongX("Front Hall Window", parent, opsFrontZ,
+            frontWindowCenterX, frontWindowWidth, frontWindowBottom, frontWindowTop,
+            GetTransparentMaterial("GroundOpsWindowGlass", new Color(0.32f, 0.48f, 0.58f, 0.12f)),
+            GetMaterial("GroundOpsWindowTrim", new Color(0.16f, 0.18f, 0.20f), 0.15f, 0.25f));
         GameObject frontWindowKnee = Box("Front Hall Window Knee Wall", parent,
             new Vector3(frontWindowCenterX, frontWindowBottom / 2f, opsFrontZ),
             new Vector3(frontWindowWidth, frontWindowBottom + 0.04f, wallThickness),
             Quaternion.identity, material);
         physicalRenderers.Add(frontWindowKnee.GetComponent<Renderer>());
-        BuildWindowFrameAlongX("Front Hall Window Frame", parent, opsFrontZ,
-            frontWindowCenterX, frontWindowWidth, frontWindowBottom, frontWindowTop,
-            GetMaterial("GroundOpsWindowTrim", new Color(0.16f, 0.18f, 0.20f), 0.15f, 0.25f));
 
         // Doorway between the Ops Room and Server Room near the window end.
         const float serverDoorCenterX = -2.70f;
@@ -939,6 +947,10 @@ public static class GroundOpsSceneBuilder
         Material ceilingMaterial,
         Material lightHousingMaterial,
         Material lightMaterial,
+        Material highBayFloorMaterial,
+        Material highBayCeilingMaterial,
+        Material highBayLightHousingMaterial,
+        Material highBayLightMaterial,
         List<Renderer> physicalRenderers,
         List<Renderer> cutawayRenderers,
         List<Renderer> ceilingPhysicalRenderers)
@@ -1035,17 +1047,13 @@ public static class GroundOpsSceneBuilder
             Vector3.right,
             physicalRenderers,
             cutawayRenderers);
-        Box("DOC Hall Window", parent,
-            new Vector3(docWallX, (docHallWindowBottom + docHallWindowTop) / 2f, -2.35f),
-            new Vector3(0.045f, docHallWindowTop - docHallWindowBottom, 6.0f),
-            Quaternion.identity, glassMaterial);
+        BuildPaneledWindowAlongZ("DOC Hall Window", parent, docWallX, -2.35f,
+            6.0f, docHallWindowBottom, docHallWindowTop, glassMaterial, trimMaterial);
         GameObject docWindowKnee = Box("DOC Hall Window Knee Wall", parent,
             new Vector3(docWallX, docHallWindowBottom / 2f, -2.35f),
             new Vector3(wallThickness, docHallWindowBottom + 0.04f, 6.0f),
             Quaternion.identity, wallMaterial);
         physicalRenderers.Add(docWindowKnee.GetComponent<Renderer>());
-        BuildWindowFrameAlongZ("DOC Hall Window Frame", parent, docWallX, -2.35f,
-            6.0f, docHallWindowBottom, docHallWindowTop, trimMaterial);
         // Close the old 0.75 m discontinuity between the generated server wall
         // and the containing-room wall, which begins at local Z=8.75.
         WallBox("Server-to-Chamber Hall Wall Filler", parent, cutaway,
@@ -1058,20 +1066,25 @@ public static class GroundOpsSceneBuilder
         // frontage, door, arrival marker, or scene-transition trigger here.
         BuildChamberHallwayFinish(parent, wallHeight, wallMaterial);
 
-        // Hallway's high-bay side: opaque knee/header bands and three enormous
-        // overlooking windows. No doorway is intentionally provided.
+        // Hallway's high-bay side: two broad paneled windows occupy almost
+        // exactly half of the long corridor. No doorway is intentionally provided.
         const float hallWindowBottom = 0.55f;
         const float hallWindowTop = 3.25f;
-        BuildOverlookWindow("Lower High Bay Overlook", parent, hallwayOuterX,
-            -1.0f, 14.2f, hallWindowBottom, hallWindowTop, wallHeight,
+        BuildWallAlongZWithOpenings(
+            "High Bay Hall Wall", parent, cutaway, hallwayOuterX,
+            hallwayOuterFrontZ, hallwayBackZ, wallHeight, wallThickness,
+            new[]
+            {
+                new WallOpening(-1.9f, 9.0f, hallWindowTop),
+                new WallOpening(19.5f, 9.0f, hallWindowTop),
+            },
+            wallMaterial, Vector3.left, physicalRenderers, cutawayRenderers);
+        BuildOverlookWindow("South High Bay Overlook", parent, hallwayOuterX,
+            -1.9f, 9.0f, hallWindowBottom, hallWindowTop, wallHeight,
             wallThickness, wallMaterial, glassMaterial, trimMaterial,
             physicalRenderers);
-        BuildOverlookWindow("Upper High Bay Overlook", parent, hallwayOuterX,
-            10.3f, 8.4f, hallWindowBottom, hallWindowTop, wallHeight,
-            wallThickness, wallMaterial, glassMaterial, trimMaterial,
-            physicalRenderers);
-        BuildOverlookWindow("Chamber High Bay Overlook", parent, hallwayOuterX,
-            21.0f, 13.0f, hallWindowBottom, hallWindowTop, wallHeight,
+        BuildOverlookWindow("North High Bay Overlook", parent, hallwayOuterX,
+            19.5f, 9.0f, hallWindowBottom, hallWindowTop, wallHeight,
             wallThickness, wallMaterial, glassMaterial, trimMaterial,
             physicalRenderers);
 
@@ -1098,15 +1111,15 @@ public static class GroundOpsSceneBuilder
             new Vector3(wallThickness, wallHeight, hallwayBackZ - 25.75f),
             wallMaterial, Vector3.right, physicalRenderers, cutawayRenderers);
 
-        // Giant empty first-floor high-bay box. The shared overlooking wall is
-        // above; these three walls and the low floor merely establish its scale.
+        // Giant empty first-floor high-bay box. It is deliberately an alluring,
+        // brightly lit volume seen only through glass, not an explorable room.
         Transform highBay = NewGroup("Empty High Bay", parent);
         Box("High Bay Floor", highBay,
             new Vector3((hallwayOuterX + highBayOuterX) / 2f, highBayFloorY - 0.08f,
                 (hallwayOuterFrontZ + hallwayBackZ) / 2f),
             new Vector3(highBayOuterX - hallwayOuterX, 0.16f,
                 hallwayBackZ - hallwayOuterFrontZ),
-            Quaternion.identity, floorMaterial);
+            Quaternion.identity, highBayFloorMaterial);
         Box("High Bay Outer Wall", highBay,
             new Vector3(highBayOuterX, (highBayFloorY + highBayTopY) / 2f,
                 (hallwayOuterFrontZ + hallwayBackZ) / 2f),
@@ -1122,6 +1135,18 @@ public static class GroundOpsSceneBuilder
                 (highBayFloorY + highBayTopY) / 2f, hallwayBackZ),
             new Vector3(highBayOuterX - hallwayOuterX, highBayTopY - highBayFloorY,
                 wallThickness), Quaternion.identity, wallMaterial);
+        const float highBayCeilingThickness = 0.22f;
+        GameObject highBayCeiling = Box("High Bay Ceiling Slab", highBay,
+            new Vector3((hallwayOuterX + highBayOuterX) / 2f,
+                highBayTopY + highBayCeilingThickness / 2f,
+                (hallwayOuterFrontZ + hallwayBackZ) / 2f),
+            new Vector3(highBayOuterX - hallwayOuterX, highBayCeilingThickness,
+                hallwayBackZ - hallwayOuterFrontZ),
+            Quaternion.identity, highBayCeilingMaterial);
+        ceilingPhysicalRenderers.Add(highBayCeiling.GetComponent<Renderer>());
+        BuildHighBayLighting(NewGroup("High Bay Lighting", highBay),
+            hallwayOuterX, highBayOuterX, hallwayOuterFrontZ, hallwayBackZ,
+            highBayTopY, highBayLightHousingMaterial, highBayLightMaterial);
 
         return hallwayLighting;
     }
@@ -1360,6 +1385,54 @@ public static class GroundOpsSceneBuilder
         }
     }
 
+    private static void BuildPaneledWindowAlongZ(
+        string name, Transform parent, float x, float centerZ, float width,
+        float bottom, float top, Material glassMaterial, Material trimMaterial)
+    {
+        Transform window = NewGroup(name, parent);
+        int paneCount = Mathf.Max(1, Mathf.CeilToInt(width / 1.8f));
+        float paneWidth = width / paneCount;
+        float startZ = centerZ - width / 2f;
+        for (int index = 0; index < paneCount; index++)
+        {
+            Box($"Glass Pane {index + 1}", window,
+                new Vector3(x, (bottom + top) / 2f, startZ + paneWidth * (index + 0.5f)),
+                new Vector3(0.045f, top - bottom, paneWidth), Quaternion.identity, glassMaterial);
+        }
+        BuildWindowFrameAlongZ("Frame", window, x, centerZ, width, bottom, top, trimMaterial);
+        const float trim = 0.08f;
+        for (int index = 1; index < paneCount; index++)
+        {
+            Box($"Mullion {index}", window,
+                new Vector3(x, (bottom + top) / 2f, startZ + paneWidth * index),
+                new Vector3(trim, top - bottom, trim), Quaternion.identity, trimMaterial);
+        }
+    }
+
+    private static void BuildPaneledWindowAlongX(
+        string name, Transform parent, float z, float centerX, float width,
+        float bottom, float top, Material glassMaterial, Material trimMaterial)
+    {
+        Transform window = NewGroup(name, parent);
+        int paneCount = Mathf.Max(1, Mathf.CeilToInt(width / 1.8f));
+        float paneWidth = width / paneCount;
+        float startX = centerX - width / 2f;
+        for (int index = 0; index < paneCount; index++)
+        {
+            Box($"Glass Pane {index + 1}", window,
+                new Vector3(startX + paneWidth * (index + 0.5f), (bottom + top) / 2f, z),
+                new Vector3(paneWidth, top - bottom, 0.045f), Quaternion.identity, glassMaterial);
+        }
+        BuildWindowFrameAlongX("Frame", window, z, centerX, width, bottom, top, trimMaterial);
+        const float trim = 0.08f;
+        for (int index = 1; index < paneCount; index++)
+        {
+            Box($"Mullion {index}", window,
+                new Vector3(startX + paneWidth * index, (bottom + top) / 2f, z),
+                new Vector3(trim, top - bottom, trim), Quaternion.identity, trimMaterial);
+        }
+    }
+
     private static void BuildOverlookWindow(
         string name, Transform parent, float x, float centerZ, float width,
         float bottom, float top, float wallHeight, float wallThickness,
@@ -1371,17 +1444,48 @@ public static class GroundOpsSceneBuilder
             new Vector3(x, bottom / 2f, centerZ),
             new Vector3(wallThickness, bottom, width), Quaternion.identity, wallMaterial);
         physicalRenderers.Add(knee.GetComponent<Renderer>());
-        GameObject header = Box("Header Wall", window,
-            new Vector3(x, top + (wallHeight - top) / 2f, centerZ),
-            new Vector3(wallThickness, wallHeight - top, width), Quaternion.identity, wallMaterial);
-        physicalRenderers.Add(header.GetComponent<Renderer>());
-        Box("Glass", window, new Vector3(x, (bottom + top) / 2f, centerZ),
-            new Vector3(0.045f, top - bottom, width), Quaternion.identity, glassMaterial);
-        BuildWindowFrameAlongZ("Frame", window, x, centerZ, width, bottom, top, trimMaterial);
-        BoxCollider glassCollider = window.Find("Glass").GetComponent<BoxCollider>();
-        if (glassCollider != null)
+        BuildPaneledWindowAlongZ("Glazing", window, x, centerZ, width,
+            bottom, top, glassMaterial, trimMaterial);
+        foreach (BoxCollider glassCollider in window.GetComponentsInChildren<BoxCollider>())
         {
-            glassCollider.enabled = true;
+            if (glassCollider.gameObject.name.StartsWith("Glass Pane"))
+            {
+                glassCollider.enabled = true;
+            }
+        }
+    }
+
+    private static void BuildHighBayLighting(
+        Transform parent, float minimumX, float maximumX, float minimumZ, float maximumZ,
+        float ceilingY, Material housingMaterial, Material luminousMaterial)
+    {
+        float[] rowX =
+        {
+            Mathf.Lerp(minimumX, maximumX, 0.28f),
+            Mathf.Lerp(minimumX, maximumX, 0.72f),
+        };
+        float[] fixtureZ = { -4.5f, 2.5f, 9.5f, 16.5f, 23.5f };
+        int fixtureIndex = 1;
+        foreach (float x in rowX)
+        {
+            foreach (float z in fixtureZ)
+            {
+                if (z <= minimumZ + 1f || z >= maximumZ - 1f) continue;
+                Transform fixture = NewGroup($"High Fixture {fixtureIndex++}", parent);
+                Box("Housing", fixture, new Vector3(x, ceilingY - 0.28f, z),
+                    new Vector3(3.4f, 0.18f, 0.34f), Quaternion.identity, housingMaterial);
+                Box("Luminous Panel", fixture, new Vector3(x, ceilingY - 0.385f, z),
+                    new Vector3(3.16f, 0.035f, 0.22f), Quaternion.identity, luminousMaterial);
+                GameObject lightObject = NewGroup("Diffuse Light", fixture).gameObject;
+                lightObject.transform.localPosition = new Vector3(x, ceilingY - 0.52f, z);
+                Light light = lightObject.GetComponent<Light>();
+                if (light == null) light = lightObject.AddComponent<Light>();
+                light.type = LightType.Point;
+                light.color = new Color(0.82f, 0.91f, 1f);
+                light.intensity = 48f;
+                light.range = 20f;
+                light.shadows = LightShadows.None;
+            }
         }
     }
 
@@ -2770,7 +2874,11 @@ public static class GroundOpsSceneBuilder
         SetRendererMask(architecture, DocRenderingLayer);
         SetRendererMask(facilityConnection, HallwayRenderingLayer);
         Transform highBay = facilityConnection.Find("Empty High Bay");
-        if (highBay != null) SetRendererMask(highBay, ExteriorRenderingLayer);
+        if (highBay != null)
+        {
+            SetRendererMask(highBay, ExteriorRenderingLayer);
+            SetLightMask(highBay, ExteriorRenderingLayer);
+        }
         SetRendererMask(exteriorLandscape, ExteriorRenderingLayer);
         SetRendererMask(ceilingLighting, DocRenderingLayer);
         SetRendererMask(furniture, DocRenderingLayer);

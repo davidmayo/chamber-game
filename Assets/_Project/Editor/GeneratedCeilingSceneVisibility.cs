@@ -70,6 +70,7 @@ public static class GeneratedCeilingSceneVisibility
             || objectName.Equals("Operations Room Ceiling Slab", StringComparison.OrdinalIgnoreCase)
             || objectName.Equals("Server Room Ceiling Slab", StringComparison.OrdinalIgnoreCase)
             || objectName.Equals("Hallway L Return Ceiling Slab", StringComparison.OrdinalIgnoreCase)
-            || objectName.Equals("Hallway Long Ceiling Slab", StringComparison.OrdinalIgnoreCase);
+            || objectName.Equals("Hallway Long Ceiling Slab", StringComparison.OrdinalIgnoreCase)
+            || objectName.Equals("High Bay Ceiling Slab", StringComparison.OrdinalIgnoreCase);
     }
 }

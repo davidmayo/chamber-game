@@ -592,6 +592,16 @@ public static class CodexEditorBridge
                     Quaternion.LookRotation(target - viewPosition, Vector3.up));
                 camera.fieldOfView = 72f;
             }
+            else if (preset == "high-bay-overlook")
+            {
+                Transform groundOpsRoot = RequireGroundOpsRoot();
+                Vector3 viewPosition = groundOpsRoot.TransformPoint(new Vector3(7.45f, 1.65f, 19.5f));
+                Vector3 target = groundOpsRoot.TransformPoint(new Vector3(18f, 1.4f, 19.5f));
+                camera.transform.SetPositionAndRotation(
+                    viewPosition,
+                    Quaternion.LookRotation(target - viewPosition, Vector3.up));
+                camera.fieldOfView = 72f;
+            }
             camera.targetTexture = renderTexture;
             camera.Render();
             RenderTexture.active = renderTexture;
@@ -646,6 +656,8 @@ public static class CodexEditorBridge
             request.argument?.Trim(), "hallway-seam", StringComparison.OrdinalIgnoreCase);
         bool captureHallwayL = string.Equals(
             request.argument?.Trim(), "hallway-l", StringComparison.OrdinalIgnoreCase);
+        bool captureHighBay = string.Equals(
+            request.argument?.Trim(), "high-bay-overlook", StringComparison.OrdinalIgnoreCase);
         int width = request.width > 0 ? Mathf.Clamp(request.width, 64, 4096) : 1280;
         int height = request.height > 0 ? Mathf.Clamp(request.height, 64, 4096) : 720;
         RenderTexture renderTexture = new(width, height, 24, RenderTextureFormat.ARGB32);
@@ -787,6 +799,16 @@ public static class CodexEditorBridge
                 Transform groundOpsRoot = RequireGroundOpsRoot();
                 Vector3 viewPosition = groundOpsRoot.TransformPoint(new Vector3(-4.2f, 1.6f, -6.8f));
                 Vector3 target = groundOpsRoot.TransformPoint(new Vector3(7.2f, 1.45f, -6.8f));
+                camera.transform.position = viewPosition;
+                camera.transform.rotation = Quaternion.LookRotation(target - viewPosition, Vector3.up);
+                camera.orthographic = false;
+                camera.fieldOfView = 72f;
+            }
+            else if (captureHighBay)
+            {
+                Transform groundOpsRoot = RequireGroundOpsRoot();
+                Vector3 viewPosition = groundOpsRoot.TransformPoint(new Vector3(7.45f, 1.65f, 19.5f));
+                Vector3 target = groundOpsRoot.TransformPoint(new Vector3(18f, 1.4f, 19.5f));
                 camera.transform.position = viewPosition;
                 camera.transform.rotation = Quaternion.LookRotation(target - viewPosition, Vector3.up);
                 camera.orthographic = false;
