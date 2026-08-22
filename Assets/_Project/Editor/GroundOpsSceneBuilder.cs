@@ -903,27 +903,30 @@ public static class GroundOpsSceneBuilder
         // DOC's second-floor elevation, while the high-bay floor is one story
         // below it. There is deliberately no door from the hallway to the bay.
         const float hallwayOuterX = 8.1f;
-        const float hallwayFrontZ = -6.7f;
-        const float hallwayBackZ = 14.5f;
+        const float hallwayOuterFrontZ = -8.1f;
+        const float hallwayBackZ = 27.5f;
+        const float hallwayFrontLeftX = -5.1f;
         const float highBayOuterX = 25f;
         const float highBayFloorY = -4.0f;
         const float highBayTopY = 9.0f;
         const float docHallWindowBottom = 0.85f;
         const float docHallWindowTop = 3.05f;
         const float serverHallDoorCenterZ = 6.25f;
-        const float hallwayEndDoorCenterX = 6.75f;
         Transform cutaway = NewGroup("Cutaway Surfaces", parent);
 
-        // Second-floor hallway floor: a narrow strip beside the rooms, plus a
-        // short return in front so the existing DOC door actually opens into it.
+        // Complete L-shaped second-floor hallway: a north/south leg beside the
+        // rooms and a full-width return across the DOC entrance wall.
         Box("Hallway Floor", parent,
             new Vector3((docWallX + hallwayOuterX) / 2f, -0.04f,
-                (hallwayFrontZ + hallwayBackZ) / 2f),
-            new Vector3(hallwayOuterX - docWallX, 0.08f, hallwayBackZ - hallwayFrontZ),
+                (hallwayOuterFrontZ + hallwayBackZ) / 2f),
+            new Vector3(hallwayOuterX - docWallX, 0.08f,
+                hallwayBackZ - hallwayOuterFrontZ),
             Quaternion.identity, floorMaterial);
-        Box("DOC Door Landing", parent,
-            new Vector3((4.15f + hallwayOuterX) / 2f, -0.04f, hallwayFrontZ + 0.60f),
-            new Vector3(hallwayOuterX - 4.15f, 0.08f, 1.20f),
+        Box("Hallway L Return Floor", parent,
+            new Vector3((hallwayFrontLeftX + hallwayOuterX) / 2f, -0.04f,
+                (hallwayOuterFrontZ + opsFrontZ) / 2f),
+            new Vector3(hallwayOuterX - hallwayFrontLeftX, 0.08f,
+                opsFrontZ - hallwayOuterFrontZ),
             Quaternion.identity, floorMaterial);
 
         // DOC-side hallway wall. A broad interior window overlooks the DOC;
@@ -961,53 +964,74 @@ public static class GroundOpsSceneBuilder
             new Vector3(docWallX, 0f, serverHallDoorCenterZ), doorWidth, doorHeight,
             true, doorMaterial, trimMaterial);
 
+        // Close the old 0.75 m discontinuity between the generated server wall
+        // and the containing-room wall, which begins at local Z=8.75.
+        WallBox("Server-to-Chamber Hall Wall Filler", parent, cutaway,
+            new Vector3(docWallX, wallHeight / 2f, 8.375f),
+            new Vector3(wallThickness, wallHeight, 0.75f),
+            wallMaterial, Vector3.right, physicalRenderers, cutawayRenderers);
+
         // The real chamber containing-room wall occupies this stretch when the
         // region is placed in the continuous facility. Do not build a duplicate
         // frontage, door, arrival marker, or scene-transition trigger here.
 
-        // Hallway's high-bay side: opaque knee/header bands and two enormous
+        // Hallway's high-bay side: opaque knee/header bands and three enormous
         // overlooking windows. No doorway is intentionally provided.
         const float hallWindowBottom = 0.55f;
         const float hallWindowTop = 3.25f;
         BuildOverlookWindow("Lower High Bay Overlook", parent, hallwayOuterX,
-            -0.05f, 13.12f, hallWindowBottom, hallWindowTop, wallHeight,
+            -1.0f, 14.2f, hallWindowBottom, hallWindowTop, wallHeight,
             wallThickness, wallMaterial, glassMaterial, trimMaterial,
             physicalRenderers);
         BuildOverlookWindow("Upper High Bay Overlook", parent, hallwayOuterX,
-            10.45f, 8.12f, hallWindowBottom, hallWindowTop, wallHeight,
+            10.3f, 8.4f, hallWindowBottom, hallWindowTop, wallHeight,
+            wallThickness, wallMaterial, glassMaterial, trimMaterial,
+            physicalRenderers);
+        BuildOverlookWindow("Chamber High Bay Overlook", parent, hallwayOuterX,
+            21.0f, 13.0f, hallWindowBottom, hallWindowTop, wallHeight,
             wallThickness, wallMaterial, glassMaterial, trimMaterial,
             physicalRenderers);
 
-        // A crude end wall and door make the hall read as a navigable place.
-        BuildWallWithOpeningAlongX(
-            "Hallway End Door Wall", parent, docWallX, hallwayOuterX, hallwayFrontZ,
-            hallwayEndDoorCenterX, doorWidth, doorHeight, wallHeight, wallThickness,
-            wallMaterial, Vector3.forward, cutaway, physicalRenderers, cutawayRenderers);
-        BuildOpenDoor("Hallway End Door", parent,
-            new Vector3(hallwayEndDoorCenterX, 0f, hallwayFrontZ), doorWidth, doorHeight,
-            false, doorMaterial, trimMaterial);
+        // The outside edges of the L are deliberately plain capped walls for
+        // now; no decorative or interactive door geometry is generated here.
+        WallBox("Hallway L Outer Wall", parent, cutaway,
+            new Vector3((hallwayFrontLeftX + hallwayOuterX) / 2f,
+                wallHeight / 2f, hallwayOuterFrontZ),
+            new Vector3(hallwayOuterX - hallwayFrontLeftX, wallHeight, wallThickness),
+            wallMaterial, Vector3.forward, physicalRenderers, cutawayRenderers);
+        WallBox("Hallway L End Cap", parent, cutaway,
+            new Vector3(hallwayFrontLeftX, wallHeight / 2f,
+                (hallwayOuterFrontZ + opsFrontZ) / 2f),
+            new Vector3(wallThickness, wallHeight,
+                opsFrontZ - hallwayOuterFrontZ),
+            wallMaterial, Vector3.right, physicalRenderers, cutawayRenderers);
 
         WallBox("Hallway Back Wall", parent, cutaway,
             new Vector3((docWallX + hallwayOuterX) / 2f, wallHeight / 2f, hallwayBackZ),
             new Vector3(hallwayOuterX - docWallX, wallHeight, wallThickness),
             wallMaterial, Vector3.back, physicalRenderers, cutawayRenderers);
+        WallBox("Hallway North Left Return", parent, cutaway,
+            new Vector3(docWallX, wallHeight / 2f, (25.75f + hallwayBackZ) / 2f),
+            new Vector3(wallThickness, wallHeight, hallwayBackZ - 25.75f),
+            wallMaterial, Vector3.right, physicalRenderers, cutawayRenderers);
 
         // Giant empty first-floor high-bay box. The shared overlooking wall is
         // above; these three walls and the low floor merely establish its scale.
         Transform highBay = NewGroup("Empty High Bay", parent);
         Box("High Bay Floor", highBay,
             new Vector3((hallwayOuterX + highBayOuterX) / 2f, highBayFloorY - 0.08f,
-                (hallwayFrontZ + hallwayBackZ) / 2f),
-            new Vector3(highBayOuterX - hallwayOuterX, 0.16f, hallwayBackZ - hallwayFrontZ),
+                (hallwayOuterFrontZ + hallwayBackZ) / 2f),
+            new Vector3(highBayOuterX - hallwayOuterX, 0.16f,
+                hallwayBackZ - hallwayOuterFrontZ),
             Quaternion.identity, floorMaterial);
         Box("High Bay Outer Wall", highBay,
             new Vector3(highBayOuterX, (highBayFloorY + highBayTopY) / 2f,
-                (hallwayFrontZ + hallwayBackZ) / 2f),
+                (hallwayOuterFrontZ + hallwayBackZ) / 2f),
             new Vector3(wallThickness, highBayTopY - highBayFloorY,
-                hallwayBackZ - hallwayFrontZ), Quaternion.identity, wallMaterial);
+                hallwayBackZ - hallwayOuterFrontZ), Quaternion.identity, wallMaterial);
         Box("High Bay Front Wall", highBay,
             new Vector3((hallwayOuterX + highBayOuterX) / 2f,
-                (highBayFloorY + highBayTopY) / 2f, hallwayFrontZ),
+                (highBayFloorY + highBayTopY) / 2f, hallwayOuterFrontZ),
             new Vector3(highBayOuterX - hallwayOuterX, highBayTopY - highBayFloorY,
                 wallThickness), Quaternion.identity, wallMaterial);
         Box("High Bay Back Wall", highBay,
@@ -2391,7 +2415,7 @@ public static class GroundOpsSceneBuilder
         // Ground Ops/DOC/high-bay footprint, followed by the chamber and its
         // exterior landing. The overlapping rectangles form one continuous
         // protected pad without clearing unrelated landscape behind the ridge.
-        float groundOpsDistance = DistanceOutsideRectangle(x, z, -8f, 27f, -9f, 17f);
+        float groundOpsDistance = DistanceOutsideRectangle(x, z, -8f, 27f, -10f, 29f);
         float chamberDistance = DistanceOutsideRectangle(x, z, -4.5f, 9.5f, 8f, 27f);
         return Mathf.Min(groundOpsDistance, chamberDistance);
     }

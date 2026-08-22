@@ -471,6 +471,12 @@ public static class CodexEditorBridge
             request.argument?.Trim(), "chamber-door", StringComparison.OrdinalIgnoreCase);
         bool captureHallwayDoor = string.Equals(
             request.argument?.Trim(), "hallway-door", StringComparison.OrdinalIgnoreCase);
+        bool captureFacilityPlan = string.Equals(
+            request.argument?.Trim(), "facility-plan", StringComparison.OrdinalIgnoreCase);
+        bool captureHallwaySeam = string.Equals(
+            request.argument?.Trim(), "hallway-seam", StringComparison.OrdinalIgnoreCase);
+        bool captureHallwayL = string.Equals(
+            request.argument?.Trim(), "hallway-l", StringComparison.OrdinalIgnoreCase);
         int width = request.width > 0 ? Mathf.Clamp(request.width, 64, 4096) : 1280;
         int height = request.height > 0 ? Mathf.Clamp(request.height, 64, 4096) : 720;
         RenderTexture renderTexture = new(width, height, 24, RenderTextureFormat.ARGB32);
@@ -571,6 +577,33 @@ public static class CodexEditorBridge
                 camera.transform.rotation = Quaternion.LookRotation(target - viewPosition, Vector3.up);
                 camera.orthographic = false;
                 camera.fieldOfView = 68f;
+            }
+            else if (captureFacilityPlan)
+            {
+                camera.transform.position = new Vector3(-9f, 45f, 7f);
+                camera.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+                camera.orthographic = true;
+                camera.orthographicSize = 21f;
+            }
+            else if (captureHallwaySeam)
+            {
+                Transform groundOpsRoot = RequireGroundOpsRoot();
+                Vector3 viewPosition = groundOpsRoot.TransformPoint(new Vector3(6.8f, 1.6f, 6.5f));
+                Vector3 target = groundOpsRoot.TransformPoint(new Vector3(6.8f, 1.45f, 12.5f));
+                camera.transform.position = viewPosition;
+                camera.transform.rotation = Quaternion.LookRotation(target - viewPosition, Vector3.up);
+                camera.orthographic = false;
+                camera.fieldOfView = 72f;
+            }
+            else if (captureHallwayL)
+            {
+                Transform groundOpsRoot = RequireGroundOpsRoot();
+                Vector3 viewPosition = groundOpsRoot.TransformPoint(new Vector3(-4.2f, 1.6f, -6.8f));
+                Vector3 target = groundOpsRoot.TransformPoint(new Vector3(7.2f, 1.45f, -6.8f));
+                camera.transform.position = viewPosition;
+                camera.transform.rotation = Quaternion.LookRotation(target - viewPosition, Vector3.up);
+                camera.orthographic = false;
+                camera.fieldOfView = 72f;
             }
             camera.targetTexture = renderTexture;
             camera.Render();

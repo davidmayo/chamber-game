@@ -409,8 +409,10 @@ public static class ChamberSceneBuilder
             new Vector3(width, height + wallThickness * 2f, wallThickness), concrete, shellRenderers);
         ShellBox("Rear Wall", shell, new Vector3(0f, centerY, rear + halfThickness),
             new Vector3(width, height + wallThickness * 2f, wallThickness), concrete, shellRenderers);
-        ShellBox("Floor", shell, new Vector3(0f, bottom - halfThickness, centerZ),
-            new Vector3(width, wallThickness, depth), concrete, shellRenderers);
+        // The containing room still extends 0.3 m below the chamber, but its
+        // walkable floor surface is flush with the chamber and hallway at Y=0.
+        ShellBox("Floor", shell, new Vector3(0f, bottom / 2f, centerZ),
+            new Vector3(width, -bottom, depth), concrete, shellRenderers);
         ShellBox("Ceiling", shell, new Vector3(0f, top + halfThickness, centerZ),
             new Vector3(width, wallThickness, depth), concrete, shellRenderers);
 
@@ -431,45 +433,15 @@ public static class ChamberSceneBuilder
             width, height, Vector3.forward, concrete, cutawayRenderers);
         CutawayQuad("Rear Wall", cutaway, new Vector3(0f, centerY, rear),
             width, height, Vector3.back, concrete, cutawayRenderers);
-        CutawayQuad("Floor", cutaway, new Vector3(0f, bottom, centerZ),
+        CutawayQuad("Floor", cutaway, new Vector3(0f, 0f, centerZ),
             width, depth, Vector3.up, concrete, cutawayRenderers);
         CutawayQuad("Ceiling", cutaway, new Vector3(0f, top, centerZ),
             width, depth, Vector3.down, concrete, cutawayRenderers);
 
-        Transform hallwayDoors = NewGroup("Hallway Double Door", parent);
-        const float hallwayDoorLeafThickness = 0.06f;
-        const float hallwayDoorLeafWidth = hallwayDoorWidth / 2f;
-        // These doors are in a wall that runs along Z. Park each open leaf at
-        // 90 degrees to that wall, hinged at the edge of the opening. Keeping
-        // the leaves outside the containing room leaves the entire threshold
-        // clear and avoids the former pair of wall-like slabs beside the player.
-        for (int side = -1; side <= 1; side += 2)
-        {
-            GameObject openLeaf = Box(
-                side < 0 ? "Front Open Leaf" : "Rear Open Leaf", hallwayDoors,
-                new Vector3(left - hallwayDoorLeafWidth / 2f,
-                    bottom + hallwayDoorHeight / 2f,
-                    hallwayDoorCenterZ + side * hallwayDoorWidth / 2f),
-                new Vector3(hallwayDoorLeafWidth, hallwayDoorHeight,
-                    hallwayDoorLeafThickness), concrete);
-            RemoveCollider(openLeaf);
-        }
-        Box("Front Jamb", hallwayDoors,
-            new Vector3(left - halfThickness, hallwayDoorHeight / 2f,
-                hallwayDoorFront - halfThickness),
-            new Vector3(wallThickness * 2f, hallwayDoorHeight, wallThickness), concrete);
-        Box("Rear Jamb", hallwayDoors,
-            new Vector3(left - halfThickness, hallwayDoorHeight / 2f,
-                hallwayDoorRear + halfThickness),
-            new Vector3(wallThickness * 2f, hallwayDoorHeight, wallThickness), concrete);
-        Box("Header", hallwayDoors,
-            new Vector3(left - halfThickness, hallwayDoorHeight + halfThickness,
-                hallwayDoorCenterZ),
-            new Vector3(wallThickness * 2f, wallThickness, hallwayDoorWidth), concrete);
         GameObject transitionLanding = ShellBox("Hallway Transition Landing", shell,
-            new Vector3(left - 1.5f, bottom - halfThickness,
+            new Vector3(left - 1.3f, -0.04f,
                 hallwayDoorCenterZ),
-            new Vector3(3.0f, wallThickness, 3.8f), concrete, shellRenderers);
+            new Vector3(2.6f, 0.08f, 3.8f), concrete, shellRenderers);
         BoxCollider landingCollider = transitionLanding.GetComponent<BoxCollider>();
         if (landingCollider != null)
         {
@@ -534,24 +506,6 @@ public static class ChamberSceneBuilder
             new Vector3(wallThickness, 3.5f, 2f), wall, shellRenderers);
         ShellBox("Above Door", doorWall, new Vector3(-2.5f - halfThickness, 2.75f, 2.5f),
             new Vector3(wallThickness, 1.5f, 1f), wall, shellRenderers);
-        Box("Door Frame Front Jamb", doorWall, new Vector3(-2.5f - halfThickness, 1f, 1.75f),
-            new Vector3(wallThickness, 2f, 0.5f), wall);
-        Box("Door Frame Rear Jamb", doorWall, new Vector3(-2.5f - halfThickness, 1f, 3.25f),
-            new Vector3(wallThickness, 2f, 0.5f), wall);
-        Box("Door Frame Header", doorWall, new Vector3(-2.5f - halfThickness, 2.25f, 2.5f),
-            new Vector3(wallThickness, 0.5f, 2f), wall);
-        // The chamber door opens outward into the containing room. Its hinge is
-        // at the rear jamb and the leaf is perpendicular to the chamber wall,
-        // leaving the full opening clear instead of masquerading as another
-        // dark wall panel alongside it.
-        GameObject openChamberDoor = Box("Open Chamber Door", doorWall,
-            new Vector3(-3.0f - wallThickness, 1f, 3.25f),
-            new Vector3(1f, 2f, 0.06f), wall);
-        RemoveCollider(openChamberDoor);
-        GameObject chamberDoorHandle = Box("Open Chamber Door Handle", doorWall,
-            new Vector3(-3.32f - wallThickness, 1f, 3.21f),
-            new Vector3(0.05f, 0.12f, 0.05f), wall);
-        RemoveCollider(chamberDoorHandle);
 
         Transform solidWall = NewGroup("Right Wall - Solid", parent);
         ShellBox("Wall", solidWall, new Vector3(2.5f + halfThickness, 1.75f, 2.5f),
@@ -1730,15 +1684,6 @@ public static class ChamberSceneBuilder
         GameObject gameObject = Box(name, parent, position, size, material);
         shellRenderers.Add(gameObject.GetComponent<Renderer>());
         return gameObject;
-    }
-
-    private static void RemoveCollider(GameObject gameObject)
-    {
-        Collider collider = gameObject.GetComponent<Collider>();
-        if (collider != null)
-        {
-            Object.DestroyImmediate(collider);
-        }
     }
 
     private static GameObject FrustumSlab(
