@@ -658,6 +658,12 @@ public static class CodexEditorBridge
             request.argument?.Trim(), "hallway-l", StringComparison.OrdinalIgnoreCase);
         bool captureHighBay = string.Equals(
             request.argument?.Trim(), "high-bay-overlook", StringComparison.OrdinalIgnoreCase);
+        bool captureRailTruckRoute = string.Equals(
+            request.argument?.Trim(), "rail-truck-route", StringComparison.OrdinalIgnoreCase);
+        bool captureRailTruckStart = string.Equals(
+            request.argument?.Trim(), "rail-truck-start", StringComparison.OrdinalIgnoreCase);
+        bool captureRailTruckCab = string.Equals(
+            request.argument?.Trim(), "rail-truck-cab", StringComparison.OrdinalIgnoreCase);
         int width = request.width > 0 ? Mathf.Clamp(request.width, 64, 4096) : 1280;
         int height = request.height > 0 ? Mathf.Clamp(request.height, 64, 4096) : 720;
         RenderTexture renderTexture = new(width, height, 24, RenderTextureFormat.ARGB32);
@@ -813,6 +819,44 @@ public static class CodexEditorBridge
                 camera.transform.rotation = Quaternion.LookRotation(target - viewPosition, Vector3.up);
                 camera.orthographic = false;
                 camera.fieldOfView = 72f;
+            }
+            else if (captureRailTruckRoute)
+            {
+                Transform groundOpsRoot = RequireGroundOpsRoot();
+                camera.transform.position = groundOpsRoot.TransformPoint(
+                    new Vector3(-35f, 58f, 16f));
+                camera.transform.rotation = groundOpsRoot.rotation * Quaternion.Euler(90f, 0f, 0f);
+                camera.orthographic = true;
+                camera.orthographicSize = 39f;
+            }
+            else if (captureRailTruckStart)
+            {
+                Transform groundOpsRoot = RequireGroundOpsRoot();
+                Vector3 viewPosition = groundOpsRoot.TransformPoint(
+                    new Vector3(-10.8f, -1.5f, -8.0f));
+                Vector3 target = groundOpsRoot.TransformPoint(
+                    new Vector3(-15f, -3.0f, -4.0f));
+                camera.transform.position = viewPosition;
+                camera.transform.rotation = Quaternion.LookRotation(
+                    target - viewPosition,
+                    Vector3.up);
+                camera.orthographic = false;
+                camera.fieldOfView = 62f;
+            }
+            else if (captureRailTruckCab)
+            {
+                GameObject poseObject = GameObject.Find(
+                    "Ground Ops Blockout/Exterior Landscape/Rail Truck Journey/Rail Truck/Driver Camera Pose");
+                if (poseObject == null)
+                {
+                    throw new InvalidOperationException(
+                        "The generated rail-truck driver camera pose was not found.");
+                }
+                camera.transform.SetPositionAndRotation(
+                    poseObject.transform.position,
+                    poseObject.transform.rotation);
+                camera.orthographic = false;
+                camera.fieldOfView = 68f;
             }
             camera.targetTexture = renderTexture;
             camera.Render();

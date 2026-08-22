@@ -197,6 +197,16 @@ public static class GroundOpsSceneBuilder
             GetMaterial("GroundOpsForestCrown4", new Color(0.29f, 0.43f, 0.19f), 0f, 0.01f),
         };
         Material dishMaterial = GetMaterial("GroundOpsExteriorDish", new Color(0.66f, 0.68f, 0.65f), 0.05f, 0.15f);
+        Material accessRoadMaterial = GetMaterial(
+            "GroundOpsAccessRoad", new Color(0.075f, 0.080f, 0.082f), 0f, 0.08f);
+        Material truckPaintMaterial = GetMaterial(
+            "GroundOpsRailTruckPaint", new Color(0.12f, 0.19f, 0.16f), 0.35f, 0.42f);
+        Material truckMetalMaterial = GetMaterial(
+            "GroundOpsRailTruckMetal", new Color(0.18f, 0.20f, 0.21f), 0.72f, 0.48f);
+        Material truckTireMaterial = GetMaterial(
+            "GroundOpsRailTruckTires", new Color(0.018f, 0.020f, 0.021f), 0f, 0.12f);
+        Material truckGlassMaterial = GetTransparentMaterial(
+            "GroundOpsRailTruckGlass", new Color(0.12f, 0.24f, 0.27f, 0.48f));
         Material playerMaterial = GetMaterial("GroundOpsPlayer", new Color(0.12f, 0.32f, 0.58f), 0f, 0.18f);
         Material lightHousingMaterial = GetMaterial("GroundOpsLightHousing", new Color(0.44f, 0.46f, 0.46f), 0.25f, 0.38f);
         Material lightsOnMaterial = GetEmissiveMaterial(
@@ -424,6 +434,14 @@ public static class GroundOpsSceneBuilder
         }
         BuildDishStationConsole(frontLeftStation, playerController, dishController);
         BuildDsnRackConsole(dsnRackPair, playerController);
+        BuildRailTruckJourney(
+            exteriorLandscape,
+            playerController,
+            accessRoadMaterial,
+            truckPaintMaterial,
+            truckMetalMaterial,
+            truckTireMaterial,
+            truckGlassMaterial);
         ConfigureFacilityLighting(
             scene,
             root,
@@ -2552,12 +2570,16 @@ public static class GroundOpsSceneBuilder
         float initialElevation)
     {
         Mesh terrainMesh = GetMountainTerrainMesh("GroundOps_MountainTerrain");
-        MeshObject("Low-poly Mountain Ridge", parent, terrainMesh, terrainMaterial, false);
+        // This was originally scenery viewed only through the DOC glass. It is
+        // now also the walkable antenna-complex destination of the rail trip.
+        MeshObject("Low-poly Mountain Ridge", parent, terrainMesh, terrainMaterial, true);
 
+        Vector3[] railRoutePoints = GetRailTruckRoutePoints(0f);
         BuildForest(
             NewGroup("Low-poly Forest", parent),
             forestTrunkMaterial,
-            forestCrownMaterials);
+            forestCrownMaterials,
+            railRoutePoints);
 
         // The actual antennas are roughly 2,500 feet (762 m) from the DOC. Their
         // diameters remain at 1:10 scale, but the complex is deliberately staged
@@ -2591,10 +2613,243 @@ public static class GroundOpsSceneBuilder
         return controller;
     }
 
+    private static void BuildRailTruckJourney(
+        Transform exteriorLandscape,
+        FirstPersonPlayerController playerController,
+        Material roadMaterial,
+        Material truckPaintMaterial,
+        Material truckMetalMaterial,
+        Material truckTireMaterial,
+        Material truckGlassMaterial)
+    {
+        Transform journey = NewGroup("Rail Truck Journey", exteriorLandscape);
+        Vector3[] routePoints = GetRailTruckRoutePoints(0.10f);
+
+        Mesh roadMesh = GetRailRoadMesh(
+            "GroundOps_AntennaAccessRoad",
+            routePoints,
+            3.2f);
+        MeshObject("Antenna Access Road", journey, roadMesh, roadMaterial, true);
+
+        // A small terminal apron gives the player a stable, obvious place to
+        // step out without cutting a broad artificial clearing around the dishes.
+        Vector3 routeEnd = routePoints[^1];
+        Box(
+            "Antenna Complex Apron",
+            journey,
+            routeEnd + new Vector3(0f, -0.035f, 0f),
+            new Vector3(4.8f, 0.08f, 5.8f),
+            Quaternion.Euler(0f, -34f, 0f),
+            roadMaterial);
+
+        Transform route = NewGroup("Route Waypoints", journey);
+        Transform[] waypoints = new Transform[routePoints.Length];
+        for (int index = 0; index < routePoints.Length; index++)
+        {
+            Transform waypoint = NewGroup($"Waypoint {index + 1:00}", route);
+            waypoint.localPosition = routePoints[index];
+            waypoints[index] = waypoint;
+        }
+
+        // This point is just inside the blank end wall of the short hallway
+        // return. The transition fades before moving the player down to grade.
+        Transform departurePoint = NewGroup("Hallway Exterior Interaction", journey);
+        departurePoint.localPosition = new Vector3(-4.15f, 1.0f, -6.80f);
+
+        Transform exitPose = NewGroup("Antenna Complex Player Exit", journey);
+        Vector3 exitOffset = new(-2.15f, 0f, 0.45f);
+        Vector3 exitPosition = routeEnd + exitOffset;
+        exitPosition.y = MountainHeight(exitPosition.x, exitPosition.z) + 0.12f;
+        exitPose.localPosition = exitPosition;
+        Vector3 exitLook = new Vector3(
+            DishTerrainCenter.x - exitPosition.x,
+            0f,
+            DishTerrainCenter.y - exitPosition.z);
+        exitPose.localRotation = Quaternion.LookRotation(exitLook.normalized, Vector3.up);
+
+        Transform truck = NewGroup("Rail Truck", journey);
+        Transform[] wheels = BuildRailTruckModel(
+            truck,
+            truckPaintMaterial,
+            truckMetalMaterial,
+            truckTireMaterial,
+            truckGlassMaterial,
+            out Transform driverCameraPose);
+
+        RailTruckController controller =
+            GetOrAddComponent<RailTruckController>(journey.gameObject);
+        controller.Configure(
+            playerController,
+            truck,
+            driverCameraPose,
+            departurePoint,
+            exitPose,
+            waypoints,
+            wheels,
+            5f);
+    }
+
+    private static Transform[] BuildRailTruckModel(
+        Transform truck,
+        Material paintMaterial,
+        Material metalMaterial,
+        Material tireMaterial,
+        Material glassMaterial,
+        out Transform driverCameraPose)
+    {
+        Box("Chassis", truck, new Vector3(0f, 0.43f, 0f),
+            new Vector3(1.90f, 0.24f, 3.65f), Quaternion.identity, metalMaterial);
+        Box("Hood", truck, new Vector3(0f, 0.82f, 1.12f),
+            new Vector3(1.72f, 0.52f, 1.28f), Quaternion.identity, paintMaterial);
+        Box("Cab Roof", truck, new Vector3(0f, 1.72f, -0.05f),
+            new Vector3(1.78f, 0.16f, 1.34f), Quaternion.identity, paintMaterial);
+        Box("Cab Back", truck, new Vector3(0f, 1.25f, -0.70f),
+            new Vector3(1.78f, 0.82f, 0.12f), Quaternion.identity, paintMaterial);
+        Box("Left Cab Pillar", truck, new Vector3(-0.81f, 1.28f, -0.03f),
+            new Vector3(0.14f, 0.82f, 1.20f), Quaternion.identity, paintMaterial);
+        Box("Right Cab Pillar", truck, new Vector3(0.81f, 1.28f, -0.03f),
+            new Vector3(0.14f, 0.82f, 1.20f), Quaternion.identity, paintMaterial);
+        Box("Windshield", truck, new Vector3(0f, 1.35f, 0.58f),
+            new Vector3(1.48f, 0.62f, 0.035f), Quaternion.identity, glassMaterial);
+        Box("Bed Floor", truck, new Vector3(0f, 0.76f, -1.25f),
+            new Vector3(1.72f, 0.15f, 1.18f), Quaternion.identity, paintMaterial);
+        Box("Left Bed Rail", truck, new Vector3(-0.80f, 1.02f, -1.25f),
+            new Vector3(0.13f, 0.55f, 1.20f), Quaternion.identity, paintMaterial);
+        Box("Right Bed Rail", truck, new Vector3(0.80f, 1.02f, -1.25f),
+            new Vector3(0.13f, 0.55f, 1.20f), Quaternion.identity, paintMaterial);
+        Box("Tailgate", truck, new Vector3(0f, 1.02f, -1.80f),
+            new Vector3(1.72f, 0.55f, 0.13f), Quaternion.identity, paintMaterial);
+
+        Vector3[] wheelPositions =
+        {
+            new(-0.98f, 0.42f, 1.18f),
+            new(0.98f, 0.42f, 1.18f),
+            new(-0.98f, 0.42f, -1.22f),
+            new(0.98f, 0.42f, -1.22f),
+        };
+        Transform[] wheels = new Transform[wheelPositions.Length];
+        for (int index = 0; index < wheelPositions.Length; index++)
+        {
+            GameObject wheel = Cylinder(
+                $"Wheel {index + 1}",
+                truck,
+                wheelPositions[index],
+                0.39f,
+                0.24f,
+                tireMaterial);
+            wheel.transform.localRotation = Quaternion.Euler(0f, 0f, 90f);
+            wheels[index] = wheel.transform;
+        }
+
+        driverCameraPose = NewGroup("Driver Camera Pose", truck);
+        driverCameraPose.localPosition = new Vector3(-0.32f, 1.40f, 0.16f);
+        driverCameraPose.localRotation = Quaternion.identity;
+        return wheels;
+    }
+
+    private static Vector3[] GetRailTruckRoutePoints(float heightAboveTerrain)
+    {
+        // Deliberately compressed stage-set path. The real antennas are about
+        // 776 m away; this route is short enough to be a useful gameplay beat.
+        Vector3[] controls =
+        {
+            new(-15.0f, 0f, -4.0f),
+            new(-21.5f, 0f, 1.5f),
+            new(-28.5f, 0f, 9.0f),
+            new(-35.5f, 0f, 17.5f),
+            new(-42.5f, 0f, 25.0f),
+            new(-49.0f, 0f, 31.5f),
+            new(-55.2f, 0f, 35.7f),
+        };
+
+        const int samplesPerControlSegment = 3;
+        List<Vector3> points = new();
+        for (int segment = 0; segment < controls.Length - 1; segment++)
+        {
+            int firstSample = segment == 0 ? 0 : 1;
+            for (int sample = firstSample; sample <= samplesPerControlSegment; sample++)
+            {
+                float t = sample / (float)samplesPerControlSegment;
+                Vector3 point = EvaluateCatmullRom(controls, segment, t);
+                point.y = MountainHeight(point.x, point.z) + heightAboveTerrain;
+                points.Add(point);
+            }
+        }
+        return points.ToArray();
+    }
+
+    private static Vector3 EvaluateCatmullRom(Vector3[] points, int segment, float t)
+    {
+        Vector3 p0 = points[Mathf.Max(0, segment - 1)];
+        Vector3 p1 = points[segment];
+        Vector3 p2 = points[segment + 1];
+        Vector3 p3 = points[Mathf.Min(points.Length - 1, segment + 2)];
+        return 0.5f * (
+            2f * p1
+            + (-p0 + p2) * t
+            + (2f * p0 - 5f * p1 + 4f * p2 - p3) * t * t
+            + (-p0 + 3f * p1 - 3f * p2 + p3) * t * t * t);
+    }
+
+    private static Mesh GetRailRoadMesh(
+        string name,
+        Vector3[] routePoints,
+        float width)
+    {
+        List<Vector3> vertices = new(routePoints.Length * 2);
+        List<int> triangles = new((routePoints.Length - 1) * 6);
+        for (int index = 0; index < routePoints.Length; index++)
+        {
+            Vector3 previous = routePoints[Mathf.Max(0, index - 1)];
+            Vector3 next = routePoints[Mathf.Min(routePoints.Length - 1, index + 1)];
+            Vector3 tangent = Vector3.ProjectOnPlane(next - previous, Vector3.up).normalized;
+            Vector3 side = Vector3.Cross(Vector3.up, tangent).normalized;
+            vertices.Add(routePoints[index] - side * width * 0.5f);
+            vertices.Add(routePoints[index] + side * width * 0.5f);
+        }
+
+        for (int index = 0; index < routePoints.Length - 1; index++)
+        {
+            int currentLeft = index * 2;
+            int currentRight = currentLeft + 1;
+            int nextLeft = currentLeft + 2;
+            int nextRight = currentLeft + 3;
+            triangles.Add(currentLeft);
+            triangles.Add(nextLeft);
+            triangles.Add(currentRight);
+            triangles.Add(currentRight);
+            triangles.Add(nextLeft);
+            triangles.Add(nextRight);
+        }
+        return GetGeneratedMesh(name, vertices, triangles);
+    }
+
+    private static float DistanceToRailTruckRoute(
+        float x,
+        float z,
+        Vector3[] route)
+    {
+        Vector2 point = new(x, z);
+        float closest = float.PositiveInfinity;
+        for (int index = 0; index < route.Length - 1; index++)
+        {
+            Vector2 first = new(route[index].x, route[index].z);
+            Vector2 second = new(route[index + 1].x, route[index + 1].z);
+            Vector2 segment = second - first;
+            float denominator = segment.sqrMagnitude;
+            float t = denominator > 0.0001f
+                ? Mathf.Clamp01(Vector2.Dot(point - first, segment) / denominator)
+                : 0f;
+            closest = Mathf.Min(closest, Vector2.Distance(point, first + segment * t));
+        }
+        return closest;
+    }
+
     private static void BuildForest(
         Transform parent,
         Material trunkMaterial,
-        Material[] crownMaterials)
+        Material[] crownMaterials,
+        Vector3[] railRoutePoints)
     {
         const float spacing = 1.55f;
         const float forestRadius = 112f;
@@ -2623,6 +2878,9 @@ public static class GroundOpsSceneBuilder
                 // procedural forest outside every building footprint, including
                 // the chamber appended beyond the old Ground Ops stage.
                 if (FacilityFootprintDistance(x, z) < 4f) continue;
+                // Retain the dense ridge forest while carving only the narrow
+                // sightline needed for the new access road and moving truck.
+                if (DistanceToRailTruckRoute(x, z, railRoutePoints) < 2.05f) continue;
                 // Only the broad -X half of the landscape is visible through the
                 // curved window. Retain a little backfill beyond the DOC center
                 // so the forest never ends visibly at an exact radial boundary.

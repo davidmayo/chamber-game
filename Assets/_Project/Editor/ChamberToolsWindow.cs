@@ -47,6 +47,11 @@ public sealed class ChamberToolsWindow : EditorWindow
             DrawGroundOpsSatelliteTargetSection();
             EditorGUILayout.Space(6f);
         }
+        if (FindController<RailTruckController>() != null)
+        {
+            DrawRailTruckSection();
+            EditorGUILayout.Space(6f);
+        }
         if (FindController<MotionSensitiveChamberLights>() != null)
         {
             DrawLightingSection();
@@ -156,6 +161,57 @@ public sealed class ChamberToolsWindow : EditorWindow
             FinishChange(target);
         }
 
+        EditorGUILayout.EndVertical();
+    }
+
+    private static void DrawRailTruckSection()
+    {
+        EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+        EditorGUILayout.LabelField("Rail Truck Journey", EditorStyles.boldLabel);
+        RailTruckController controller = FindController<RailTruckController>();
+        if (controller == null)
+        {
+            EditorGUILayout.HelpBox(
+                "The generated rail-truck controller was not found.",
+                MessageType.Warning);
+            EditorGUILayout.EndVertical();
+            return;
+        }
+
+        EditorGUILayout.LabelField("Route length", $"{controller.RouteLengthMeters:0.0} m");
+        EditorGUILayout.LabelField("Drive speed", $"{controller.SpeedMetersPerSecond:0.0} m/s");
+        if (Application.isPlaying)
+        {
+            EditorGUILayout.LabelField("Journey state", controller.StateName);
+            EditorGUILayout.LabelField("Progress", $"{controller.Progress01 * 100f:0}%");
+        }
+        else
+        {
+            EditorGUILayout.HelpBox(
+                "The preview moves only the truck in Edit Mode. Play Mode always starts it at the DOC end of the route.",
+                MessageType.Info);
+            float preview = EditorGUILayout.Slider(
+                "Route preview",
+                controller.EditorPreviewProgress,
+                0f,
+                1f);
+            if (!Mathf.Approximately(preview, controller.EditorPreviewProgress))
+            {
+                RecordUndo(controller, "Preview Rail Truck Route");
+                controller.SetEditorPreviewProgress(preview);
+                FinishChange(controller);
+            }
+        }
+
+        bool drawRoute = EditorGUILayout.Toggle(
+            "Show route gizmo",
+            controller.DrawRouteGizmos);
+        if (drawRoute != controller.DrawRouteGizmos)
+        {
+            RecordUndo(controller, "Toggle Rail Truck Route Gizmo");
+            controller.SetDrawRouteGizmos(drawRoute);
+            FinishChange(controller);
+        }
         EditorGUILayout.EndVertical();
     }
 
