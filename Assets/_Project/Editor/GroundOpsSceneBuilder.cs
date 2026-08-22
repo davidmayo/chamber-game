@@ -15,6 +15,9 @@ using UnityEngine.UI;
 public static class GroundOpsSceneBuilder
 {
     public const string ScenePath = "Assets/_Project/Scenes/GroundOps.unity";
+    private const string MainScenePath = "Assets/_Project/Scenes/Main.unity";
+    private const string GroundOpsChamberArrivalMarker = "Ground Ops Chamber Arrival";
+    public const string MainGroundOpsArrivalMarker = "Main Ground Ops Arrival";
 
     private const string RootName = "Ground Ops Blockout";
     private const string MaterialFolder = "Assets/_Project/Materials";
@@ -253,6 +256,23 @@ public static class GroundOpsSceneBuilder
             doorHeight,
             woodDoorMaterial,
             trimMaterial);
+        BuildFacilityConnection(
+            NewGroup("Hallway and High Bay Blockout", architecture),
+            opsFrontZ,
+            partitionZ,
+            serverBackZ,
+            rightWallX,
+            wallHeight,
+            wallThickness,
+            doorWidth,
+            doorHeight,
+            wallMaterial,
+            carpetMaterial,
+            glassMaterial,
+            trimMaterial,
+            woodDoorMaterial,
+            wallPhysicalRenderers,
+            wallCutawayRenderers);
 
         Transform exteriorLandscape = NewGroup("Exterior Landscape", root);
         GroundOpsDishController dishController = BuildExteriorLandscape(
@@ -673,30 +693,39 @@ public static class GroundOpsSceneBuilder
         float centerY = wallHeight / 2f;
         Transform cutaway = NewGroup("Cutaway Surfaces", parent);
 
-        // Straight right wall shared by the Ops Room and Server Room.
-        WallBox("Right Wall", parent, cutaway,
-            new Vector3(rightWallX, centerY, (opsFrontZ + serverBackZ) / 2f),
-            new Vector3(wallThickness, wallHeight, serverBackZ - opsFrontZ),
-            material, Vector3.left, physicalRenderers, cutawayRenderers);
+        // The old solid right wall has become the DOC/server-room side of the
+        // second-floor hallway. Its openings and windows are emitted by
+        // BuildFacilityConnection so this method does not seal them back up.
 
         // Main Ops entrance opening near the front-right corner.
         const float opsDoorCenterX = 4.15f;
-        BuildWallWithOpeningAlongX(
-            "Ops Entrance",
-            parent,
-            windowPoints[windowPoints.Length - 1].x,
-            rightWallX,
-            opsFrontZ,
-            opsDoorCenterX,
-            doorWidth,
-            doorHeight,
-            wallHeight,
+        const float frontWindowCenterX = -0.45f;
+        const float frontWindowWidth = 5.4f;
+        const float frontWindowBottom = 0.85f;
+        const float frontWindowTop = 3.05f;
+        BuildWallAlongXWithOpenings(
+            "Ops Entrance and Hall Window", parent, cutaway, opsFrontZ,
+            windowPoints[windowPoints.Length - 1].x, rightWallX, wallHeight,
             wallThickness,
-            material,
-            Vector3.forward,
-            cutaway,
-            physicalRenderers,
-            cutawayRenderers);
+            new[]
+            {
+                new HorizontalWallOpening(frontWindowCenterX, frontWindowWidth, frontWindowTop),
+                new HorizontalWallOpening(opsDoorCenterX, doorWidth, doorHeight),
+            },
+            material, Vector3.forward, physicalRenderers, cutawayRenderers);
+        Box("Front Hall Window Glass", parent,
+            new Vector3(frontWindowCenterX, (frontWindowBottom + frontWindowTop) / 2f, opsFrontZ),
+            new Vector3(frontWindowWidth, frontWindowTop - frontWindowBottom, 0.045f),
+            Quaternion.identity, GetTransparentMaterial(
+                "GroundOpsWindowGlass", new Color(0.32f, 0.48f, 0.58f, 0.12f)));
+        GameObject frontWindowKnee = Box("Front Hall Window Knee Wall", parent,
+            new Vector3(frontWindowCenterX, frontWindowBottom / 2f, opsFrontZ),
+            new Vector3(frontWindowWidth, frontWindowBottom + 0.04f, wallThickness),
+            Quaternion.identity, material);
+        physicalRenderers.Add(frontWindowKnee.GetComponent<Renderer>());
+        BuildWindowFrameAlongX("Front Hall Window Frame", parent, opsFrontZ,
+            frontWindowCenterX, frontWindowWidth, frontWindowBottom, frontWindowTop,
+            GetMaterial("GroundOpsWindowTrim", new Color(0.16f, 0.18f, 0.20f), 0.15f, 0.25f));
 
         // Doorway between the Ops Room and Server Room near the window end.
         const float serverDoorCenterX = -2.70f;
@@ -824,16 +853,414 @@ public static class GroundOpsSceneBuilder
     {
         const float centerX = 4.15f;
         const float thickness = 0.055f;
+        // Leave this crude first-pass door permanently open so the player can
+        // actually walk from the DOC onto the new hallway landing.
         Box("Wooden Door", parent,
-            new Vector3(centerX, doorHeight / 2f, wallZ),
-            new Vector3(doorWidth, doorHeight, thickness),
+            new Vector3(centerX + doorWidth / 2f, doorHeight / 2f, wallZ + doorWidth / 2f),
+            new Vector3(thickness, doorHeight, doorWidth),
             Quaternion.identity,
             woodMaterial);
         Box("Door Handle", parent,
-            new Vector3(centerX - doorWidth * 0.34f, 1.02f, wallZ - thickness * 0.62f),
+            new Vector3(centerX + doorWidth / 2f - thickness * 0.62f, 1.02f,
+                wallZ + doorWidth * 0.16f),
             new Vector3(0.05f, 0.12f, 0.05f),
             Quaternion.identity,
             hardwareMaterial);
+    }
+
+    private static void BuildFacilityConnection(
+        Transform parent,
+        float opsFrontZ,
+        float partitionZ,
+        float serverBackZ,
+        float docWallX,
+        float wallHeight,
+        float wallThickness,
+        float doorWidth,
+        float doorHeight,
+        Material wallMaterial,
+        Material floorMaterial,
+        Material glassMaterial,
+        Material trimMaterial,
+        Material doorMaterial,
+        List<Renderer> physicalRenderers,
+        List<Renderer> cutawayRenderers)
+    {
+        // This is intentionally only a spatial sketch. The hallway is on the
+        // DOC's second-floor elevation, while the high-bay floor is one story
+        // below it. There is deliberately no door from the hallway to the bay.
+        const float hallwayOuterX = 8.1f;
+        const float hallwayFrontZ = -6.7f;
+        const float hallwayBackZ = 14.5f;
+        const float highBayOuterX = 25f;
+        const float highBayFloorY = -4.0f;
+        const float highBayTopY = 9.0f;
+        const float docHallWindowBottom = 0.85f;
+        const float docHallWindowTop = 3.05f;
+        const float serverHallDoorCenterZ = 6.25f;
+        const float chamberHallDoorCenterZ = 11.25f;
+        const float chamberDoorWidth = 1.80f;
+        const float hallwayEndDoorCenterX = 6.75f;
+        Transform cutaway = NewGroup("Cutaway Surfaces", parent);
+
+        // Second-floor hallway floor: a narrow strip beside the rooms, plus a
+        // short return in front so the existing DOC door actually opens into it.
+        Box("Hallway Floor", parent,
+            new Vector3((docWallX + hallwayOuterX) / 2f, -0.04f,
+                (hallwayFrontZ + hallwayBackZ) / 2f),
+            new Vector3(hallwayOuterX - docWallX, 0.08f, hallwayBackZ - hallwayFrontZ),
+            Quaternion.identity, floorMaterial);
+        Box("DOC Door Landing", parent,
+            new Vector3((4.15f + hallwayOuterX) / 2f, -0.04f, hallwayFrontZ + 0.60f),
+            new Vector3(hallwayOuterX - 4.15f, 0.08f, 1.20f),
+            Quaternion.identity, floorMaterial);
+
+        // DOC-side hallway wall. A broad interior window overlooks the DOC;
+        // the server-room section gets a plain doorway into the hall.
+        BuildWallAlongZWithOpenings(
+            "DOC and Server Hall Wall",
+            parent,
+            cutaway,
+            docWallX,
+            opsFrontZ,
+            serverBackZ,
+            wallHeight,
+            wallThickness,
+            new[]
+            {
+                new WallOpening(-2.35f, 6.0f, docHallWindowTop),
+                new WallOpening(serverHallDoorCenterZ, doorWidth, doorHeight),
+            },
+            wallMaterial,
+            Vector3.right,
+            physicalRenderers,
+            cutawayRenderers);
+        Box("DOC Hall Window", parent,
+            new Vector3(docWallX, (docHallWindowBottom + docHallWindowTop) / 2f, -2.35f),
+            new Vector3(0.045f, docHallWindowTop - docHallWindowBottom, 6.0f),
+            Quaternion.identity, glassMaterial);
+        GameObject docWindowKnee = Box("DOC Hall Window Knee Wall", parent,
+            new Vector3(docWallX, docHallWindowBottom / 2f, -2.35f),
+            new Vector3(wallThickness, docHallWindowBottom + 0.04f, 6.0f),
+            Quaternion.identity, wallMaterial);
+        physicalRenderers.Add(docWindowKnee.GetComponent<Renderer>());
+        BuildWindowFrameAlongZ("DOC Hall Window Frame", parent, docWallX, -2.35f,
+            6.0f, docHallWindowBottom, docHallWindowTop, trimMaterial);
+        BuildOpenDoor("Server Room Hall Door", parent,
+            new Vector3(docWallX, 0f, serverHallDoorCenterZ), doorWidth, doorHeight,
+            true, doorMaterial, trimMaterial);
+
+        // Placeholder chamber frontage above the server room. For now this is
+        // only a wall and door at the expected hallway location.
+        BuildWallAlongZWithOpenings(
+            "Chamber Hall Wall",
+            parent,
+            cutaway,
+            docWallX,
+            serverBackZ,
+            hallwayBackZ,
+            wallHeight,
+            wallThickness,
+            new[] { new WallOpening(chamberHallDoorCenterZ, chamberDoorWidth, doorHeight) },
+            wallMaterial,
+            Vector3.right,
+            physicalRenderers,
+            cutawayRenderers);
+        BuildOpenDoubleDoor("Chamber Hall Double Door", parent,
+            new Vector3(docWallX, 0f, chamberHallDoorCenterZ), chamberDoorWidth, doorHeight,
+            true, doorMaterial, trimMaterial);
+        BuildPortal("To Anechoic Chamber", parent,
+            new Vector3(docWallX, 1.0f, chamberHallDoorCenterZ),
+            new Vector3(0.9f, 2.0f, chamberDoorWidth * 0.92f),
+            MainScenePath, MainGroundOpsArrivalMarker);
+        Transform groundOpsArrival = NewGroup(GroundOpsChamberArrivalMarker, parent);
+        groundOpsArrival.position = new Vector3(docWallX + 1.35f, 0.05f, chamberHallDoorCenterZ);
+        groundOpsArrival.rotation = Quaternion.LookRotation(Vector3.right, Vector3.up);
+
+        // Hallway's high-bay side: opaque knee/header bands and two enormous
+        // overlooking windows. No doorway is intentionally provided.
+        const float hallWindowBottom = 0.55f;
+        const float hallWindowTop = 3.25f;
+        BuildOverlookWindow("Lower High Bay Overlook", parent, hallwayOuterX,
+            -0.05f, 13.12f, hallWindowBottom, hallWindowTop, wallHeight,
+            wallThickness, wallMaterial, glassMaterial, trimMaterial,
+            physicalRenderers);
+        BuildOverlookWindow("Upper High Bay Overlook", parent, hallwayOuterX,
+            10.45f, 8.12f, hallWindowBottom, hallWindowTop, wallHeight,
+            wallThickness, wallMaterial, glassMaterial, trimMaterial,
+            physicalRenderers);
+
+        // A crude end wall and door make the hall read as a navigable place.
+        BuildWallWithOpeningAlongX(
+            "Hallway End Door Wall", parent, docWallX, hallwayOuterX, hallwayFrontZ,
+            hallwayEndDoorCenterX, doorWidth, doorHeight, wallHeight, wallThickness,
+            wallMaterial, Vector3.forward, cutaway, physicalRenderers, cutawayRenderers);
+        BuildOpenDoor("Hallway End Door", parent,
+            new Vector3(hallwayEndDoorCenterX, 0f, hallwayFrontZ), doorWidth, doorHeight,
+            false, doorMaterial, trimMaterial);
+
+        WallBox("Hallway Back Wall", parent, cutaway,
+            new Vector3((docWallX + hallwayOuterX) / 2f, wallHeight / 2f, hallwayBackZ),
+            new Vector3(hallwayOuterX - docWallX, wallHeight, wallThickness),
+            wallMaterial, Vector3.back, physicalRenderers, cutawayRenderers);
+
+        // Giant empty first-floor high-bay box. The shared overlooking wall is
+        // above; these three walls and the low floor merely establish its scale.
+        Transform highBay = NewGroup("Empty High Bay", parent);
+        Box("High Bay Floor", highBay,
+            new Vector3((hallwayOuterX + highBayOuterX) / 2f, highBayFloorY - 0.08f,
+                (hallwayFrontZ + hallwayBackZ) / 2f),
+            new Vector3(highBayOuterX - hallwayOuterX, 0.16f, hallwayBackZ - hallwayFrontZ),
+            Quaternion.identity, floorMaterial);
+        Box("High Bay Outer Wall", highBay,
+            new Vector3(highBayOuterX, (highBayFloorY + highBayTopY) / 2f,
+                (hallwayFrontZ + hallwayBackZ) / 2f),
+            new Vector3(wallThickness, highBayTopY - highBayFloorY,
+                hallwayBackZ - hallwayFrontZ), Quaternion.identity, wallMaterial);
+        Box("High Bay Front Wall", highBay,
+            new Vector3((hallwayOuterX + highBayOuterX) / 2f,
+                (highBayFloorY + highBayTopY) / 2f, hallwayFrontZ),
+            new Vector3(highBayOuterX - hallwayOuterX, highBayTopY - highBayFloorY,
+                wallThickness), Quaternion.identity, wallMaterial);
+        Box("High Bay Back Wall", highBay,
+            new Vector3((hallwayOuterX + highBayOuterX) / 2f,
+                (highBayFloorY + highBayTopY) / 2f, hallwayBackZ),
+            new Vector3(highBayOuterX - hallwayOuterX, highBayTopY - highBayFloorY,
+                wallThickness), Quaternion.identity, wallMaterial);
+    }
+
+    private readonly struct WallOpening
+    {
+        public WallOpening(float centerZ, float width, float height)
+        {
+            CenterZ = centerZ;
+            Width = width;
+            Height = height;
+        }
+
+        public float CenterZ { get; }
+        public float Width { get; }
+        public float Height { get; }
+    }
+
+    private readonly struct HorizontalWallOpening
+    {
+        public HorizontalWallOpening(float centerX, float width, float height)
+        {
+            CenterX = centerX;
+            Width = width;
+            Height = height;
+        }
+
+        public float CenterX { get; }
+        public float Width { get; }
+        public float Height { get; }
+    }
+
+    private static void BuildWallAlongXWithOpenings(
+        string name, Transform parent, Transform cutawayParent, float z,
+        float minimumX, float maximumX, float wallHeight, float thickness,
+        HorizontalWallOpening[] openings, Material material, Vector3 inwardNormal,
+        List<Renderer> physicalRenderers, List<Renderer> cutawayRenderers)
+    {
+        Transform wall = NewGroup(name, parent);
+        HorizontalWallOpening[] ordered = openings.OrderBy(opening => opening.CenterX).ToArray();
+        float cursor = minimumX;
+        for (int openingIndex = 0; openingIndex < ordered.Length; openingIndex++)
+        {
+            HorizontalWallOpening opening = ordered[openingIndex];
+            float openingStart = opening.CenterX - opening.Width / 2f;
+            float openingEnd = opening.CenterX + opening.Width / 2f;
+            float segmentWidth = openingStart - cursor;
+            if (segmentWidth > 0.001f)
+            {
+                WallBox($"Wall Segment {openingIndex + 1}", wall, cutawayParent,
+                    new Vector3(cursor + segmentWidth / 2f, wallHeight / 2f, z),
+                    new Vector3(segmentWidth, wallHeight, thickness), material,
+                    inwardNormal, physicalRenderers, cutawayRenderers);
+            }
+            float headerHeight = wallHeight - opening.Height;
+            if (headerHeight > 0.001f)
+            {
+                WallBox($"Opening Header {openingIndex + 1}", wall, cutawayParent,
+                    new Vector3(opening.CenterX, opening.Height + headerHeight / 2f, z),
+                    new Vector3(opening.Width, headerHeight, thickness), material,
+                    inwardNormal, physicalRenderers, cutawayRenderers);
+            }
+            cursor = openingEnd;
+        }
+        float finalWidth = maximumX - cursor;
+        if (finalWidth > 0.001f)
+        {
+            WallBox($"Wall Segment {ordered.Length + 1}", wall, cutawayParent,
+                new Vector3(cursor + finalWidth / 2f, wallHeight / 2f, z),
+                new Vector3(finalWidth, wallHeight, thickness), material,
+                inwardNormal, physicalRenderers, cutawayRenderers);
+        }
+    }
+
+    private static void BuildWallAlongZWithOpenings(
+        string name, Transform parent, Transform cutawayParent, float x,
+        float minimumZ, float maximumZ, float wallHeight, float thickness,
+        WallOpening[] openings, Material material, Vector3 inwardNormal,
+        List<Renderer> physicalRenderers, List<Renderer> cutawayRenderers)
+    {
+        Transform wall = NewGroup(name, parent);
+        WallOpening[] ordered = openings.OrderBy(opening => opening.CenterZ).ToArray();
+        float cursor = minimumZ;
+        for (int openingIndex = 0; openingIndex < ordered.Length; openingIndex++)
+        {
+            WallOpening opening = ordered[openingIndex];
+            float openingStart = opening.CenterZ - opening.Width / 2f;
+            float openingEnd = opening.CenterZ + opening.Width / 2f;
+            float segmentLength = openingStart - cursor;
+            if (segmentLength > 0.001f)
+            {
+                WallBox($"Wall Segment {openingIndex + 1}", wall, cutawayParent,
+                    new Vector3(x, wallHeight / 2f, cursor + segmentLength / 2f),
+                    new Vector3(thickness, wallHeight, segmentLength), material,
+                    inwardNormal, physicalRenderers, cutawayRenderers);
+            }
+            float headerHeight = wallHeight - opening.Height;
+            if (headerHeight > 0.001f)
+            {
+                WallBox($"Opening Header {openingIndex + 1}", wall, cutawayParent,
+                    new Vector3(x, opening.Height + headerHeight / 2f, opening.CenterZ),
+                    new Vector3(thickness, headerHeight, opening.Width), material,
+                    inwardNormal, physicalRenderers, cutawayRenderers);
+            }
+            cursor = openingEnd;
+        }
+        float finalLength = maximumZ - cursor;
+        if (finalLength > 0.001f)
+        {
+            WallBox($"Wall Segment {ordered.Length + 1}", wall, cutawayParent,
+                new Vector3(x, wallHeight / 2f, cursor + finalLength / 2f),
+                new Vector3(thickness, wallHeight, finalLength), material,
+                inwardNormal, physicalRenderers, cutawayRenderers);
+        }
+    }
+
+    private static void BuildWindowFrameAlongZ(
+        string name, Transform parent, float x, float centerZ, float width,
+        float bottom, float top, Material material)
+    {
+        Transform frame = NewGroup(name, parent);
+        const float trim = 0.08f;
+        Box("Bottom", frame, new Vector3(x, bottom, centerZ),
+            new Vector3(trim, trim, width), Quaternion.identity, material);
+        Box("Top", frame, new Vector3(x, top, centerZ),
+            new Vector3(trim, trim, width), Quaternion.identity, material);
+        foreach (float z in new[] { centerZ - width / 2f, centerZ + width / 2f })
+        {
+            Box("Jamb", frame, new Vector3(x, (bottom + top) / 2f, z),
+                new Vector3(trim, top - bottom, trim), Quaternion.identity, material);
+        }
+    }
+
+    private static void BuildWindowFrameAlongX(
+        string name, Transform parent, float z, float centerX, float width,
+        float bottom, float top, Material material)
+    {
+        Transform frame = NewGroup(name, parent);
+        const float trim = 0.08f;
+        Box("Bottom", frame, new Vector3(centerX, bottom, z),
+            new Vector3(width, trim, trim), Quaternion.identity, material);
+        Box("Top", frame, new Vector3(centerX, top, z),
+            new Vector3(width, trim, trim), Quaternion.identity, material);
+        foreach (float x in new[] { centerX - width / 2f, centerX + width / 2f })
+        {
+            Box("Jamb", frame, new Vector3(x, (bottom + top) / 2f, z),
+                new Vector3(trim, top - bottom, trim), Quaternion.identity, material);
+        }
+    }
+
+    private static void BuildOverlookWindow(
+        string name, Transform parent, float x, float centerZ, float width,
+        float bottom, float top, float wallHeight, float wallThickness,
+        Material wallMaterial, Material glassMaterial, Material trimMaterial,
+        List<Renderer> physicalRenderers)
+    {
+        Transform window = NewGroup(name, parent);
+        GameObject knee = Box("Knee Wall", window,
+            new Vector3(x, bottom / 2f, centerZ),
+            new Vector3(wallThickness, bottom, width), Quaternion.identity, wallMaterial);
+        physicalRenderers.Add(knee.GetComponent<Renderer>());
+        GameObject header = Box("Header Wall", window,
+            new Vector3(x, top + (wallHeight - top) / 2f, centerZ),
+            new Vector3(wallThickness, wallHeight - top, width), Quaternion.identity, wallMaterial);
+        physicalRenderers.Add(header.GetComponent<Renderer>());
+        Box("Glass", window, new Vector3(x, (bottom + top) / 2f, centerZ),
+            new Vector3(0.045f, top - bottom, width), Quaternion.identity, glassMaterial);
+        BuildWindowFrameAlongZ("Frame", window, x, centerZ, width, bottom, top, trimMaterial);
+        BoxCollider glassCollider = window.Find("Glass").GetComponent<BoxCollider>();
+        if (glassCollider != null)
+        {
+            glassCollider.enabled = true;
+        }
+    }
+
+    private static void BuildOpenDoor(
+        string name, Transform parent, Vector3 openingCenter, float width,
+        float height, bool wallRunsAlongZ, Material doorMaterial, Material trimMaterial)
+    {
+        Transform door = NewGroup(name, parent);
+        const float thickness = 0.055f;
+        // Permanently swung open is the crudest useful door: it reads as a door
+        // and does not need an interaction system before the hall is testable.
+        Vector3 leafCenter = wallRunsAlongZ
+            ? openingCenter + new Vector3(width * 0.48f, height / 2f, width * 0.48f)
+            : openingCenter + new Vector3(width * 0.48f, height / 2f, width * 0.48f);
+        Vector3 leafSize = wallRunsAlongZ
+            ? new Vector3(width, height, thickness)
+            : new Vector3(thickness, height, width);
+        Box("Open Door Leaf", door, leafCenter, leafSize, Quaternion.identity, doorMaterial);
+        Box("Handle", door,
+            leafCenter + (wallRunsAlongZ
+                ? new Vector3(-width * 0.34f, 0f, -thickness)
+                : new Vector3(-thickness, 0f, -width * 0.34f)),
+            new Vector3(0.05f, 0.12f, 0.05f), Quaternion.identity, trimMaterial);
+    }
+
+    private static void BuildOpenDoubleDoor(
+        string name, Transform parent, Vector3 openingCenter, float totalWidth,
+        float height, bool wallRunsAlongZ, Material doorMaterial, Material trimMaterial)
+    {
+        Transform doors = NewGroup(name, parent);
+        float leafWidth = totalWidth / 2f;
+        for (int side = -1; side <= 1; side += 2)
+        {
+            Vector3 leafCenter = wallRunsAlongZ
+                ? openingCenter + new Vector3(leafWidth / 2f, height / 2f,
+                    side * (totalWidth / 2f + leafWidth / 2f))
+                : openingCenter + new Vector3(
+                    side * (totalWidth / 2f + leafWidth / 2f), height / 2f, leafWidth / 2f);
+            Vector3 leafSize = wallRunsAlongZ
+                ? new Vector3(leafWidth, height, 0.055f)
+                : new Vector3(0.055f, height, leafWidth);
+            Box(side < 0 ? "Left Open Leaf" : "Right Open Leaf", doors,
+                leafCenter, leafSize, Quaternion.identity, doorMaterial);
+            Box(side < 0 ? "Left Handle" : "Right Handle", doors,
+                leafCenter + new Vector3(0f, 0f, side * -0.08f),
+                new Vector3(0.05f, 0.12f, 0.05f), Quaternion.identity, trimMaterial);
+        }
+    }
+
+    private static void BuildPortal(
+        string name, Transform parent, Vector3 position, Vector3 size,
+        string destinationScenePath, string destinationArrivalMarker)
+    {
+        Transform portal = NewGroup(name, parent);
+        portal.position = position;
+        portal.rotation = Quaternion.identity;
+        BoxCollider trigger = GetOrAddComponent<BoxCollider>(portal.gameObject);
+        trigger.size = size;
+        trigger.isTrigger = true;
+        Rigidbody body = GetOrAddComponent<Rigidbody>(portal.gameObject);
+        body.isKinematic = true;
+        body.useGravity = false;
+        FacilityScenePortal scenePortal = GetOrAddComponent<FacilityScenePortal>(portal.gameObject);
+        scenePortal.Configure(destinationScenePath, destinationArrivalMarker);
     }
 
     private static Transform BuildStationDesk(
@@ -1952,6 +2379,17 @@ public static class GroundOpsSceneBuilder
         float docGradeWeight = 1f - Mathf.SmoothStep(
             0f, 1f, Mathf.InverseLerp(8f, 22f, worldOffset.magnitude));
         naturalHeight = Mathf.Lerp(naturalHeight, -4.2f, docGradeWeight);
+
+        // Keep the exterior landscape below the enlarged building stage. The
+        // high bay occupies x=8.1..25 and z=-6.7..14.5, with its floor at -4;
+        // without this broader pad the sampled hillside climbs through its walls.
+        float facilityOutsideX = Mathf.Max(0f, Mathf.Max(-8f - x, x - 27f));
+        float facilityOutsideZ = Mathf.Max(0f, Mathf.Max(-9f - z, z - 17f));
+        float facilityOutsideDistance = Mathf.Sqrt(
+            facilityOutsideX * facilityOutsideX + facilityOutsideZ * facilityOutsideZ);
+        float facilityPadWeight = 1f - Mathf.SmoothStep(0f, 1f,
+            Mathf.InverseLerp(0f, 5f, facilityOutsideDistance));
+        naturalHeight = Mathf.Lerp(naturalHeight, -4.35f, facilityPadWeight);
 
         // The real complex follows a ridge, not an isolated summit. Extend the
         // crest through both dishes along their shared lateral axis, then blend
