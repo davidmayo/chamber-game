@@ -227,6 +227,14 @@ public static class GroundOpsSceneBuilder
             "LemsPolishedAluminum", new Color(0.76f, 0.80f, 0.84f), 0.92f, 0.94f);
         Material lemsSolarMaterial = GetMaterial(
             "LemsSolarCells", new Color(0.015f, 0.030f, 0.085f), 0.78f, 0.97f);
+        Material licAluminumMaterial = GetMaterial(
+            "LicPolishedAluminum", new Color(0.78f, 0.81f, 0.84f), 0.90f, 0.92f);
+        Material licDarkMaterial = GetMaterial(
+            "LicInstrumentBlack", new Color(0.025f, 0.028f, 0.030f), 0.45f, 0.68f);
+        Material licGoldMaterial = GetMaterial(
+            "LicSolarGold", new Color(0.78f, 0.48f, 0.055f), 0.82f, 0.86f);
+        Material licSolarMaterial = GetMaterial(
+            "LicSolarCells", new Color(0.010f, 0.018f, 0.030f), 0.72f, 0.94f);
         Material northMaterial = GetMaterial("GroundOpsTrueNorth", new Color(0.16f, 0.40f, 0.95f), 0f, 0.12f);
         Material eastMaterial = GetMaterial("GroundOpsTrueEast", new Color(0.95f, 0.20f, 0.14f), 0f, 0.12f);
         Material skyMaterial = GetSkyMaterial("GroundOpsSky");
@@ -319,6 +327,10 @@ public static class GroundOpsSceneBuilder
             cleanroomLightMaterial,
             lemsAluminumMaterial,
             lemsSolarMaterial,
+            licAluminumMaterial,
+            licDarkMaterial,
+            licGoldMaterial,
+            licSolarMaterial,
             wallPhysicalRenderers,
             wallCutawayRenderers,
             ceilingPhysicalRenderers);
@@ -983,6 +995,10 @@ public static class GroundOpsSceneBuilder
         Material cleanroomLightMaterial,
         Material lemsAluminumMaterial,
         Material lemsSolarMaterial,
+        Material licAluminumMaterial,
+        Material licDarkMaterial,
+        Material licGoldMaterial,
+        Material licSolarMaterial,
         List<Renderer> physicalRenderers,
         List<Renderer> cutawayRenderers,
         List<Renderer> ceilingPhysicalRenderers)
@@ -1207,7 +1223,8 @@ public static class GroundOpsSceneBuilder
         BuildCleanroom(cleanroom, highBayFloorY,
             cleanroomWhiteMaterial, cleanroomFloorMaterial, cleanroomMetalMaterial,
             cleanroomGlassMaterial, cleanroomLightMaterial,
-            lemsAluminumMaterial, lemsSolarMaterial);
+            lemsAluminumMaterial, lemsSolarMaterial,
+            licAluminumMaterial, licDarkMaterial, licGoldMaterial, licSolarMaterial);
 
         return hallwayLighting;
     }
@@ -1552,7 +1569,11 @@ public static class GroundOpsSceneBuilder
         Material plexiglassMaterial,
         Material luminousMaterial,
         Material lemsAluminumMaterial,
-        Material lemsSolarMaterial)
+        Material lemsSolarMaterial,
+        Material licAluminumMaterial,
+        Material licDarkMaterial,
+        Material licGoldMaterial,
+        Material licSolarMaterial)
     {
         // A deliberately simple, sealed pavilion inspired by the real high-bay
         // cleanroom. It is scenery viewed from the second-floor windows, not an
@@ -1622,6 +1643,8 @@ public static class GroundOpsSceneBuilder
             floorY, ceilingY, strut, metalMaterial, plexiglassMaterial);
         BuildLemsSpacecraft(parent, floorY, lemsAluminumMaterial,
             lemsSolarMaterial, ceilingMaterial);
+        BuildLunarIceCube(parent, floorY, licAluminumMaterial,
+            licDarkMaterial, licGoldMaterial, licSolarMaterial);
         float[] frameY = { floorY + strut / 2f, ceilingY - strut / 2f };
         for (int frameIndex = 0; frameIndex < frameY.Length; frameIndex++)
         {
@@ -1749,7 +1772,8 @@ public static class GroundOpsSceneBuilder
         // LEMS occupies the nearer north-west cleanroom compartment. Its broad
         // solar-array face points directly toward the hallway overlook.
         Transform lems = NewGroup("LEMS-A3 (LEMS)", parent);
-        lems.localPosition = new Vector3(18f, floorY, 10f);
+        lems.localPosition = new Vector3(17.054f, floorY, 10.150f);
+        lems.localRotation = Quaternion.Euler(0f, -14.778f, 0f);
 
         const float bodyDepth = 0.60f;
         const float bodyHeight = 0.90f;
@@ -1800,6 +1824,37 @@ public static class GroundOpsSceneBuilder
             new Vector3(0.03f, 0.30f, 0.30f), Quaternion.Euler(0f, 20f, -10f), whiteMaterial);
         Box("Top Antenna 4", lems, new Vector3(-0.213f, 1.045f, -0.800f),
             new Vector3(0.03f, 0.30f, 0.30f), Quaternion.Euler(0f, -20f, -5f), whiteMaterial);
+    }
+
+    private static void BuildLunarIceCube(
+        Transform parent, float floorY, Material aluminumMaterial,
+        Material darkMaterial, Material goldMaterial, Material solarMaterial)
+    {
+        // Lunar IceCube is a 6U CubeSat: a 10 x 20 x 30 cm bus. Its deployed
+        // solar array is the dominant silhouette. Each wing is explicitly
+        // three 30 x 20 cm hinged segments, matching the flight configuration.
+        Transform lic = NewGroup("Lunar IceCube (LIC)", parent);
+        lic.localPosition = new Vector3(17.15f, floorY + 0.42f, 4.0f);
+        lic.localRotation = Quaternion.identity;
+
+        // XZ are the 20 x 30 cm largest faces; Y is the 10 cm thickness.
+        Box("6U Aluminum Bus", lic, Vector3.zero,
+            new Vector3(0.20f, 0.10f, 0.30f), Quaternion.identity, aluminumMaterial);
+
+        // Geometry proof only: the shaft is normal to the two 20 x 30 cm
+        // faces and pierces the midpoint of their edge adjoining a 10 x 20 cm
+        // end face. Each unstyled wing attaches to one end of that shaft and
+        // extends along the same local-Y axis as the shaft: 90 cm of panel,
+        // 10 cm of spacecraft body, then 90 cm of panel.
+        const float shaftZ = -0.15f;
+        Cylinder("Solar Array Shaft", lic, new Vector3(0f, 0f, shaftZ),
+            0.012f, 1.90f, goldMaterial);
+        Box("Positive-Face Solar Wing 20 x 90 cm", lic,
+            new Vector3(0f, 0.50f, shaftZ),
+            new Vector3(0.20f, 0.90f, 0.015f), Quaternion.identity, solarMaterial);
+        Box("Negative-Face Solar Wing 20 x 90 cm", lic,
+            new Vector3(0f, -0.50f, shaftZ),
+            new Vector3(0.20f, 0.90f, 0.015f), Quaternion.identity, solarMaterial);
     }
 
     private static void BuildOpenDoor(
