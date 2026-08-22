@@ -2346,22 +2346,44 @@ public static class ChamberSceneBuilder
             renderTexture = new RenderTexture(width, height, 24, RenderTextureFormat.ARGB32)
             {
                 name = name,
+                antiAliasing = 1,
+                useMipMap = false,
+                autoGenerateMips = false,
+                wrapMode = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Bilinear,
             };
+            // Creation-time properties must be assigned before CreateAsset;
+            // importing the asset may create its underlying render resource.
             AssetDatabase.CreateAsset(renderTexture, path);
         }
-        else if (renderTexture.width != width || renderTexture.height != height)
+        else
         {
-            renderTexture.Release();
-            renderTexture.width = width;
-            renderTexture.height = height;
+            bool descriptorChanged =
+                renderTexture.width != width ||
+                renderTexture.height != height ||
+                renderTexture.depth != 24 ||
+                renderTexture.antiAliasing != 1 ||
+                renderTexture.useMipMap ||
+                renderTexture.autoGenerateMips;
+
+            if (descriptorChanged)
+            {
+                if (renderTexture.IsCreated())
+                    renderTexture.Release();
+
+                renderTexture.width = width;
+                renderTexture.height = height;
+                renderTexture.depth = 24;
+                renderTexture.antiAliasing = 1;
+                renderTexture.useMipMap = false;
+                renderTexture.autoGenerateMips = false;
+            }
+
+            // Sampler settings can be updated without recreating the resource.
+            renderTexture.wrapMode = TextureWrapMode.Clamp;
+            renderTexture.filterMode = FilterMode.Bilinear;
         }
 
-        renderTexture.depth = 24;
-        renderTexture.antiAliasing = 1;
-        renderTexture.useMipMap = false;
-        renderTexture.autoGenerateMips = false;
-        renderTexture.wrapMode = TextureWrapMode.Clamp;
-        renderTexture.filterMode = FilterMode.Bilinear;
         EditorUtility.SetDirty(renderTexture);
         return renderTexture;
     }

@@ -232,7 +232,7 @@ public static class GroundOpsSceneBuilder
         Material licDarkMaterial = GetMaterial(
             "LicInstrumentBlack", new Color(0.025f, 0.028f, 0.030f), 0.45f, 0.68f);
         Material licGoldMaterial = GetMaterial(
-            "LicSolarGold", new Color(0.78f, 0.48f, 0.055f), 0.82f, 0.86f);
+            "LicSolarGold", new Color(1.00f, 0.68f, 0.08f), 0.90f, 0.92f);
         Material licSolarMaterial = GetMaterial(
             "LicSolarCells", new Color(0.010f, 0.018f, 0.030f), 0.72f, 0.94f);
         Material northMaterial = GetMaterial("GroundOpsTrueNorth", new Color(0.16f, 0.40f, 0.95f), 0f, 0.12f);
@@ -1834,27 +1834,103 @@ public static class GroundOpsSceneBuilder
         // solar array is the dominant silhouette. Each wing is explicitly
         // three 30 x 20 cm hinged segments, matching the flight configuration.
         Transform lic = NewGroup("Lunar IceCube (LIC)", parent);
-        lic.localPosition = new Vector3(17.15f, floorY + 0.42f, 4.0f);
-        lic.localRotation = Quaternion.identity;
+        // Persisted from the author's final in-scene placement.
+        Vector3 licPosition = new Vector3(17.123f, -2.283f, 3.978f);
+        Quaternion licRotation = Quaternion.Euler(291.091f, 195.993f, 135.993f);
+        lic.localPosition = licPosition;
+        lic.localRotation = licRotation;
+
+        // A simple black museum-style pedestal supports LIC in the cleanroom.
+        // These transforms preserve the author's final in-scene adjustment.
+        Transform pedestal = NewGroup("LIC Display Pedestal", parent);
+        Cylinder("Black Cylinder Base", pedestal,
+            new Vector3(17.140f, -3.908f, 4.010f),
+            0.24f, 0.12f, darkMaterial);
+        Cylinder("Black Cylinder Shaft", pedestal,
+            new Vector3(17.140f, -3.111f, 4.010f),
+            0.015f, 1.60f, darkMaterial);
 
         // XZ are the 20 x 30 cm largest faces; Y is the 10 cm thickness.
         Box("6U Aluminum Bus", lic, Vector3.zero,
             new Vector3(0.20f, 0.10f, 0.30f), Quaternion.identity, aluminumMaterial);
 
-        // Geometry proof only: the shaft is normal to the two 20 x 30 cm
-        // faces and pierces the midpoint of their edge adjoining a 10 x 20 cm
-        // end face. Each unstyled wing attaches to one end of that shaft and
-        // extends along the same local-Y axis as the shaft: 90 cm of panel,
-        // 10 cm of spacecraft body, then 90 cm of panel.
-        const float shaftZ = -0.15f;
-        Cylinder("Solar Array Shaft", lic, new Vector3(0f, 0f, shaftZ),
-            0.012f, 1.90f, goldMaterial);
-        Box("Positive-Face Solar Wing 20 x 90 cm", lic,
-            new Vector3(0f, 0.50f, shaftZ),
-            new Vector3(0.20f, 0.90f, 0.015f), Quaternion.identity, solarMaterial);
-        Box("Negative-Face Solar Wing 20 x 90 cm", lic,
-            new Vector3(0f, -0.50f, shaftZ),
-            new Vector3(0.20f, 0.90f, 0.015f), Quaternion.identity, solarMaterial);
+        // The shaft is normal to the two 20 x 30 cm faces and pierces the
+        // midpoint of their edge adjoining a 10 x 20 cm end face. The complete
+        // assembly retains the author's 30-degree in-scene rotation.
+        Transform solarArray = NewGroup("Solar Array Assembly", lic);
+        solarArray.localPosition = new Vector3(0f, 0f, -0.131f);
+        solarArray.localRotation = Quaternion.Euler(0f, 150f, 0f);
+
+        Cylinder("Solar Array Shaft", solarArray, Vector3.zero,
+            0.005f, 1.90f, goldMaterial);
+
+        // Each 90 cm wing is three separately framed 20 x 30 cm panels. A
+        // narrow gap exposes the gold backing and makes the hinges legible.
+        for (int side = -1; side <= 1; side += 2)
+        {
+            string sideName = side > 0 ? "Positive" : "Negative";
+            for (int section = 0; section < 3; section++)
+            {
+                float centerY = side * (0.20f + section * 0.30f);
+                Vector3 center = new Vector3(0f, centerY, 0f);
+                string prefix = $"{sideName} Wing Section {section + 1}";
+                Box($"{prefix} Gold Backing", solarArray, center,
+                    new Vector3(0.20f, 0.292f, 0.014f), Quaternion.identity, goldMaterial);
+
+                // Laminate the cell face into the gold backing instead of
+                // floating it in front of the panel. The small overlap is
+                // intentional and keeps the assembly visually solid.
+                Vector3 faceOffset = new Vector3(0f, 0f, -0.006f);
+                Box($"{prefix} Black Cells Front", solarArray, center + faceOffset,
+                    new Vector3(0.176f, 0.266f, 0.006f), Quaternion.identity, solarMaterial);
+
+                // Match the LEMS treatment: a dark cell field with a chunky,
+                // bright grid laid over it. The backing remains uninterrupted
+                // gold, so the non-cell side reads as a solid gold panel.
+                // The grid is likewise embedded into the cell laminate, with
+                // only a few millimetres of relief above the black surface.
+                Vector3 gridOffset = new Vector3(0f, 0f, -0.009f);
+                // Three cells across the 20 cm width and eight cells along
+                // the 30 cm length: four vertical and nine horizontal rails.
+                for (int column = 0; column <= 3; column++)
+                {
+                    float railX = Mathf.Lerp(-0.094f, 0.094f, column / 3f);
+                    Vector3 railCenter = center + gridOffset + new Vector3(railX, 0f, 0f);
+                    Box($"{prefix} Gold Grid Vertical {column + 1}", solarArray, railCenter,
+                        new Vector3(0.006f, 0.286f, 0.004f), Quaternion.identity, goldMaterial);
+                }
+                for (int row = 0; row <= 8; row++)
+                {
+                    float railY = Mathf.Lerp(-0.140f, 0.140f, row / 8f);
+                    Vector3 railCenter = center + gridOffset + new Vector3(0f, railY, 0f);
+                    Box($"{prefix} Gold Grid Horizontal {row + 1}", solarArray, railCenter,
+                        new Vector3(0.198f, 0.010f, 0.004f), Quaternion.identity, goldMaterial);
+                }
+            }
+        }
+
+        // The BIT-3 RF ion thruster is represented by its dark end-face
+        // mounting plate and concentric outlet, matching the most prominent
+        // feature in the reference photographs.
+        GameObject thrusterOuter = Cylinder("BIT-3 Thruster Outer Ring", lic,
+            new Vector3(0f, 0f, 0.142f), 0.034f, 0.018f, goldMaterial);
+        thrusterOuter.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+        GameObject thrusterOpening = Cylinder("BIT-3 Thruster Opening", lic,
+            new Vector3(0f, 0f, 0.140f), 0.0265f, 0.024f, darkMaterial);
+        thrusterOpening.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+
+        // Persist the author's corrected side-face X-band patch assembly.
+        Quaternion patchRotation = Quaternion.Euler(0f, 0f, 90f);
+        Box("X-Band Patch B Base", lic, new Vector3(-0.095f, 0.001f, 0.101f),
+            new Vector3(0.088f, 0.012f, 0.084f), patchRotation, darkMaterial);
+        Box("X-Band Patch B Gold Element (1)", lic, new Vector3(-0.100f, 0.011f, 0.082f),
+            new Vector3(0.019f, 0.003f, 0.019f), patchRotation, goldMaterial);
+        Box("X-Band Patch B Gold Element (2)", lic, new Vector3(-0.099f, 0.011f, 0.082f),
+            new Vector3(0.035f, 0.006f, 0.035f), patchRotation, goldMaterial);
+        Box("X-Band Patch B Gold Element (3)", lic, new Vector3(-0.100f, -0.015f, 0.123f),
+            new Vector3(0.019f, 0.003f, 0.019f), patchRotation, goldMaterial);
+        Box("X-Band Patch B Gold Element (4)", lic, new Vector3(-0.099f, -0.015f, 0.123f),
+            new Vector3(0.035f, 0.006f, 0.035f), patchRotation, goldMaterial);
     }
 
     private static void BuildOpenDoor(
