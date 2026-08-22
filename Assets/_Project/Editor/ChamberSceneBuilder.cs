@@ -15,9 +15,6 @@ using UnityEngine.UI;
 public static class ChamberSceneBuilder
 {
     private const string MainScenePath = "Assets/_Project/Scenes/Main.unity";
-    private const string GroundOpsScenePath = "Assets/_Project/Scenes/GroundOps.unity";
-    private const string MainGroundOpsArrivalMarker = "Main Ground Ops Arrival";
-    private const string GroundOpsChamberArrivalMarker = "Ground Ops Chamber Arrival";
     private const string RootName = "Chamber Geometry";
     private const string MaterialFolder = "Assets/_Project/Materials";
     private const string MeshFolder = "Assets/_Project/Generated/Meshes";
@@ -73,7 +70,7 @@ public static class ChamberSceneBuilder
         EditorApplication.delayCall += BuildNewProjectSceneIfNeeded;
     }
 
-    [MenuItem("Tools/Chamber/Sync Main Scene Geometry")]
+    [MenuItem("Tools/Facility/Sync Continuous Facility")]
     public static void RebuildMainScene()
     {
         if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
@@ -85,13 +82,13 @@ public static class ChamberSceneBuilder
         BuildScene(scene, false);
     }
 
-    [MenuItem("Tools/Chamber/Full Rebuild Main Scene Geometry")]
+    [MenuItem("Tools/Facility/Full Rebuild Continuous Facility")]
     public static void FullRebuildMainScene()
     {
         if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()
             || !EditorUtility.DisplayDialog(
-                "Full chamber rebuild",
-                "This deletes and recreates the complete generated Chamber Geometry hierarchy. Use it only for structural changes that the normal sync cannot reconcile.",
+                "Full facility rebuild",
+                "This deletes and recreates the complete generated chamber hierarchy, then synchronizes the Ground Ops region. Use it only for structural changes that the normal sync cannot reconcile.",
                 "Full Rebuild",
                 "Cancel"))
         {
@@ -347,12 +344,14 @@ public static class ChamberSceneBuilder
         BuildWallCamera(NewGroup("Chamber Wall Camera", root), cameraWhite, dark, monitorView);
 
         FinishSync();
+        GroundOpsSceneBuilder.SyncIntoFacility(scene, playerController);
+        ConfigureContinuousFacilityBuildSettings();
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
         AssetDatabase.SaveAssets();
         Debug.Log(fullRebuild
-            ? "Fully rebuilt chamber geometry in Main.unity."
-            : "Synchronized chamber geometry in Main.unity while preserving stable scene objects.");
+            ? "Fully rebuilt the continuous facility in Main.unity."
+            : "Synchronized the continuous facility in Main.unity while preserving stable scene objects.");
     }
 
     private static void BuildContainingRoom(
@@ -387,23 +386,23 @@ public static class ChamberSceneBuilder
         float hallwayDoorFront = hallwayDoorCenterZ - hallwayDoorWidth / 2f;
         float hallwayDoorRear = hallwayDoorCenterZ + hallwayDoorWidth / 2f;
         ShellBox("Left Wall Front Segment", shell,
-            new Vector3(-(left - halfThickness), centerY,
+            new Vector3(left - halfThickness, centerY,
                 front + (hallwayDoorFront - front) / 2f),
             new Vector3(wallThickness, height + wallThickness * 2f,
                 hallwayDoorFront - front), concrete, shellRenderers);
         ShellBox("Left Wall Rear Segment", shell,
-            new Vector3(-(left - halfThickness), centerY,
+            new Vector3(left - halfThickness, centerY,
                 hallwayDoorRear + (rear - hallwayDoorRear) / 2f),
             new Vector3(wallThickness, height + wallThickness * 2f,
                 rear - hallwayDoorRear), concrete, shellRenderers);
         ShellBox("Left Wall Door Header", shell,
-            new Vector3(-(left - halfThickness),
+            new Vector3(left - halfThickness,
                 hallwayDoorHeight + (top - hallwayDoorHeight) / 2f,
                 hallwayDoorCenterZ),
             new Vector3(wallThickness, top - hallwayDoorHeight,
                 hallwayDoorWidth), concrete, shellRenderers);
         ShellBox("Right Wall", shell,
-            new Vector3(-(right + halfThickness), centerY, centerZ),
+            new Vector3(right + halfThickness, centerY, centerZ),
             new Vector3(wallThickness, height + wallThickness * 2f, depth + wallThickness * 2f),
             concrete, shellRenderers);
         ShellBox("Front Wall", shell, new Vector3(0f, centerY, front - halfThickness),
@@ -417,17 +416,17 @@ public static class ChamberSceneBuilder
 
         Transform cutaway = NewGroup("Cutaway Surfaces", parent);
         CutawayQuad("Left Wall Front Segment", cutaway,
-            new Vector3(-left, centerY, front + (hallwayDoorFront - front) / 2f),
-            hallwayDoorFront - front, height, Vector3.left, concrete, cutawayRenderers);
+            new Vector3(left, centerY, front + (hallwayDoorFront - front) / 2f),
+            hallwayDoorFront - front, height, Vector3.right, concrete, cutawayRenderers);
         CutawayQuad("Left Wall Rear Segment", cutaway,
-            new Vector3(-left, centerY, hallwayDoorRear + (rear - hallwayDoorRear) / 2f),
-            rear - hallwayDoorRear, height, Vector3.left, concrete, cutawayRenderers);
+            new Vector3(left, centerY, hallwayDoorRear + (rear - hallwayDoorRear) / 2f),
+            rear - hallwayDoorRear, height, Vector3.right, concrete, cutawayRenderers);
         CutawayQuad("Left Wall Door Header", cutaway,
-            new Vector3(-left, hallwayDoorHeight + (top - hallwayDoorHeight) / 2f,
+            new Vector3(left, hallwayDoorHeight + (top - hallwayDoorHeight) / 2f,
                 hallwayDoorCenterZ), hallwayDoorWidth, top - hallwayDoorHeight,
-            Vector3.left, concrete, cutawayRenderers);
-        CutawayQuad("Right Wall", cutaway, new Vector3(-right, centerY, centerZ),
-            depth, height, Vector3.right, concrete, cutawayRenderers);
+            Vector3.right, concrete, cutawayRenderers);
+        CutawayQuad("Right Wall", cutaway, new Vector3(right, centerY, centerZ),
+            depth, height, Vector3.left, concrete, cutawayRenderers);
         CutawayQuad("Front Wall", cutaway, new Vector3(0f, centerY, front),
             width, height, Vector3.forward, concrete, cutawayRenderers);
         CutawayQuad("Rear Wall", cutaway, new Vector3(0f, centerY, rear),
@@ -438,16 +437,37 @@ public static class ChamberSceneBuilder
             width, depth, Vector3.down, concrete, cutawayRenderers);
 
         Transform hallwayDoors = NewGroup("Hallway Double Door", parent);
+        const float hallwayDoorLeafThickness = 0.06f;
+        const float hallwayDoorLeafWidth = hallwayDoorWidth / 2f;
+        // These doors are in a wall that runs along Z. Park each open leaf at
+        // 90 degrees to that wall, hinged at the edge of the opening. Keeping
+        // the leaves outside the containing room leaves the entire threshold
+        // clear and avoids the former pair of wall-like slabs beside the player.
         for (int side = -1; side <= 1; side += 2)
         {
-            Box(side < 0 ? "Front Open Leaf" : "Rear Open Leaf", hallwayDoors,
-                new Vector3(-left - 0.08f,
+            GameObject openLeaf = Box(
+                side < 0 ? "Front Open Leaf" : "Rear Open Leaf", hallwayDoors,
+                new Vector3(left - hallwayDoorLeafWidth / 2f,
                     bottom + hallwayDoorHeight / 2f,
-                    hallwayDoorCenterZ + side * hallwayDoorWidth * 0.75f),
-                new Vector3(0.06f, hallwayDoorHeight, hallwayDoorWidth / 2f), concrete);
+                    hallwayDoorCenterZ + side * hallwayDoorWidth / 2f),
+                new Vector3(hallwayDoorLeafWidth, hallwayDoorHeight,
+                    hallwayDoorLeafThickness), concrete);
+            RemoveCollider(openLeaf);
         }
+        Box("Front Jamb", hallwayDoors,
+            new Vector3(left - halfThickness, hallwayDoorHeight / 2f,
+                hallwayDoorFront - halfThickness),
+            new Vector3(wallThickness * 2f, hallwayDoorHeight, wallThickness), concrete);
+        Box("Rear Jamb", hallwayDoors,
+            new Vector3(left - halfThickness, hallwayDoorHeight / 2f,
+                hallwayDoorRear + halfThickness),
+            new Vector3(wallThickness * 2f, hallwayDoorHeight, wallThickness), concrete);
+        Box("Header", hallwayDoors,
+            new Vector3(left - halfThickness, hallwayDoorHeight + halfThickness,
+                hallwayDoorCenterZ),
+            new Vector3(wallThickness * 2f, wallThickness, hallwayDoorWidth), concrete);
         GameObject transitionLanding = ShellBox("Hallway Transition Landing", shell,
-            new Vector3(-left + 1.5f, bottom - halfThickness,
+            new Vector3(left - 1.5f, bottom - halfThickness,
                 hallwayDoorCenterZ),
             new Vector3(3.0f, wallThickness, 3.8f), concrete, shellRenderers);
         BoxCollider landingCollider = transitionLanding.GetComponent<BoxCollider>();
@@ -456,20 +476,10 @@ public static class ChamberSceneBuilder
             landingCollider.enabled = true;
             landingCollider.isTrigger = false;
         }
-        BuildScenePortal("To Ground Ops Hallway", parent,
-            new Vector3(-left + 1.0f, 0.6f, hallwayDoorCenterZ),
-            new Vector3(2.0f, 3.2f, hallwayDoorWidth * 0.96f),
-            GroundOpsScenePath, GroundOpsChamberArrivalMarker);
-        Transform arrival = NewGroup(MainGroundOpsArrivalMarker, parent);
-        arrival.position = MirrorPosition(
-            new Vector3(-left - 1.45f, bottom + 0.05f, hallwayDoorCenterZ));
-        arrival.rotation = MirrorRotation(
-            Quaternion.LookRotation(Vector3.left, Vector3.up));
-
         Transform ceilingLights = NewGroup("Ceiling Lights", parent);
         const float fixtureY = top - 0.04f;
         Vector3 fixtureSize = new(1.15f, 0.08f, 0.28f);
-        Quaternion fixtureRotation = Quaternion.Euler(0f, 90f, 0f);
+        Quaternion fixtureRotation = Quaternion.Euler(0f, -90f, 0f);
         float[] columnX = { -3.5f, -1.75f, 0f, 1.75f, 3.5f };
         float[] sideZ = { -4f, -0.5f, 3f };
         int fixtureNumber = 1;
@@ -477,19 +487,19 @@ public static class ChamberSceneBuilder
         foreach (float x in columnX)
         {
             Box($"Ceiling Light {fixtureNumber++:00}", ceilingLights,
-                new Vector3(x, fixtureY, front + 1.5f), fixtureSize, lightPanel, fixtureRotation);
+                new Vector3(-x, fixtureY, front + 1.5f), fixtureSize, lightPanel, fixtureRotation);
         }
         foreach (float z in sideZ)
         {
             Box($"Ceiling Light {fixtureNumber++:00}", ceilingLights,
-                new Vector3(columnX[0], fixtureY, z), fixtureSize, lightPanel, fixtureRotation);
+                new Vector3(-columnX[0], fixtureY, z), fixtureSize, lightPanel, fixtureRotation);
             Box($"Ceiling Light {fixtureNumber++:00}", ceilingLights,
-                new Vector3(columnX[columnX.Length - 1], fixtureY, z), fixtureSize, lightPanel, fixtureRotation);
+                new Vector3(-columnX[columnX.Length - 1], fixtureY, z), fixtureSize, lightPanel, fixtureRotation);
         }
         foreach (float x in columnX)
         {
             Box($"Ceiling Light {fixtureNumber++:00}", ceilingLights,
-                new Vector3(x, fixtureY, rear - 1.5f), fixtureSize, lightPanel, fixtureRotation);
+                new Vector3(-x, fixtureY, rear - 1.5f), fixtureSize, lightPanel, fixtureRotation);
         }
 
         Transform roomIllumination = NewGroup("Room Illumination", parent);
@@ -518,29 +528,33 @@ public static class ChamberSceneBuilder
         // The front half is a rectangular frustum ending in a 1 x 1 m exterior
         // throat centered on the source antenna at (0, 2.5, -5).
         Transform doorWall = NewGroup("Left Wall - Door", parent);
-        ShellBox("Rear Section", doorWall, new Vector3(2.5f + halfThickness, 1.75f, 4f),
+        ShellBox("Rear Section", doorWall, new Vector3(-2.5f - halfThickness, 1.75f, 4f),
             new Vector3(wallThickness, 3.5f, 2f), wall, shellRenderers);
-        ShellBox("Front Section", doorWall, new Vector3(2.5f + halfThickness, 1.75f, 1f),
+        ShellBox("Front Section", doorWall, new Vector3(-2.5f - halfThickness, 1.75f, 1f),
             new Vector3(wallThickness, 3.5f, 2f), wall, shellRenderers);
-        ShellBox("Above Door", doorWall, new Vector3(2.5f + halfThickness, 2.75f, 2.5f),
+        ShellBox("Above Door", doorWall, new Vector3(-2.5f - halfThickness, 2.75f, 2.5f),
             new Vector3(wallThickness, 1.5f, 1f), wall, shellRenderers);
-        Box("Door Frame Front Jamb", doorWall, new Vector3(2.5f + halfThickness, 1f, 1.75f),
+        Box("Door Frame Front Jamb", doorWall, new Vector3(-2.5f - halfThickness, 1f, 1.75f),
             new Vector3(wallThickness, 2f, 0.5f), wall);
-        Box("Door Frame Rear Jamb", doorWall, new Vector3(2.5f + halfThickness, 1f, 3.25f),
+        Box("Door Frame Rear Jamb", doorWall, new Vector3(-2.5f - halfThickness, 1f, 3.25f),
             new Vector3(wallThickness, 2f, 0.5f), wall);
-        Box("Door Frame Header", doorWall, new Vector3(2.5f + halfThickness, 2.25f, 2.5f),
+        Box("Door Frame Header", doorWall, new Vector3(-2.5f - halfThickness, 2.25f, 2.5f),
             new Vector3(wallThickness, 0.5f, 2f), wall);
-        // Crude permanently-open chamber door leaf. It sits against the rear
-        // jamb so the established opening remains fully walkable.
-        Box("Open Chamber Door", doorWall,
-            new Vector3(2.5f + wallThickness + 0.03f, 1f, 3.55f),
-            new Vector3(0.06f, 2f, 1f), wall);
-        Box("Open Chamber Door Handle", doorWall,
-            new Vector3(2.5f + wallThickness + 0.065f, 1f, 3.22f),
+        // The chamber door opens outward into the containing room. Its hinge is
+        // at the rear jamb and the leaf is perpendicular to the chamber wall,
+        // leaving the full opening clear instead of masquerading as another
+        // dark wall panel alongside it.
+        GameObject openChamberDoor = Box("Open Chamber Door", doorWall,
+            new Vector3(-3.0f - wallThickness, 1f, 3.25f),
+            new Vector3(1f, 2f, 0.06f), wall);
+        RemoveCollider(openChamberDoor);
+        GameObject chamberDoorHandle = Box("Open Chamber Door Handle", doorWall,
+            new Vector3(-3.32f - wallThickness, 1f, 3.21f),
             new Vector3(0.05f, 0.12f, 0.05f), wall);
+        RemoveCollider(chamberDoorHandle);
 
         Transform solidWall = NewGroup("Right Wall - Solid", parent);
-        ShellBox("Wall", solidWall, new Vector3(-2.5f - halfThickness, 1.75f, 2.5f),
+        ShellBox("Wall", solidWall, new Vector3(2.5f + halfThickness, 1.75f, 2.5f),
             new Vector3(wallThickness, 3.5f, 5f), wall, shellRenderers);
 
         Transform backWall = NewGroup("Back Wall", parent);
@@ -580,9 +594,9 @@ public static class ChamberSceneBuilder
         Transform throat = NewGroup("Throat", parent);
         float throatCenterZ = -5f - halfThickness;
         const float throatBorder = 0.125f;
-        Box("Source Frame Right", throat, new Vector3(-0.4375f, 2.5f, throatCenterZ),
+        Box("Source Frame Right", throat, new Vector3(0.4375f, 2.5f, throatCenterZ),
             new Vector3(throatBorder, 1f, wallThickness), wall);
-        Box("Source Frame Left", throat, new Vector3(0.4375f, 2.5f, throatCenterZ),
+        Box("Source Frame Left", throat, new Vector3(-0.4375f, 2.5f, throatCenterZ),
             new Vector3(throatBorder, 1f, wallThickness), wall);
         Box("Source Frame Bottom", throat, new Vector3(0f, 2.0625f, throatCenterZ),
             new Vector3(0.75f, throatBorder, wallThickness), wall);
@@ -596,13 +610,13 @@ public static class ChamberSceneBuilder
 
         Transform cutaway = NewGroup("Cutaway Surfaces", parent);
         CutawayQuad("Door Wall Rear Section", cutaway,
-            new Vector3(2.5f, 1.75f, 4f), 2f, 3.5f, Vector3.left, wall, cutawayRenderers);
+            new Vector3(-2.5f, 1.75f, 4f), 2f, 3.5f, Vector3.right, wall, cutawayRenderers);
         CutawayQuad("Door Wall Front Section", cutaway,
-            new Vector3(2.5f, 1.75f, 1f), 2f, 3.5f, Vector3.left, wall, cutawayRenderers);
+            new Vector3(-2.5f, 1.75f, 1f), 2f, 3.5f, Vector3.right, wall, cutawayRenderers);
         CutawayQuad("Door Wall Above Door", cutaway,
-            new Vector3(2.5f, 2.75f, 2.5f), 1f, 1.5f, Vector3.left, wall, cutawayRenderers);
+            new Vector3(-2.5f, 2.75f, 2.5f), 1f, 1.5f, Vector3.right, wall, cutawayRenderers);
         CutawayQuad("Right Wall", cutaway,
-            new Vector3(-2.5f, 1.75f, 2.5f), 5f, 3.5f, Vector3.right, wall, cutawayRenderers);
+            new Vector3(2.5f, 1.75f, 2.5f), 5f, 3.5f, Vector3.left, wall, cutawayRenderers);
         CutawayQuad("Back Wall", cutaway,
             new Vector3(0f, 1.75f, 5f), 5f, 3.5f, Vector3.back, wall, cutawayRenderers);
         CutawayQuad("Floor", cutaway,
@@ -652,13 +666,13 @@ public static class ChamberSceneBuilder
         }
 
         Transform floodStand = NewGroup("Flood Light Stand", parent);
-        floodStand.localPosition = MirrorPosition(new Vector3(1.5f, 0f, 2f));
+        floodStand.localPosition = new Vector3(-1.5f, 0f, 2f);
         Cylinder("Pole", floodStand, new Vector3(0f, 0.7f, 0f), 0.025f, 1.4f, stand);
 
         Vector3 legStart = new(0f, 0.28f, 0f);
-        Rod("Foot Front Right", floodStand, legStart, new Vector3(0.3f, 0.02f, -0.45f), 0.018f, stand);
-        Rod("Foot Rear Right", floodStand, legStart, new Vector3(0.3f, 0.02f, 0.45f), 0.018f, stand);
-        Rod("Foot Left", floodStand, legStart, new Vector3(-0.5f, 0.02f, 0f), 0.018f, stand);
+        Rod("Foot Front Right", floodStand, legStart, new Vector3(-0.3f, 0.02f, -0.45f), 0.018f, stand);
+        Rod("Foot Rear Right", floodStand, legStart, new Vector3(-0.3f, 0.02f, 0.45f), 0.018f, stand);
+        Rod("Foot Left", floodStand, legStart, new Vector3(0.5f, 0.02f, 0f), 0.018f, stand);
         Box("Crossbar", floodStand, new Vector3(0f, 1.38f, 0f), new Vector3(0.04f, 0.04f, 0.8f), stand);
 
         floodInteractionZone = AcquireObject(
@@ -674,15 +688,15 @@ public static class ChamberSceneBuilder
         List<Light> floodLightList = new();
         List<Renderer> floodPanelList = new();
         Transform heads = NewGroup("Fixed Flood Heads", parent);
-        Vector3 sourceHeadPosition = new(1.5f, 1.5f, 2f);
+        Vector3 sourceHeadPosition = new(-1.5f, 1.5f, 2f);
         Vector3 sourceHeadTarget = new(0f, 1.925f, 2.9f);
-        heads.localPosition = MirrorPosition(sourceHeadPosition);
-        heads.localRotation = MirrorRotation(
-            Quaternion.LookRotation(sourceHeadTarget - sourceHeadPosition, Vector3.up));
+        heads.localPosition = sourceHeadPosition;
+        heads.localRotation =
+            Quaternion.LookRotation(sourceHeadTarget - sourceHeadPosition, Vector3.up);
         foreach (float x in new[] { -0.22f, 0.22f })
         {
             Transform head = NewGroup(x < 0 ? "Right Head" : "Left Head", heads);
-            head.localPosition = MirrorPosition(new Vector3(x, 0f, 0f));
+            head.localPosition = new Vector3(-x, 0f, 0f);
             Box("Frame", head, Vector3.zero, new Vector3(0.32f, 0.22f, 0.07f), dark);
             GameObject panel = Box("Panel", head, new Vector3(0f, 0f, 0.041f),
                 new Vector3(0.26f, 0.16f, 0.012f), lightPanel);
@@ -719,7 +733,7 @@ public static class ChamberSceneBuilder
         out SourceAntennaController sourceAntennaController)
     {
         Transform sourceAntenna = NewGroup("Source Antenna Assembly", parent);
-        sourceAntenna.localPosition = MirrorPosition(new Vector3(0f, 2.5f, -5f));
+        sourceAntenna.localPosition = new Vector3(0f, 2.5f, -5f);
         Transform polarityAssembly = NewGroup("Polarity Assembly", sourceAntenna);
         Pyramid(
             "Rectangular Horn",
@@ -739,7 +753,7 @@ public static class ChamberSceneBuilder
 
         const float liftHeight = 0.2f;
         Transform heightAssembly = NewGroup("Height Assembly", positioner);
-        heightAssembly.localPosition = MirrorPosition(new Vector3(0f, liftHeight, 0f));
+        heightAssembly.localPosition = new Vector3(0f, liftHeight, 0f);
         Box("Scissor Lift Top", heightAssembly, new Vector3(0f, 0.65f, 3.9f), new Vector3(0.75f, 0.1f, 1.5f), lift);
         BuildScissorForks(positioner, lift, liftHeight,
             out Transform[] risingForwardForks,
@@ -765,7 +779,6 @@ public static class ChamberSceneBuilder
         out Transform signalGeneratorCablePort,
         out Transform spectrumAnalyzerCablePort)
     {
-        // Source-coordinate placement before the project's YZ-plane reflection.
         // The console sits outside and parallel to the door-side frustum wall.
         const float tableLength = 5f * 12f * MetersPerInch;
         const float tableDepth = 2.5f * 12f * MetersPerInch;
@@ -774,16 +787,16 @@ public static class ChamberSceneBuilder
         const float legThickness = 0.055f;
         const float containingRoomFloor = -0.3f;
 
-        Vector3 wallOutward = new Vector3(5f, 0f, -2f).normalized;
+        Vector3 wallOutward = new Vector3(-5f, 0f, -2f).normalized;
         const float consoleZ = -2.4f;
-        float wallX = 2.5f + 0.4f * consoleZ;
+        float wallX = -2.5f - 0.4f * consoleZ;
         Vector3 consolePosition = new(
             wallX + wallOutward.x * (tableDepth / 2f + 0.18f),
             containingRoomFloor,
             consoleZ + wallOutward.z * (tableDepth / 2f + 0.18f));
         Quaternion consoleRotation = Quaternion.LookRotation(wallOutward, Vector3.up);
-        parent.localPosition = MirrorPosition(consolePosition);
-        parent.localRotation = MirrorRotation(consoleRotation);
+        parent.localPosition = consolePosition;
+        parent.localRotation = consoleRotation;
 
         Transform desk = NewGroup("Table", parent);
         float topCenterY = tableHeight - tableTopThickness / 2f;
@@ -804,7 +817,7 @@ public static class ChamberSceneBuilder
         }
 
         Transform stool = NewGroup("Stool", parent);
-        Vector3 stoolCenter = new(-0.08f, 0f, 0.72f);
+        Vector3 stoolCenter = new(0.08f, 0f, 0.72f);
         Cylinder("Floor Base", stool, stoolCenter + new Vector3(0f, 0.025f, 0f),
             0.18f, 0.05f, tableMaterial);
         Cylinder("Trunk", stool, stoolCenter + new Vector3(0f, 0.25f, 0f),
@@ -816,17 +829,17 @@ public static class ChamberSceneBuilder
         float tabletopY = tableHeight;
 
         // A compact desktop tower at one end of the table.
-        Box("PC", computer, new Vector3(0.65f, tabletopY + 0.18f, -0.12f),
+        Box("PC", computer, new Vector3(-0.65f, tabletopY + 0.18f, -0.12f),
             new Vector3(0.18f, 0.36f, 0.34f), computerMaterial);
 
         // A deliberately simple keyboard near the operator-facing edge.
-        Box("Keyboard", computer, new Vector3(-0.08f, tabletopY + 0.018f, 0.18f),
+        Box("Keyboard", computer, new Vector3(0.08f, tabletopY + 0.018f, 0.18f),
             new Vector3(0.42f, 0.036f, 0.16f), computerMaterial,
             Quaternion.Euler(-4f, 0f, 0f));
 
         Transform monitor = NewGroup("23-inch LED Monitor", computer);
-        monitor.localPosition = MirrorPosition(new Vector3(-0.33f, 0f, 0f));
-        monitor.localRotation = MirrorRotation(Quaternion.Euler(0f, 12f, 0f));
+        monitor.localPosition = new Vector3(0.33f, 0f, 0f);
+        monitor.localRotation = Quaternion.Euler(0f, -12f, 0f);
         const float monitorDiagonal = 23f * MetersPerInch;
         float screenHeight = monitorDiagonal / Mathf.Sqrt(16f * 16f + 9f * 9f) * 9f;
         float screenWidth = screenHeight * 16f / 9f;
@@ -881,7 +894,7 @@ public static class ChamberSceneBuilder
 
         interactionZone = AcquireObject(
             "Interaction Zone", parent, () => new GameObject("Interaction Zone"));
-        interactionZone.transform.localPosition = MirrorPosition(new Vector3(-0.08f, 0.9f, 0.75f));
+        interactionZone.transform.localPosition = new Vector3(0.08f, 0.9f, 0.75f);
         BoxCollider trigger = GetOrAddComponent<BoxCollider>(interactionZone);
         trigger.size = new Vector3(1.2f, 1.8f, 0.9f);
         trigger.isTrigger = true;
@@ -890,11 +903,11 @@ public static class ChamberSceneBuilder
         triggerBody.useGravity = false;
 
         seatedCameraPose = NewGroup("Seated Camera Pose", parent);
-        Vector3 seatedPosition = new(-0.08f, 1.15f, 0.62f);
-        Vector3 seatedTarget = new(-0.08f, 1.05f, monitorZ);
-        seatedCameraPose.localPosition = MirrorPosition(seatedPosition);
-        seatedCameraPose.localRotation = MirrorRotation(
-            Quaternion.LookRotation(seatedTarget - seatedPosition, Vector3.up));
+        Vector3 seatedPosition = new(0.08f, 1.15f, 0.62f);
+        Vector3 seatedTarget = new(0.08f, 1.05f, monitorZ);
+        seatedCameraPose.localPosition = seatedPosition;
+        seatedCameraPose.localRotation =
+            Quaternion.LookRotation(seatedTarget - seatedPosition, Vector3.up);
     }
 
     private static void BuildSignalGeneratorTable(
@@ -911,8 +924,7 @@ public static class ChamberSceneBuilder
     {
         const float tableGap = 6f * MetersPerInch;
         Transform signalTable = NewGroup("Signal Generator Table", parent);
-        signalTable.localPosition = MirrorPosition(
-            new Vector3(tableLength + tableGap, 0f, 0f));
+        signalTable.localPosition = new Vector3(-(tableLength + tableGap), 0f, 0f);
 
         float topCenterY = tableHeight - tableTopThickness / 2f;
         Box("Tabletop", signalTable, new Vector3(0f, topCenterY, 0f),
@@ -922,13 +934,13 @@ public static class ChamberSceneBuilder
         float legCenterY = legHeight / 2f;
         float legX = tableLength / 2f - 0.08f;
         float legZ = tableDepth / 2f - 0.08f;
-        Box("Front Left Leg", signalTable, new Vector3(-legX, legCenterY, legZ),
+        Box("Front Left Leg", signalTable, new Vector3(legX, legCenterY, legZ),
             new Vector3(legThickness, legHeight, legThickness), tableMaterial);
-        Box("Front Right Leg", signalTable, new Vector3(legX, legCenterY, legZ),
+        Box("Front Right Leg", signalTable, new Vector3(-legX, legCenterY, legZ),
             new Vector3(legThickness, legHeight, legThickness), tableMaterial);
-        Box("Rear Left Leg", signalTable, new Vector3(-legX, legCenterY, -legZ),
+        Box("Rear Left Leg", signalTable, new Vector3(legX, legCenterY, -legZ),
             new Vector3(legThickness, legHeight, legThickness), tableMaterial);
-        Box("Rear Right Leg", signalTable, new Vector3(legX, legCenterY, -legZ),
+        Box("Rear Right Leg", signalTable, new Vector3(-legX, legCenterY, -legZ),
             new Vector3(legThickness, legHeight, legThickness), tableMaterial);
 
         const float bodyWidth = 0.40f;
@@ -943,10 +955,10 @@ public static class ChamberSceneBuilder
             + Mathf.Sin(tiltRadians) * bodyDepth / 2f;
 
         Transform stand = NewGroup("Signal Generator Stand", signalTable);
-        stand.localPosition = MirrorPosition(new Vector3(generatorX, 0f, 0f));
-        Box("Left Rail", stand, new Vector3(-0.15f, tableHeight + 0.012f, 0f),
+        stand.localPosition = new Vector3(-generatorX, 0f, 0f);
+        Box("Left Rail", stand, new Vector3(0.15f, tableHeight + 0.012f, 0f),
             new Vector3(0.025f, 0.024f, 0.52f), standMaterial);
-        Box("Right Rail", stand, new Vector3(0.15f, tableHeight + 0.012f, 0f),
+        Box("Right Rail", stand, new Vector3(-0.15f, tableHeight + 0.012f, 0f),
             new Vector3(0.025f, 0.024f, 0.52f), standMaterial);
         Rod("Rear Prop", stand,
             new Vector3(0f, tableHeight + 0.02f, -0.23f),
@@ -956,12 +968,12 @@ public static class ChamberSceneBuilder
             true);
 
         Transform signalGenerator = NewGroup("Signal Generator", signalTable);
-        signalGenerator.localPosition = MirrorPosition(new Vector3(
-            generatorX,
+        signalGenerator.localPosition = new Vector3(
+            -generatorX,
             tableHeight + projectedHalfHeight + 0.02f,
-            0f));
-        signalGenerator.localRotation = MirrorRotation(
-            Quaternion.Euler(tiltDegrees, generatorYawDegrees, 0f));
+            0f);
+        signalGenerator.localRotation =
+            Quaternion.Euler(tiltDegrees, -generatorYawDegrees, 0f);
         Box("Chassis", signalGenerator, Vector3.zero,
             new Vector3(bodyWidth, bodyHeight, bodyDepth), signalGeneratorMaterial);
 
@@ -1078,11 +1090,11 @@ public static class ChamberSceneBuilder
         Cylinder(
             "Left Wall Feedthrough",
             parent,
-            new Vector3(-2.67f, containingRoomFloor + 0.5f, 2.5f),
+            new Vector3(2.67f, containingRoomFloor + 0.5f, 2.5f),
             0.025f,
             0.04f,
             material,
-            Quaternion.Euler(0f, 0f, 90f));
+            Quaternion.Euler(0f, 0f, -90f));
     }
 
     private static void BuildSpectrumAnalyzer(
@@ -1098,10 +1110,10 @@ public static class ChamberSceneBuilder
         const float bodyDepth = 0.30f;
         const float analyzerX = 0.33f;
         Transform stand = NewGroup("Spectrum Analyzer Stand", parent);
-        stand.localPosition = MirrorPosition(new Vector3(analyzerX, 0f, 0f));
-        Box("Left Foot", stand, new Vector3(-0.18f, tabletopY + 0.012f, 0.02f),
+        stand.localPosition = new Vector3(-analyzerX, 0f, 0f);
+        Box("Left Foot", stand, new Vector3(0.18f, tabletopY + 0.012f, 0.02f),
             new Vector3(0.028f, 0.024f, 0.32f), darkMaterial);
-        Box("Right Foot", stand, new Vector3(0.18f, tabletopY + 0.012f, 0.02f),
+        Box("Right Foot", stand, new Vector3(-0.18f, tabletopY + 0.012f, 0.02f),
             new Vector3(0.028f, 0.024f, 0.32f), darkMaterial);
         Rod("Rear Prop", stand,
             new Vector3(0f, tabletopY + 0.02f, -0.13f),
@@ -1111,11 +1123,11 @@ public static class ChamberSceneBuilder
             true);
 
         Transform analyzer = NewGroup("Spectrum Analyzer", parent);
-        analyzer.localPosition = MirrorPosition(new Vector3(analyzerX, tabletopY + 0.155f, 0f));
-        analyzer.localRotation = MirrorRotation(Quaternion.Euler(-30f, -14f, 0f));
+        analyzer.localPosition = new Vector3(-analyzerX, tabletopY + 0.155f, 0f);
+        analyzer.localRotation = Quaternion.Euler(-30f, 14f, 0f);
         Box("Chassis", analyzer, Vector3.zero,
             new Vector3(bodyWidth, bodyHeight, bodyDepth), bodyMaterial);
-        Box("CRT Bezel", analyzer, new Vector3(-0.105f, 0.015f, bodyDepth / 2f + 0.008f),
+        Box("CRT Bezel", analyzer, new Vector3(0.105f, 0.015f, bodyDepth / 2f + 0.008f),
             new Vector3(0.235f, 0.195f, 0.018f), darkMaterial);
 
         Transform controls = NewGroup("Controls", analyzer);
@@ -1125,12 +1137,12 @@ public static class ChamberSceneBuilder
             foreach (float y in new[] { 0.078f, 0.035f, -0.008f })
             {
                 Box($"Button {buttonIndex++}", controls,
-                    new Vector3(x, y, bodyDepth / 2f + 0.021f),
+                    new Vector3(-x, y, bodyDepth / 2f + 0.021f),
                     new Vector3(0.043f, 0.025f, 0.012f), darkMaterial);
             }
         }
         Cylinder("Tuning Knob", controls,
-            new Vector3(0.085f, -0.078f, bodyDepth / 2f + 0.036f),
+            new Vector3(-0.085f, -0.078f, bodyDepth / 2f + 0.036f),
             0.036f,
             0.028f,
             darkMaterial,
@@ -1138,7 +1150,7 @@ public static class ChamberSceneBuilder
         foreach (float x in new[] { 0.145f, 0.19f })
         {
             Box("Lower Button", controls,
-                new Vector3(x, -0.078f, bodyDepth / 2f + 0.022f),
+                new Vector3(-x, -0.078f, bodyDepth / 2f + 0.022f),
                 new Vector3(0.035f, 0.027f, 0.012f), darkMaterial);
         }
 
@@ -1146,7 +1158,7 @@ public static class ChamberSceneBuilder
         GameObject rasterScreen = Quad(
             "CRT Raster Screen",
             display,
-            new Vector3(-0.105f, 0.015f, bodyDepth / 2f + 0.019f),
+            new Vector3(0.105f, 0.015f, bodyDepth / 2f + 0.019f),
             0.205f,
             0.168f,
             Vector3.forward,
@@ -1166,7 +1178,7 @@ public static class ChamberSceneBuilder
         GameObject port = Cylinder(
             "Front Cable Port",
             analyzer,
-            new Vector3(-0.05f, -0.105f, bodyDepth / 2f + 0.025f),
+            new Vector3(0.05f, -0.105f, bodyDepth / 2f + 0.025f),
             0.018f,
             0.035f,
             darkMaterial,
@@ -1179,13 +1191,13 @@ public static class ChamberSceneBuilder
         Material controlMaterial,
         out GameObject interactionZone)
     {
-        Vector3 controlPosition = new(2f, 1.2f, 4.88f);
+        Vector3 controlPosition = new(-2f, 1.2f, 4.88f);
         Box("Red Lift Control", parent, controlPosition,
             new Vector3(0.2f, 0.2f, 0.2f), controlMaterial);
 
         interactionZone = AcquireObject(
             "Interaction Zone", parent, () => new GameObject("Interaction Zone"));
-        interactionZone.transform.localPosition = MirrorPosition(new Vector3(2f, 1f, 4.25f));
+        interactionZone.transform.localPosition = new Vector3(-2f, 1f, 4.25f);
         BoxCollider trigger = GetOrAddComponent<BoxCollider>(interactionZone);
         trigger.size = new Vector3(1.2f, 2f, 1.25f);
         trigger.isTrigger = true;
@@ -1205,11 +1217,11 @@ public static class ChamberSceneBuilder
             + TiltAxisZeroLiftHeight
             + PanDiskTopAboveTiltAxis
             - PanDiskThickness / 2f;
-        Vector3 cameraPosition = new(-2.5f, 1.5f, 2.5f);
+        Vector3 cameraPosition = new(2.5f, 1.5f, 2.5f);
         Vector3 targetPosition = new(0f, panDiskCenterY, 3f);
-        parent.localPosition = MirrorPosition(cameraPosition);
-        parent.localRotation = MirrorRotation(
-            Quaternion.LookRotation(targetPosition - cameraPosition, Vector3.up));
+        parent.localPosition = cameraPosition;
+        parent.localRotation =
+            Quaternion.LookRotation(targetPosition - cameraPosition, Vector3.up);
 
         const float housingLength = 0.3f;
         const float housingRadius = 0.05f;
@@ -1260,21 +1272,21 @@ public static class ChamberSceneBuilder
         float bodyHeight = screenHeight + bezel * 2f;
         float centerY = roomFloorY + displayCenterAboveFloor;
 
-        Vector3 wallOutward = new Vector3(5f, 0f, -2f).normalized;
+        Vector3 wallOutward = new Vector3(-5f, 0f, -2f).normalized;
         const float centerZ = -2.4f;
-        float wallX = 2.5f + 0.4f * centerZ;
+        float wallX = -2.5f - 0.4f * centerZ;
         Vector3 displayCenter = new(wallX, centerY, centerZ);
         displayCenter += wallOutward * (wallThickness + bodyDepth / 2f + 0.01f);
         Quaternion displayRotation = Quaternion.LookRotation(wallOutward, Vector3.up);
-        parent.localPosition = MirrorPosition(displayCenter);
-        parent.localRotation = MirrorRotation(displayRotation);
+        parent.localPosition = displayCenter;
+        parent.localRotation = displayRotation;
 
         float centerOffset = (bodyWidth + displayGap) / 2f;
         for (int index = 0; index < 2; index++)
         {
             float x = index == 0 ? -centerOffset : centerOffset;
             Transform display = NewGroup($"40-inch TV {index + 1}", parent);
-            display.localPosition = MirrorPosition(new Vector3(x, 0f, 0f));
+            display.localPosition = new Vector3(-x, 0f, 0f);
             Box("Body", display, Vector3.zero,
                 new Vector3(bodyWidth, bodyHeight, bodyDepth), bodyMaterial);
             Box("Screen", display, new Vector3(0f, 0f, bodyDepth / 2f + 0.003f),
@@ -1323,8 +1335,8 @@ public static class ChamberSceneBuilder
                 typeof(Canvas),
                 typeof(CanvasScaler)));
         RectTransform canvasTransform = canvasObject.GetComponent<RectTransform>();
-        canvasTransform.localPosition = MirrorPosition(position);
-        canvasTransform.localRotation = MirrorRotation(Quaternion.Euler(0f, 180f, 0f));
+        canvasTransform.localPosition = position;
+        canvasTransform.localRotation = Quaternion.Euler(0f, -180f, 0f);
         canvasTransform.localScale = Vector3.one * (width / canvasPixelWidth);
         canvasTransform.sizeDelta = new Vector2(canvasPixelWidth, canvasPixelHeight);
 
@@ -1375,12 +1387,12 @@ public static class ChamberSceneBuilder
         foreach (float sideX in new[] { -0.3f, 0.3f })
         {
             GameObject forward = Rod("Rising Forward", forks,
-                new Vector3(sideX - 0.015f, 0.6f, 3.9f - halfZ),
-                new Vector3(sideX - 0.015f, 0.6f + height, 3.9f + halfZ),
+                new Vector3(-sideX + 0.015f, 0.6f, 3.9f - halfZ),
+                new Vector3(-sideX + 0.015f, 0.6f + height, 3.9f + halfZ),
                 0.025f, material, true);
             GameObject backward = Rod("Rising Backward", forks,
-                new Vector3(sideX + 0.015f, 0.6f, 3.9f + halfZ),
-                new Vector3(sideX + 0.015f, 0.6f + height, 3.9f - halfZ),
+                new Vector3(-sideX - 0.015f, 0.6f, 3.9f + halfZ),
+                new Vector3(-sideX - 0.015f, 0.6f + height, 3.9f - halfZ),
                 0.025f, material, true);
             forwardForks.Add(forward.transform);
             backwardForks.Add(backward.transform);
@@ -1410,7 +1422,7 @@ public static class ChamberSceneBuilder
                 new Vector3(x, hubY, hubZ),
                 HousingCrownDiameter / 2f, material, true);
             Cylinder("Crown", housing, new Vector3(x, hubY, hubZ), HousingCrownDiameter / 2f,
-                HousingUprightWidth, material, Quaternion.Euler(0f, 0f, 90f));
+                HousingUprightWidth, material, Quaternion.Euler(0f, 0f, -90f));
         }
 
         Box("Housing Connector", parent,
@@ -1428,25 +1440,25 @@ public static class ChamberSceneBuilder
         Transform[] risingBackwardForks)
     {
         Transform turntable = NewGroup("Turntable", parent);
-        turntable.localPosition = MirrorPosition(new Vector3(0f, TiltAxisZeroLiftHeight, 3f));
+        turntable.localPosition = new Vector3(0f, TiltAxisZeroLiftHeight, 3f);
         Transform tiltAssembly = NewGroup("Tilt Assembly", turntable);
 
         float leftHousingOuterFaceX = -HousingOverallWidth / 2f;
         float tiltDiskInnerFaceX = leftHousingOuterFaceX - TiltDiskHousingClearance;
         float tiltDiskOuterFaceX = tiltDiskInnerFaceX - TiltDiskThickness;
         float tiltDiskX = (tiltDiskInnerFaceX + tiltDiskOuterFaceX) / 2f;
-        HalfCylinder("Tilt Disk", tiltAssembly, new Vector3(tiltDiskX, 0f, 0f),
+        HalfCylinder("Tilt Disk", tiltAssembly, new Vector3(-tiltDiskX, 0f, 0f),
             TiltDiskDiameter / 2f, TiltDiskThickness, orange);
         Box("Tilt Housing", tiltAssembly, new Vector3(0f, -0.1f, 0f), new Vector3(0.6f, 0.2f, 0.4f), orange);
 
         float shaftRight = HousingOverallWidth / 2f + TurnShaftEndExtension;
         float shaftLeft = tiltDiskOuterFaceX - TurnShaftEndExtension;
-        Cylinder("Tilt Shaft", tiltAssembly, new Vector3((shaftRight + shaftLeft) / 2f, 0f, 0f),
-            TurnShaftDiameter / 2f, shaftRight - shaftLeft, orange, Quaternion.Euler(0f, 0f, 90f));
+        Cylinder("Tilt Shaft", tiltAssembly, new Vector3(-(shaftRight + shaftLeft) / 2f, 0f, 0f),
+            TurnShaftDiameter / 2f, shaftRight - shaftLeft, orange, Quaternion.Euler(0f, 0f, -90f));
 
         Transform panAssembly = NewGroup("Pan Assembly", tiltAssembly);
-        panAssembly.localPosition = MirrorPosition(
-            new Vector3(0f, PanDiskTopAboveTiltAxis - PanDiskThickness / 2f, 0f));
+        panAssembly.localPosition =
+            new Vector3(0f, PanDiskTopAboveTiltAxis - PanDiskThickness / 2f, 0f);
         Cylinder("Turning Surface", panAssembly, Vector3.zero, PanDiskDiameter / 2f, PanDiskThickness, purple);
         BuildAutMount(panAssembly, purple);
         BuildAntennaUnderTest(panAssembly, yellow);
@@ -1463,9 +1475,9 @@ public static class ChamberSceneBuilder
     private static void BuildAutMount(Transform parent, Material material)
     {
         Transform mount = NewGroup("AUT Mount", parent);
-        mount.localPosition = MirrorPosition(new Vector3(0f,
+        mount.localPosition = new Vector3(0f,
             PanDiskThickness / 2f + AutMountClearance + AutMountHeight / 2f,
-            AutMountBackOffset));
+            AutMountBackOffset);
 
         const float memberThickness = 0.02f;
         float plateY = (AutMountHeight - memberThickness) / 2f;
@@ -1480,7 +1492,7 @@ public static class ChamberSceneBuilder
         {
             foreach (float z in new[] { -(AutMountDepth - memberThickness) / 2f, (AutMountDepth - memberThickness) / 2f })
             {
-                Box($"Post {index++}", mount, new Vector3(x, 0f, z),
+                Box($"Post {index++}", mount, new Vector3(-x, 0f, z),
                     new Vector3(memberThickness, postHeight, memberThickness), material);
             }
         }
@@ -1489,9 +1501,9 @@ public static class ChamberSceneBuilder
     private static void BuildAntennaUnderTest(Transform parent, Material material)
     {
         Transform aut = NewGroup("Antenna Under Test", parent);
-        aut.localPosition = MirrorPosition(new Vector3(0f,
+        aut.localPosition = new Vector3(0f,
             PanDiskThickness / 2f + AutMountClearance + AutMountHeight,
-            AutMountBackOffset));
+            AutMountBackOffset);
 
         const float height = 0.2f;
         const float depth = 0.2f;
@@ -1499,7 +1511,7 @@ public static class ChamberSceneBuilder
         Box("Stem", aut, new Vector3(0f, height / 2f, 0f), new Vector3(tube, height, tube), material);
         Box("Arm", aut, new Vector3(0f, height - tube / 2f, -depth / 2f), new Vector3(tube, tube, depth), material);
         Transform pivot = NewGroup("Antenna Pivot", aut);
-        pivot.localPosition = MirrorPosition(new Vector3(0f, height - tube / 2f, -depth));
+        pivot.localPosition = new Vector3(0f, height - tube / 2f, -depth);
         Box("Patch Antenna", pivot, new Vector3(0f, 0f, -0.01f), new Vector3(0.1f, 0.1f, 0.02f), material);
     }
 
@@ -1547,20 +1559,20 @@ public static class ChamberSceneBuilder
         if (camera != null)
         {
             // Start just outside the door (world -X) and look into the chamber.
-            Vector3 sourcePosition = new(3f, 1.7f, 2.5f);
+            Vector3 sourcePosition = new(-3f, 1.7f, 2.5f);
             Vector3 sourceTarget = new(0f, 1.5f, 2.5f);
-            camera.transform.position = MirrorPosition(sourcePosition);
-            camera.transform.rotation = MirrorRotation(
-                Quaternion.LookRotation(sourceTarget - sourcePosition, Vector3.up));
+            camera.transform.position = sourcePosition;
+            camera.transform.rotation =
+                Quaternion.LookRotation(sourceTarget - sourcePosition, Vector3.up);
             camera.nearClipPlane = 0.05f;
+            camera.farClipPlane = 220f;
+            camera.clearFlags = CameraClearFlags.Skybox;
         }
 
         foreach (Light light in Object.FindObjectsByType<Light>(FindObjectsSortMode.None))
         {
             if (light.type != LightType.Directional) continue;
-            light.transform.rotation = MirrorRotation(Quaternion.Euler(50f, -30f, 0f));
-            light.intensity = 1.2f;
-            break;
+            light.enabled = false;
         }
     }
 
@@ -1574,6 +1586,34 @@ public static class ChamberSceneBuilder
 
         GameObject namedCamera = GameObject.Find("Main Camera");
         return namedCamera != null ? namedCamera.GetComponent<Camera>() : null;
+    }
+
+    private static void ConfigureContinuousFacilityBuildSettings()
+    {
+        List<EditorBuildSettingsScene> scenes = new(EditorBuildSettings.scenes.Length + 1);
+        bool foundMain = false;
+        foreach (EditorBuildSettingsScene configuredScene in EditorBuildSettings.scenes)
+        {
+            if (configuredScene.path == MainScenePath)
+            {
+                scenes.Add(new EditorBuildSettingsScene(MainScenePath, true));
+                foundMain = true;
+            }
+            else if (configuredScene.path == GroundOpsSceneBuilder.ScenePath)
+            {
+                scenes.Add(new EditorBuildSettingsScene(configuredScene.path, false));
+            }
+            else
+            {
+                scenes.Add(configuredScene);
+            }
+        }
+
+        if (!foundMain)
+        {
+            scenes.Insert(0, new EditorBuildSettingsScene(MainScenePath, true));
+        }
+        EditorBuildSettings.scenes = scenes.ToArray();
     }
 
     private static void BeginSync(GameObject existingRoot)
@@ -1656,24 +1696,6 @@ public static class ChamberSceneBuilder
         return component != null ? component : gameObject.AddComponent<T>();
     }
 
-    private static void BuildScenePortal(
-        string name, Transform parent, Vector3 position, Vector3 size,
-        string destinationScenePath, string destinationArrivalMarker)
-    {
-        Transform portal = NewGroup(name, parent);
-        portal.position = MirrorPosition(position);
-        portal.rotation = MirrorRotation(Quaternion.identity);
-        portal.localScale = Vector3.one;
-        BoxCollider trigger = GetOrAddComponent<BoxCollider>(portal.gameObject);
-        trigger.size = size;
-        trigger.isTrigger = true;
-        Rigidbody body = GetOrAddComponent<Rigidbody>(portal.gameObject);
-        body.isKinematic = true;
-        body.useGravity = false;
-        FacilityScenePortal scenePortal = GetOrAddComponent<FacilityScenePortal>(portal.gameObject);
-        scenePortal.Configure(destinationScenePath, destinationArrivalMarker);
-    }
-
     private static Transform NewGroup(string name, Transform parent)
     {
         GameObject group = AcquireObject(name, parent, () => new GameObject(name));
@@ -1708,6 +1730,15 @@ public static class ChamberSceneBuilder
         GameObject gameObject = Box(name, parent, position, size, material);
         shellRenderers.Add(gameObject.GetComponent<Renderer>());
         return gameObject;
+    }
+
+    private static void RemoveCollider(GameObject gameObject)
+    {
+        Collider collider = gameObject.GetComponent<Collider>();
+        if (collider != null)
+        {
+            Object.DestroyImmediate(collider);
+        }
     }
 
     private static GameObject FrustumSlab(
@@ -2134,7 +2165,7 @@ public static class ChamberSceneBuilder
         };
         Mesh mesh = GetGeneratedMesh($"{name}_Pyramid", vertices, triangles);
         GameObject gameObject = MeshObject(name, parent, mesh, material, true);
-        gameObject.transform.localPosition = MirrorPosition(position);
+        gameObject.transform.localPosition = position;
         return gameObject;
     }
 
@@ -2240,7 +2271,7 @@ public static class ChamberSceneBuilder
             vertices.ToArray(),
             triangles.ToArray());
         GameObject gameObject = MeshObject(name, parent, mesh, material, true);
-        gameObject.transform.localPosition = MirrorPosition(position);
+        gameObject.transform.localPosition = position;
         return gameObject;
     }
 
@@ -2279,24 +2310,13 @@ public static class ChamberSceneBuilder
     {
         gameObject.name = name;
         gameObject.transform.SetParent(parent, false);
-        gameObject.transform.localPosition = MirrorPosition(position);
-        gameObject.transform.localRotation = MirrorRotation(rotation);
+        gameObject.transform.localPosition = position;
+        gameObject.transform.localRotation = rotation;
         gameObject.transform.localScale = scale;
         Renderer renderer = gameObject.GetComponent<Renderer>();
         renderer.sharedMaterial = material;
         renderer.shadowCastingMode = ShadowCastingMode.On;
         renderer.receiveShadows = true;
-    }
-
-    private static Vector3 MirrorPosition(Vector3 position)
-    {
-        return new Vector3(-position.x, position.y, position.z);
-    }
-
-    private static Quaternion MirrorRotation(Quaternion rotation)
-    {
-        // For reflection S = diag(-1, 1, 1), the mirrored rotation is S * R * S.
-        return new Quaternion(rotation.x, -rotation.y, -rotation.z, rotation.w);
     }
 
     private static Material GetMaterial(

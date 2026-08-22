@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using UnityEditor;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
@@ -10,6 +9,7 @@ using UnityEngine;
 
 public static class ProjectBuildPipeline
 {
+    private const string FacilityScenePath = "Assets/_Project/Scenes/Main.unity";
     private const string BuildMenuPath =
         "Tools/Build/Clean and Build Windows + Linux";
 
@@ -107,17 +107,7 @@ public static class ProjectBuildPipeline
 
     private static string[] GetEnabledScenes()
     {
-        string[] scenes = EditorBuildSettings.scenes
-            .Where(scene => scene.enabled)
-            .Select(scene => scene.path)
-            .Where(path => !string.IsNullOrWhiteSpace(path))
-            .ToArray();
-
-        if (scenes.Length == 0)
-        {
-            throw new BuildFailedException(
-                "No enabled scenes were found in Build Profiles/Scene List.");
-        }
+        string[] scenes = { FacilityScenePath };
 
         foreach (string scene in scenes)
         {

@@ -182,8 +182,25 @@ public sealed class ChamberToolsWindow : EditorWindow
         EditorGUILayout.BeginVertical(EditorStyles.helpBox);
         EditorGUILayout.LabelField("Scene Visualization", EditorStyles.boldLabel);
 
-        ChamberShellVisibilityController controller = FindController<ChamberShellVisibilityController>();
-        if (controller == null)
+        ChamberShellVisibilityController[] controllers =
+            Object.FindObjectsByType<ChamberShellVisibilityController>(
+                FindObjectsInactive.Include,
+                FindObjectsSortMode.None);
+        ChamberShellVisibilityController chamber = null;
+        ChamberShellVisibilityController groundOps = null;
+        foreach (ChamberShellVisibilityController candidate in controllers)
+        {
+            if (candidate.gameObject.name == "Ground Ops Blockout")
+            {
+                groundOps = candidate;
+            }
+            else if (candidate.gameObject.name == "Chamber Geometry")
+            {
+                chamber = candidate;
+            }
+        }
+
+        if (chamber == null && groundOps == null)
         {
             EditorGUILayout.HelpBox(
                 "No generated wall-visibility controller was found in the active scene.",
@@ -192,32 +209,22 @@ public sealed class ChamberToolsWindow : EditorWindow
             return;
         }
 
-        bool groundOps = controller.gameObject.name == "Ground Ops Blockout";
-        float roomOpacity = EditorGUILayout.Slider(
-            groundOps ? "Ground Ops walls" : "Room walls",
-            controller.RoomOpacityPercent,
-            0f,
-            100f);
-        if (!Mathf.Approximately(roomOpacity, controller.RoomOpacityPercent))
+        if (chamber != null)
         {
-            RecordShellUndo(controller, "Change Room Wall Opacity");
-            controller.SetRoomOpacityPercent(roomOpacity);
-            FinishShellChange(controller);
+            DrawRoomOpacitySlider("Chamber containing room", chamber);
+            float chamberOpacity = EditorGUILayout.Slider(
+                "Chamber walls", chamber.ChamberOpacityPercent, 0f, 100f);
+            if (!Mathf.Approximately(chamberOpacity, chamber.ChamberOpacityPercent))
+            {
+                RecordShellUndo(chamber, "Change Chamber Wall Opacity");
+                chamber.SetChamberOpacityPercent(chamberOpacity);
+                FinishShellChange(chamber);
+            }
         }
 
-        if (!groundOps)
+        if (groundOps != null)
         {
-            float chamberOpacity = EditorGUILayout.Slider(
-                "Chamber walls",
-                controller.ChamberOpacityPercent,
-                0f,
-                100f);
-            if (!Mathf.Approximately(chamberOpacity, controller.ChamberOpacityPercent))
-            {
-                RecordShellUndo(controller, "Change Chamber Wall Opacity");
-                controller.SetChamberOpacityPercent(chamberOpacity);
-                FinishShellChange(controller);
-            }
+            DrawRoomOpacitySlider("Ground Ops walls", groundOps);
         }
 
         EditorGUILayout.Space(6f);
@@ -225,6 +232,22 @@ public sealed class ChamberToolsWindow : EditorWindow
             "Near walls use the selected opacity; far walls remain fully opaque. At 0% this is the one-sided cutaway view. Physical shells always block shadow-enabled lights and movement.",
             MessageType.Info);
         EditorGUILayout.EndVertical();
+    }
+
+    private static void DrawRoomOpacitySlider(
+        string label,
+        ChamberShellVisibilityController controller)
+    {
+        float opacity = EditorGUILayout.Slider(
+            label, controller.RoomOpacityPercent, 0f, 100f);
+        if (Mathf.Approximately(opacity, controller.RoomOpacityPercent))
+        {
+            return;
+        }
+
+        RecordShellUndo(controller, $"Change {label} Opacity");
+        controller.SetRoomOpacityPercent(opacity);
+        FinishShellChange(controller);
     }
 
     private static void DrawLightingSection()

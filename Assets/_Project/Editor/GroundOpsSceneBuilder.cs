@@ -15,11 +15,9 @@ using UnityEngine.UI;
 public static class GroundOpsSceneBuilder
 {
     public const string ScenePath = "Assets/_Project/Scenes/GroundOps.unity";
-    private const string MainScenePath = "Assets/_Project/Scenes/Main.unity";
-    private const string GroundOpsChamberArrivalMarker = "Ground Ops Chamber Arrival";
-    public const string MainGroundOpsArrivalMarker = "Main Ground Ops Arrival";
-
     private const string RootName = "Ground Ops Blockout";
+    private static readonly Vector3 FacilityRootPosition = new(1f, 0f, 16.75f);
+    private static readonly Quaternion FacilityRootRotation = Quaternion.Euler(0f, 180f, 0f);
     private const string MaterialFolder = "Assets/_Project/Materials";
     private const string MeshFolder = "Assets/_Project/Generated/Meshes";
     private const double DocLatitudeDegrees = 38.1908805555556;
@@ -73,17 +71,26 @@ public static class GroundOpsSceneBuilder
             ? EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single)
             : EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
-        BuildBlockout(scene);
+        BuildBlockout(scene, null, false);
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene, ScenePath);
-        EnsureSceneInBuildSettings();
         AssetDatabase.SaveAssets();
         Selection.activeGameObject = GameObject.Find(RootName);
         SceneView.lastActiveSceneView?.FrameSelected();
         Debug.Log("Synchronized and opened GroundOps.unity blockout.");
     }
 
-    private static void BuildBlockout(Scene scene)
+    public static void SyncIntoFacility(
+        Scene scene,
+        FirstPersonPlayerController sharedPlayer)
+    {
+        BuildBlockout(scene, sharedPlayer, true);
+    }
+
+    private static void BuildBlockout(
+        Scene scene,
+        FirstPersonPlayerController sharedPlayer,
+        bool facilityMode)
     {
         // Approximate dimensions inferred from standard doors, racks, ceiling
         // tiles, and the supplied plan. Replace these as measurements become known.
@@ -198,6 +205,9 @@ public static class GroundOpsSceneBuilder
         CalculateWorldCardinalAxes(out Vector3 worldNorth, out Vector3 worldEast);
 
         Transform root = NewGroup(RootName, null);
+        root.position = facilityMode ? FacilityRootPosition : Vector3.zero;
+        root.rotation = facilityMode ? FacilityRootRotation : Quaternion.identity;
+        root.localScale = Vector3.one;
         Transform architecture = NewGroup("Architecture", root);
 
         Vector3[] windowPoints = BuildWindowPoints(
@@ -281,8 +291,8 @@ public static class GroundOpsSceneBuilder
             forestTrunkMaterial,
             forestCrownMaterials,
             dishMaterial,
-            worldNorth,
-            worldEast,
+            facilityMode ? root.TransformDirection(worldNorth) : worldNorth,
+            facilityMode ? root.TransformDirection(worldEast) : worldEast,
             preserveDishAzimuth,
             preserveDishElevation);
         GroundOpsSatelliteTarget satelliteTarget =
@@ -365,14 +375,17 @@ public static class GroundOpsSceneBuilder
         BuildCameraAndLight(
             NewGroup("Scene Setup", root),
             skyMaterial,
-            worldNorth,
-            worldEast);
-        FirstPersonPlayerController playerController =
-            BuildPlayer(
+            facilityMode ? root.TransformDirection(worldNorth) : worldNorth,
+            facilityMode ? root.TransformDirection(worldEast) : worldEast);
+        FirstPersonPlayerController playerController = sharedPlayer;
+        if (playerController == null)
+        {
+            playerController = BuildPlayer(
                 NewGroup("Player", root),
                 playerMaterial,
                 dishStation3.TransformPoint(new Vector3(1.50f, 0f, 0f)),
                 new Vector3(-6.0f, 1.65f, -0.2f));
+        }
         BuildDishStationConsole(frontLeftStation, playerController, dishController);
         BuildDsnRackConsole(dsnRackPair, playerController);
         FinishSync();
@@ -898,8 +911,6 @@ public static class GroundOpsSceneBuilder
         const float docHallWindowBottom = 0.85f;
         const float docHallWindowTop = 3.05f;
         const float serverHallDoorCenterZ = 6.25f;
-        const float chamberHallDoorCenterZ = 11.25f;
-        const float chamberDoorWidth = 1.80f;
         const float hallwayEndDoorCenterX = 6.75f;
         Transform cutaway = NewGroup("Cutaway Surfaces", parent);
 
@@ -950,32 +961,9 @@ public static class GroundOpsSceneBuilder
             new Vector3(docWallX, 0f, serverHallDoorCenterZ), doorWidth, doorHeight,
             true, doorMaterial, trimMaterial);
 
-        // Placeholder chamber frontage above the server room. For now this is
-        // only a wall and door at the expected hallway location.
-        BuildWallAlongZWithOpenings(
-            "Chamber Hall Wall",
-            parent,
-            cutaway,
-            docWallX,
-            serverBackZ,
-            hallwayBackZ,
-            wallHeight,
-            wallThickness,
-            new[] { new WallOpening(chamberHallDoorCenterZ, chamberDoorWidth, doorHeight) },
-            wallMaterial,
-            Vector3.right,
-            physicalRenderers,
-            cutawayRenderers);
-        BuildOpenDoubleDoor("Chamber Hall Double Door", parent,
-            new Vector3(docWallX, 0f, chamberHallDoorCenterZ), chamberDoorWidth, doorHeight,
-            true, doorMaterial, trimMaterial);
-        BuildPortal("To Anechoic Chamber", parent,
-            new Vector3(docWallX, 1.0f, chamberHallDoorCenterZ),
-            new Vector3(0.9f, 2.0f, chamberDoorWidth * 0.92f),
-            MainScenePath, MainGroundOpsArrivalMarker);
-        Transform groundOpsArrival = NewGroup(GroundOpsChamberArrivalMarker, parent);
-        groundOpsArrival.position = new Vector3(docWallX + 1.35f, 0.05f, chamberHallDoorCenterZ);
-        groundOpsArrival.rotation = Quaternion.LookRotation(Vector3.right, Vector3.up);
+        // The real chamber containing-room wall occupies this stretch when the
+        // region is placed in the continuous facility. Do not build a duplicate
+        // frontage, door, arrival marker, or scene-transition trigger here.
 
         // Hallway's high-bay side: opaque knee/header bands and two enormous
         // overlooking windows. No doorway is intentionally provided.
@@ -1244,23 +1232,6 @@ public static class GroundOpsSceneBuilder
                 leafCenter + new Vector3(0f, 0f, side * -0.08f),
                 new Vector3(0.05f, 0.12f, 0.05f), Quaternion.identity, trimMaterial);
         }
-    }
-
-    private static void BuildPortal(
-        string name, Transform parent, Vector3 position, Vector3 size,
-        string destinationScenePath, string destinationArrivalMarker)
-    {
-        Transform portal = NewGroup(name, parent);
-        portal.position = position;
-        portal.rotation = Quaternion.identity;
-        BoxCollider trigger = GetOrAddComponent<BoxCollider>(portal.gameObject);
-        trigger.size = size;
-        trigger.isTrigger = true;
-        Rigidbody body = GetOrAddComponent<Rigidbody>(portal.gameObject);
-        body.isKinematic = true;
-        body.useGravity = false;
-        FacilityScenePortal scenePortal = GetOrAddComponent<FacilityScenePortal>(portal.gameObject);
-        scenePortal.Configure(destinationScenePath, destinationArrivalMarker);
     }
 
     private static Transform BuildStationDesk(
@@ -1903,6 +1874,10 @@ public static class GroundOpsSceneBuilder
 
                 if ((horizontal - ExteriorViewOrigin).sqrMagnitude > forestRadius * forestRadius) continue;
                 if ((horizontal - ExteriorViewOrigin).sqrMagnitude < docClearingRadius * docClearingRadius) continue;
+                // The playable facility is now one continuous world. Keep the
+                // procedural forest outside every building footprint, including
+                // the chamber appended beyond the old Ground Ops stage.
+                if (FacilityFootprintDistance(x, z) < 4f) continue;
                 // Only the broad -X half of the landscape is visible through the
                 // curved window. Retain a little backfill beyond the DOC center
                 // so the forest never ends visibly at an exact radial boundary.
@@ -2383,13 +2358,13 @@ public static class GroundOpsSceneBuilder
         // Keep the exterior landscape below the enlarged building stage. The
         // high bay occupies x=8.1..25 and z=-6.7..14.5, with its floor at -4;
         // without this broader pad the sampled hillside climbs through its walls.
-        float facilityOutsideX = Mathf.Max(0f, Mathf.Max(-8f - x, x - 27f));
-        float facilityOutsideZ = Mathf.Max(0f, Mathf.Max(-9f - z, z - 17f));
-        float facilityOutsideDistance = Mathf.Sqrt(
-            facilityOutsideX * facilityOutsideX + facilityOutsideZ * facilityOutsideZ);
+        float facilityOutsideDistance = FacilityFootprintDistance(x, z);
         float facilityPadWeight = 1f - Mathf.SmoothStep(0f, 1f,
             Mathf.InverseLerp(0f, 5f, facilityOutsideDistance));
-        naturalHeight = Mathf.Lerp(naturalHeight, -4.35f, facilityPadWeight);
+        // Keep the stage well below translucent/cutaway floors too. At -4.35 m
+        // it no longer intersected the architecture, but it was still plainly
+        // visible through the chamber floor and made the room look outdoors.
+        naturalHeight = Mathf.Lerp(naturalHeight, -12f, facilityPadWeight);
 
         // The real complex follows a ridge, not an isolated summit. Extend the
         // crest through both dishes along their shared lateral axis, then blend
@@ -2409,6 +2384,24 @@ public static class GroundOpsSceneBuilder
             - 0.010f * Mathf.Abs(alongRidge)
             + 0.18f * Mathf.Sin(alongRidge * 0.10f);
         return Mathf.Lerp(naturalHeight, crestHeight, ridgeWeight);
+    }
+
+    private static float FacilityFootprintDistance(float x, float z)
+    {
+        // Ground Ops/DOC/high-bay footprint, followed by the chamber and its
+        // exterior landing. The overlapping rectangles form one continuous
+        // protected pad without clearing unrelated landscape behind the ridge.
+        float groundOpsDistance = DistanceOutsideRectangle(x, z, -8f, 27f, -9f, 17f);
+        float chamberDistance = DistanceOutsideRectangle(x, z, -4.5f, 9.5f, 8f, 27f);
+        return Mathf.Min(groundOpsDistance, chamberDistance);
+    }
+
+    private static float DistanceOutsideRectangle(
+        float x, float z, float minimumX, float maximumX, float minimumZ, float maximumZ)
+    {
+        float outsideX = Mathf.Max(0f, Mathf.Max(minimumX - x, x - maximumX));
+        float outsideZ = Mathf.Max(0f, Mathf.Max(minimumZ - z, z - maximumZ));
+        return Mathf.Sqrt(outsideX * outsideX + outsideZ * outsideZ);
     }
 
     private static float SampleRealTerrain(float eastMeters, float northMeters)
@@ -2565,6 +2558,7 @@ public static class GroundOpsSceneBuilder
         Light light = GetOrAddComponent<Light>(lightObject);
         light.type = LightType.Directional;
         light.shadows = LightShadows.Soft;
+        light.enabled = true;
         GroundOpsSkyController skyController =
             GetOrAddComponent<GroundOpsSkyController>(skyAndSun.gameObject);
         skyController.Configure(
@@ -2988,16 +2982,6 @@ public static class GroundOpsSceneBuilder
         if (material.HasProperty("_SunDisk")) material.SetFloat("_SunDisk", 2f);
         EditorUtility.SetDirty(material);
         return material;
-    }
-
-    private static void EnsureSceneInBuildSettings()
-    {
-        List<EditorBuildSettingsScene> scenes = EditorBuildSettings.scenes.ToList();
-        if (scenes.All(scene => scene.path != ScenePath))
-        {
-            scenes.Add(new EditorBuildSettingsScene(ScenePath, true));
-            EditorBuildSettings.scenes = scenes.ToArray();
-        }
     }
 
     private static void EnsureFolder(string path)

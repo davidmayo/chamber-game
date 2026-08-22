@@ -25,9 +25,9 @@ public sealed class RuntimePauseMenuTests : InputTestFixture
     }
 
     [UnityTest]
-    public IEnumerator SceneButtonsReceivePointerClicksAndLoadBothScenes()
+    public IEnumerator ResumeButtonReceivesPointerClickAndClosesMenu()
     {
-        SceneManager.LoadScene("GroundOps", LoadSceneMode.Single);
+        SceneManager.LoadScene("Main", LoadSceneMode.Single);
         yield return null;
 
         Type menuType = Type.GetType("RuntimeSceneSwitcher, Assembly-CSharp");
@@ -62,14 +62,10 @@ public sealed class RuntimePauseMenuTests : InputTestFixture
             "The pause-menu Canvas cannot receive pointer hits without a GraphicRaycaster.");
 
         yield return Tap(keyboard.escapeKey);
-        Button chamberButton = FindButton("Anechoic Chamber Button");
-        yield return Click(chamberButton);
-        yield return WaitForScene("Main");
-
-        yield return Tap(keyboard.escapeKey);
-        Button groundOpsButton = FindButton("Ground Ops Button");
-        yield return Click(groundOpsButton);
-        yield return WaitForScene("GroundOps");
+        Button resumeButton = FindButton("Resume Button");
+        yield return Click(resumeButton);
+        Assert.That(menuCanvas.gameObject.activeSelf, Is.False);
+        Assert.That(Time.timeScale, Is.EqualTo(1f));
     }
 
     private static Button FindButton(string name)
@@ -120,20 +116,4 @@ public sealed class RuntimePauseMenuTests : InputTestFixture
         Assert.That(clickInvoked, Is.True, $"'{button.name}' did not receive the pointer click.");
     }
 
-    private static IEnumerator WaitForScene(string expectedName)
-    {
-        const int maximumFrames = 120;
-        for (int frame = 0; frame < maximumFrames; frame++)
-        {
-            if (SceneManager.GetActiveScene().name == expectedName)
-            {
-                yield break;
-            }
-            yield return null;
-        }
-
-        Assert.Fail(
-            $"Expected scene '{expectedName}', but active scene was " +
-            $"'{SceneManager.GetActiveScene().name}'.");
-    }
 }

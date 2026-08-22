@@ -1,21 +1,14 @@
-using System.Collections;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.UI;
-using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 [DefaultExecutionOrder(-1000)]
 public sealed class RuntimeSceneSwitcher : MonoBehaviour
 {
-    private const string MainScenePath = "Assets/_Project/Scenes/Main.unity";
-    private const string GroundOpsScenePath = "Assets/_Project/Scenes/GroundOps.unity";
-
     private GameObject menuCanvas;
     private Button resumeButton;
-    private Button mainSceneButton;
-    private Button groundOpsSceneButton;
     private InputSystemUIInputModule uiInputModule;
     private bool menuOpen;
 
@@ -38,7 +31,6 @@ public sealed class RuntimeSceneSwitcher : MonoBehaviour
     {
         EnsureUiEventSystem();
         CreateMenuCanvas();
-        SceneManager.sceneLoaded += HandleSceneLoaded;
     }
 
     private void Update()
@@ -99,21 +91,6 @@ public sealed class RuntimeSceneSwitcher : MonoBehaviour
         uiInputModule.AssignDefaultActions();
     }
 
-    private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
-    {
-        if (uiInputModule == null)
-        {
-            EnsureUiEventSystem();
-            return;
-        }
-
-        // A scene can be replaced from inside a UI pointer-up callback. Reset
-        // the persistent module after the load so no press/drag state leaks
-        // into the next time the pause menu opens.
-        uiInputModule.enabled = false;
-        uiInputModule.enabled = true;
-    }
-
     private void CreateMenuCanvas()
     {
         menuCanvas = new GameObject(
@@ -139,7 +116,7 @@ public sealed class RuntimeSceneSwitcher : MonoBehaviour
         panel.anchorMax = new Vector2(0.5f, 0.5f);
         panel.pivot = new Vector2(0.5f, 0.5f);
         panel.anchoredPosition = Vector2.zero;
-        panel.sizeDelta = new Vector2(360f, 320f);
+        panel.sizeDelta = new Vector2(360f, 180f);
 
         Image panelImage = panelObject.AddComponent<Image>();
         panelImage.color = new Color(0.025f, 0.035f, 0.05f, 0.94f);
@@ -159,15 +136,6 @@ public sealed class RuntimeSceneSwitcher : MonoBehaviour
 
         resumeButton = CreateButton("Resume Button", panel, "Resume");
         resumeButton.onClick.AddListener(CloseMenu);
-
-        mainSceneButton = CreateButton(
-            "Anechoic Chamber Button",
-            panel,
-            "Anechoic Chamber");
-        mainSceneButton.onClick.AddListener(() => LoadScene(MainScenePath));
-
-        groundOpsSceneButton = CreateButton("Ground Ops Button", panel, "Ground Ops");
-        groundOpsSceneButton.onClick.AddListener(() => LoadScene(GroundOpsScenePath));
 
         menuCanvas.SetActive(false);
     }
@@ -231,7 +199,6 @@ public sealed class RuntimeSceneSwitcher : MonoBehaviour
         IsOpen = true;
         Time.timeScale = 0f;
         AudioListener.pause = true;
-        UpdateSceneButtonStates();
         menuCanvas.SetActive(true);
         SetCursorCaptured(false);
     }
@@ -246,44 +213,6 @@ public sealed class RuntimeSceneSwitcher : MonoBehaviour
         SetCursorCaptured(true);
     }
 
-    private void UpdateSceneButtonStates()
-    {
-        int activeBuildIndex = SceneManager.GetActiveScene().buildIndex;
-        mainSceneButton.interactable =
-            activeBuildIndex != SceneUtility.GetBuildIndexByScenePath(MainScenePath);
-        groundOpsSceneButton.interactable =
-            activeBuildIndex != SceneUtility.GetBuildIndexByScenePath(GroundOpsScenePath);
-    }
-
-    private void LoadScene(string scenePath)
-    {
-        int buildIndex = SceneUtility.GetBuildIndexByScenePath(scenePath);
-        if (buildIndex < 0)
-        {
-            Debug.LogError($"Pause menu scene is not enabled in Build Profiles: {scenePath}", this);
-            return;
-        }
-
-        menuOpen = false;
-        IsOpen = false;
-        menuCanvas.SetActive(false);
-        Time.timeScale = 1f;
-        AudioListener.pause = false;
-        Debug.Log($"Pause menu loading scene {scenePath} (build index {buildIndex}).", this);
-
-        // Loading synchronously from inside Button.onClick interrupts the
-        // EventSystem while it is still completing the pointer-release event.
-        // Let that event finish before replacing the active scene so the
-        // persistent input module is clean for the next menu interaction.
-        StartCoroutine(LoadSceneAfterPointerRelease(buildIndex));
-    }
-
-    private static IEnumerator LoadSceneAfterPointerRelease(int buildIndex)
-    {
-        yield return null;
-        SceneManager.LoadScene(buildIndex, LoadSceneMode.Single);
-    }
-
     private void OnDisable()
     {
         IsOpen = false;
@@ -294,11 +223,6 @@ public sealed class RuntimeSceneSwitcher : MonoBehaviour
 
         Time.timeScale = 1f;
         AudioListener.pause = false;
-    }
-
-    private void OnDestroy()
-    {
-        SceneManager.sceneLoaded -= HandleSceneLoaded;
     }
 
     private static void SetCursorCaptured(bool captured)

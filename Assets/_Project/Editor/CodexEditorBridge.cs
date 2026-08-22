@@ -214,7 +214,7 @@ public static class CodexEditorBridge
                         "The active scene has unsaved changes. Save it first or send the request with force=true.");
                 }
                 ChamberSceneBuilder.RebuildActiveMainSceneFromBridge();
-                WriteResponse(request.id, request.command, true, "Chamber geometry synchronized in place and Main.unity saved.",
+                WriteResponse(request.id, request.command, true, "Continuous facility synchronized in place and Main.unity saved.",
                     string.Empty, EditorStateJson());
                 return false;
 
@@ -465,6 +465,12 @@ public static class CodexEditorBridge
             request.argument?.Trim(), "ground-ops-console", StringComparison.OrdinalIgnoreCase);
         bool captureGroundOpsDsnRack = string.Equals(
             request.argument?.Trim(), "ground-ops-dsn", StringComparison.OrdinalIgnoreCase);
+        bool captureFacilityHallway = string.Equals(
+            request.argument?.Trim(), "facility-hallway", StringComparison.OrdinalIgnoreCase);
+        bool captureChamberDoor = string.Equals(
+            request.argument?.Trim(), "chamber-door", StringComparison.OrdinalIgnoreCase);
+        bool captureHallwayDoor = string.Equals(
+            request.argument?.Trim(), "hallway-door", StringComparison.OrdinalIgnoreCase);
         int width = request.width > 0 ? Mathf.Clamp(request.width, 64, 4096) : 1280;
         int height = request.height > 0 ? Mathf.Clamp(request.height, 64, 4096) : 720;
         RenderTexture renderTexture = new(width, height, 24, RenderTextureFormat.ARGB32);
@@ -495,8 +501,11 @@ public static class CodexEditorBridge
             }
             else if (captureGroundOpsWindow)
             {
-                Vector3 viewPosition = new(-1.5f, 1.65f, -2.5f);
-                Vector3 ridgeTarget = new(-55.2f, 12.8f, 37.8f);
+                Transform groundOpsRoot = RequireGroundOpsRoot();
+                Vector3 viewPosition = groundOpsRoot.TransformPoint(
+                    new Vector3(-1.5f, 1.65f, -2.5f));
+                Vector3 ridgeTarget = groundOpsRoot.TransformPoint(
+                    new Vector3(-55.2f, 12.8f, 37.8f));
                 camera.transform.position = viewPosition;
                 camera.transform.rotation = Quaternion.LookRotation(
                     ridgeTarget - viewPosition,
@@ -520,14 +529,48 @@ public static class CodexEditorBridge
             }
             else if (captureGroundOpsDsnRack)
             {
-                Vector3 viewPosition = new(-2.49f, 1.30f, 5.55f);
-                Vector3 rackTarget = new(-2.49f, 1.18f, 6.83f);
+                Transform groundOpsRoot = RequireGroundOpsRoot();
+                Vector3 viewPosition = groundOpsRoot.TransformPoint(
+                    new Vector3(-2.49f, 1.30f, 5.55f));
+                Vector3 rackTarget = groundOpsRoot.TransformPoint(
+                    new Vector3(-2.49f, 1.18f, 6.83f));
                 camera.transform.position = viewPosition;
                 camera.transform.rotation = Quaternion.LookRotation(
                     rackTarget - viewPosition,
                     Vector3.up);
                 camera.orthographic = false;
                 camera.fieldOfView = 58f;
+            }
+            else if (captureFacilityHallway)
+            {
+                Transform groundOpsRoot = RequireGroundOpsRoot();
+                Vector3 viewPosition = groundOpsRoot.TransformPoint(
+                    new Vector3(7.0f, 1.65f, 11.25f));
+                Vector3 chamberTarget = new(-2.5f, 1.4f, 5.5f);
+                camera.transform.position = viewPosition;
+                camera.transform.rotation = Quaternion.LookRotation(
+                    chamberTarget - viewPosition,
+                    Vector3.up);
+                camera.orthographic = false;
+                camera.fieldOfView = 68f;
+            }
+            else if (captureChamberDoor)
+            {
+                Vector3 viewPosition = new(-3.8f, 1.6f, 2.5f);
+                Vector3 target = new(-1.8f, 1.45f, 2.5f);
+                camera.transform.position = viewPosition;
+                camera.transform.rotation = Quaternion.LookRotation(target - viewPosition, Vector3.up);
+                camera.orthographic = false;
+                camera.fieldOfView = 68f;
+            }
+            else if (captureHallwayDoor)
+            {
+                Vector3 viewPosition = new(-6.1f, 1.6f, 5.5f);
+                Vector3 target = new(-3.6f, 1.45f, 5.5f);
+                camera.transform.position = viewPosition;
+                camera.transform.rotation = Quaternion.LookRotation(target - viewPosition, Vector3.up);
+                camera.orthographic = false;
+                camera.fieldOfView = 68f;
             }
             camera.targetTexture = renderTexture;
             camera.Render();
@@ -551,6 +594,16 @@ public static class CodexEditorBridge
             UnityEngine.Object.DestroyImmediate(renderTexture);
             UnityEngine.Object.DestroyImmediate(image);
         }
+    }
+
+    private static Transform RequireGroundOpsRoot()
+    {
+        GameObject root = GameObject.Find("Ground Ops Blockout");
+        if (root == null)
+        {
+            throw new InvalidOperationException("The Ground Ops region was not found.");
+        }
+        return root.transform;
     }
 
     private static Bounds CalculateSceneRendererBounds()

@@ -5,105 +5,72 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
 
-public sealed class FacilityScenePortalTests
+public sealed class FacilityContinuousWorldTests
 {
     [UnityTest]
-    public IEnumerator WalkingThroughChamberDoorsTransitionsBothWays()
+    public IEnumerator PlayerCanWalkFromChamberIntoHallwayWithoutLoadingAScene()
     {
-        yield return LoadSceneAndWait("GroundOps");
-        yield return WalkPlayerThroughPortal("To Anechoic Chamber", true, 0f);
-        yield return WaitForScene("Main");
-        yield return new WaitForSecondsRealtime(3f);
-        AssertPlayerAt("Main Ground Ops Arrival");
-        AssertPlayerHasFloor();
-
-        yield return WalkPlayerThroughPortal("To Ground Ops Hallway", true, -0.3f);
-        yield return WaitForScene("GroundOps");
-        yield return new WaitForSecondsRealtime(3f);
-        AssertPlayerAt("Ground Ops Chamber Arrival");
-        AssertPlayerHasFloor();
-    }
-
-    private static IEnumerator LoadSceneAndWait(string sceneName)
-    {
-        SceneManager.LoadScene(sceneName, LoadSceneMode.Single);
-        yield return WaitForScene(sceneName);
+        SceneManager.LoadScene("Main", LoadSceneMode.Single);
         yield return null;
-    }
 
-    private static IEnumerator WalkPlayerThroughPortal(
-        string portalName, bool travelTowardNegativeX, float floorY)
-    {
-        GameObject portal = GameObject.Find(portalName);
+        Assert.That(GameObject.Find("Chamber Geometry"), Is.Not.Null);
+        Assert.That(GameObject.Find("Ground Ops Blockout"), Is.Not.Null);
         Type playerType = Type.GetType("FirstPersonPlayerController, Assembly-CSharp");
-        Component player = UnityEngine.Object.FindFirstObjectByType(playerType) as Component;
-        Assert.That(portal, Is.Not.Null, $"Missing portal '{portalName}'.");
-        Assert.That(player, Is.Not.Null, "Missing first-person player.");
+        Assert.That(playerType, Is.Not.Null);
+        Assert.That(
+            UnityEngine.Object.FindObjectsByType(playerType, FindObjectsSortMode.None),
+            Has.Length.EqualTo(1),
+            "The continuous facility must have exactly one player and camera owner.");
+        Assert.That(GameObject.Find("To Anechoic Chamber"), Is.Null);
+        Assert.That(GameObject.Find("To Ground Ops Hallway"), Is.Null);
+        Assert.That(GameObject.Find(
+            "Chamber Geometry/Containing Room/Hallway Double Door/Front Open Leaf")
+            ?.GetComponent<Collider>(), Is.Null,
+            "A parked-open hallway door must not trap the player against its leaf.");
+        Assert.That(GameObject.Find(
+            "Chamber Geometry/Architecture/Left Wall - Door/Open Chamber Door")
+            ?.GetComponent<Collider>(), Is.Null,
+            "The parked-open chamber door must not obstruct its approach.");
 
+        Component player = UnityEngine.Object.FindFirstObjectByType(playerType) as Component;
         CharacterController controller = player.GetComponent<CharacterController>();
-        Assert.That(controller, Is.Not.Null);
         controller.enabled = false;
-        float startOffset = travelTowardNegativeX ? 1.4f : -1.4f;
-        player.transform.position = new Vector3(
-            portal.transform.position.x + startOffset,
-            floorY,
-            portal.transform.position.z);
+        player.transform.position = new Vector3(-3.75f, -0.3f, 5.5f);
+        player.transform.rotation = Quaternion.LookRotation(Vector3.left, Vector3.up);
         controller.enabled = true;
         Physics.SyncTransforms();
 
-        Vector3 step = new(travelTowardNegativeX ? -0.16f : 0.16f, 0f, 0f);
-        for (int index = 0; index < 20; index++)
+        for (int step = 0; step < 24; step++)
         {
-            controller.Move(step);
+            controller.Move(Vector3.left * 0.15f);
             Physics.SyncTransforms();
-            // CharacterController movement and portal polling both happen on
-            // rendered frames in the game, so exercise the same cadence here.
-            yield return null;
-            if (SceneManager.GetActiveScene().name
-                != (portalName == "To Anechoic Chamber" ? "GroundOps" : "Main"))
-            {
-                yield break;
-            }
-        }
-        // The portal fades to black before replacing the scene, so the scene
-        // may intentionally remain unchanged when the physical crossing ends.
-        // WaitForScene performs the bounded transition assertion afterward.
-    }
-
-    private static IEnumerator WaitForScene(string sceneName)
-    {
-        float deadline = Time.realtimeSinceStartup + 8f;
-        while (SceneManager.GetActiveScene().name != sceneName
-               && Time.realtimeSinceStartup < deadline)
-        {
             yield return null;
         }
-        Assert.That(SceneManager.GetActiveScene().name, Is.EqualTo(sceneName));
-    }
 
-    private static void AssertPlayerAt(string markerName)
-    {
-        GameObject marker = GameObject.Find(markerName);
-        Type playerType = Type.GetType("FirstPersonPlayerController, Assembly-CSharp");
-        Component player = UnityEngine.Object.FindFirstObjectByType(playerType) as Component;
-        Assert.That(marker, Is.Not.Null, $"Missing arrival marker '{markerName}'.");
-        Assert.That(player, Is.Not.Null);
-        Vector2 playerHorizontal = new(player.transform.position.x, player.transform.position.z);
-        Vector2 markerHorizontal = new(marker.transform.position.x, marker.transform.position.z);
-        Assert.That(Vector2.Distance(playerHorizontal, markerHorizontal), Is.LessThan(0.05f));
-    }
-
-    private static void AssertPlayerHasFloor()
-    {
-        Type playerType = Type.GetType("FirstPersonPlayerController, Assembly-CSharp");
-        Component player = UnityEngine.Object.FindFirstObjectByType(playerType) as Component;
-        Assert.That(player, Is.Not.Null);
+        Assert.That(SceneManager.GetActiveScene().name, Is.EqualTo("Main"));
+        Assert.That(player.transform.position.x, Is.LessThan(-6.0f));
         Assert.That(player.transform.position.y, Is.GreaterThan(-0.5f),
-            "Player fell below the facility floor after arriving.");
+            "The player fell while crossing the chamber/hallway seam.");
         Assert.That(Physics.Raycast(
             player.transform.position + Vector3.up * 0.25f,
             Vector3.down,
             out _,
-            1.0f), Is.True, "No collider exists beneath the arrival point.");
+            1.0f), Is.True, "There is no floor beneath the player in the hallway.");
+
+        Transform forest = GameObject.Find(
+            "Ground Ops Blockout/Exterior Landscape/Low-poly Forest")?.transform;
+        Assert.That(forest, Is.Not.Null);
+        foreach (MeshFilter meshFilter in forest.GetComponentsInChildren<MeshFilter>())
+        {
+            foreach (Vector3 vertex in meshFilter.sharedMesh.vertices)
+            {
+                Vector3 worldVertex = meshFilter.transform.TransformPoint(vertex);
+                bool insideChamberSite =
+                    worldVertex.x >= -8.5f && worldVertex.x <= 5.5f
+                    && worldVertex.z >= -10f && worldVertex.z <= 9f;
+                Assert.That(insideChamberSite, Is.False,
+                    $"Forest geometry intrudes into the chamber site at {worldVertex}.");
+            }
+        }
     }
 }
