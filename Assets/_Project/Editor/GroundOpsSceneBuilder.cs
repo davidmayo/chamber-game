@@ -207,6 +207,8 @@ public static class GroundOpsSceneBuilder
             "GroundOpsHighBayCeiling", new Color(0.075f, 0.085f, 0.095f), 0.12f, 0.18f);
         Material highBayFloorMaterial = GetMaterial(
             "GroundOpsHighBayFloor", new Color(0.58f, 0.62f, 0.65f), 0.18f, 0.72f);
+        Material highBayWallMaterial = GetMaterial(
+            "GroundOpsHighBayWall", new Color(0.30f, 0.34f, 0.38f), 0.04f, 0.18f);
         Material highBayLightHousingMaterial = GetMaterial(
             "GroundOpsHighBayLightHousing", new Color(0.72f, 0.75f, 0.77f), 0.22f, 0.52f);
         Material highBayLightMaterial = GetEmissiveMaterial(
@@ -302,6 +304,7 @@ public static class GroundOpsSceneBuilder
             lightHousingMaterial,
             lightsOnMaterial,
             highBayFloorMaterial,
+            highBayWallMaterial,
             highBayCeilingMaterial,
             highBayLightHousingMaterial,
             highBayLightMaterial,
@@ -963,6 +966,7 @@ public static class GroundOpsSceneBuilder
         Material lightHousingMaterial,
         Material lightMaterial,
         Material highBayFloorMaterial,
+        Material highBayWallMaterial,
         Material highBayCeilingMaterial,
         Material highBayLightHousingMaterial,
         Material highBayLightMaterial,
@@ -985,6 +989,10 @@ public static class GroundOpsSceneBuilder
         const float highBayOuterX = 48f;
         const float highBayFloorY = -4.0f;
         const float highBayTopY = 9.0f;
+        // Captured from the user's final Play Mode staging. Keep the high bay
+        // as a movable generated region rather than baking this into every child.
+        const float highBayOffsetY = -3.1f;
+        Vector3 cleanroomOffset = new(3.7f, 0f, 2.5f);
         const float docHallWindowBottom = 0.85f;
         const float docHallWindowTop = 3.05f;
         const float serverHallDoorCenterZ = 6.25f;
@@ -1134,12 +1142,25 @@ public static class GroundOpsSceneBuilder
         // Giant empty first-floor high-bay box. It is deliberately an alluring,
         // brightly lit volume seen only through glass, not an explorable room.
         Transform highBay = NewGroup("Empty High Bay", parent);
+        highBay.localPosition = new Vector3(0f, highBayOffsetY, 0f);
+        float hallLowerWallTopY = -highBayOffsetY;
+        float hallLowerWallHeight = hallLowerWallTopY - highBayFloorY;
         Box("High Bay Hall Lower Wall", highBay,
-            new Vector3(hallwayOuterX, highBayFloorY / 2f,
+            new Vector3(hallwayOuterX, (highBayFloorY + hallLowerWallTopY) / 2f,
                 (hallwayOuterFrontZ + hallwayBackZ) / 2f),
-            new Vector3(wallThickness, -highBayFloorY,
+            new Vector3(wallThickness, hallLowerWallHeight,
                 hallwayBackZ - hallwayOuterFrontZ),
-            Quaternion.identity, wallMaterial);
+            Quaternion.identity, highBayWallMaterial);
+        // The high bay is taller than the second-floor hallway. Close the strip
+        // above the hallway ceiling so the bay has a continuous hall-side wall.
+        float upperWallBottomY = wallHeight - highBayOffsetY;
+        float upperWallHeight = highBayTopY - upperWallBottomY;
+        Box("High Bay Hall Upper Wall", highBay,
+            new Vector3(hallwayOuterX, upperWallBottomY + upperWallHeight / 2f,
+                (hallwayOuterFrontZ + hallwayBackZ) / 2f),
+            new Vector3(wallThickness, upperWallHeight,
+                hallwayBackZ - hallwayOuterFrontZ),
+            Quaternion.identity, highBayWallMaterial);
         Box("High Bay Floor", highBay,
             new Vector3((hallwayOuterX + highBayOuterX) / 2f, highBayFloorY - 0.08f,
                 (hallwayOuterFrontZ + hallwayBackZ) / 2f),
@@ -1150,17 +1171,17 @@ public static class GroundOpsSceneBuilder
             new Vector3(highBayOuterX, (highBayFloorY + highBayTopY) / 2f,
                 (hallwayOuterFrontZ + hallwayBackZ) / 2f),
             new Vector3(wallThickness, highBayTopY - highBayFloorY,
-                hallwayBackZ - hallwayOuterFrontZ), Quaternion.identity, wallMaterial);
+                hallwayBackZ - hallwayOuterFrontZ), Quaternion.identity, highBayWallMaterial);
         Box("High Bay Front Wall", highBay,
             new Vector3((hallwayOuterX + highBayOuterX) / 2f,
                 (highBayFloorY + highBayTopY) / 2f, hallwayOuterFrontZ),
             new Vector3(highBayOuterX - hallwayOuterX, highBayTopY - highBayFloorY,
-                wallThickness), Quaternion.identity, wallMaterial);
+                wallThickness), Quaternion.identity, highBayWallMaterial);
         Box("High Bay Back Wall", highBay,
             new Vector3((hallwayOuterX + highBayOuterX) / 2f,
                 (highBayFloorY + highBayTopY) / 2f, hallwayBackZ),
             new Vector3(highBayOuterX - hallwayOuterX, highBayTopY - highBayFloorY,
-                wallThickness), Quaternion.identity, wallMaterial);
+                wallThickness), Quaternion.identity, highBayWallMaterial);
         const float highBayCeilingThickness = 0.22f;
         GameObject highBayCeiling = Box("High Bay Ceiling Slab", highBay,
             new Vector3((hallwayOuterX + highBayOuterX) / 2f,
@@ -1173,7 +1194,9 @@ public static class GroundOpsSceneBuilder
         BuildHighBayLighting(NewGroup("High Bay Lighting", highBay),
             hallwayOuterX, highBayOuterX, hallwayOuterFrontZ, hallwayBackZ,
             highBayTopY, highBayLightHousingMaterial, highBayLightMaterial);
-        BuildCleanroom(NewGroup("Cleanroom", highBay), highBayFloorY,
+        Transform cleanroom = NewGroup("Cleanroom", highBay);
+        cleanroom.localPosition = cleanroomOffset;
+        BuildCleanroom(cleanroom, highBayFloorY,
             cleanroomWhiteMaterial, cleanroomFloorMaterial, cleanroomMetalMaterial,
             cleanroomGlassMaterial, cleanroomLightMaterial);
 
