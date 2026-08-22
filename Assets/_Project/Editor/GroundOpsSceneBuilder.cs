@@ -108,10 +108,13 @@ public static class GroundOpsSceneBuilder
         const float opsFrontZ = -5.5f;
         const float partitionZ = 4.5f;
         const float serverBackZ = 8.0f;
-        const float rightWallX = 5.5f;
+        // This is the same wall centerline as the chamber containing-room wall
+        // after the facility transform. Keeping both at 15 cm makes their
+        // hallway-facing surfaces exactly flush instead of producing a step.
+        const float rightWallX = 5.575f;
         const float serverLeftX = -4.2f;
         const float wallHeight = 12f * 0.3048f;
-        const float wallThickness = 0.12f;
+        const float wallThickness = 0.15f;
         const float doorWidth = 1.05f;
         const float doorHeight = 2.15f;
 
@@ -1182,29 +1185,33 @@ public static class GroundOpsSceneBuilder
         float wallHeight,
         Material wallMaterial)
     {
-        // Ground Ops-local coordinates for the chamber containing-room facade.
-        // The containing-room slab's hallway face is local X=5.65 after the
-        // facility transform. Offset this finish 2 mm toward the hallway so it
-        // neither intersects the slab nor sits in its shadow.
-        const float x = 5.652f;
-        const float minimumZ = 8.75f;
-        const float maximumZ = 25.75f;
-        const float doorCenterZ = 11.25f;
-        const float doorWidth = 1.8f;
-        const float doorHeight = 2.2f;
-        Transform finish = NewGroup("Chamber Hallway Wall Finish", parent);
-        float doorStart = doorCenterZ - doorWidth / 2f;
-        float doorEnd = doorCenterZ + doorWidth / 2f;
-        Quad("Front Segment", finish,
-            new Vector3(x, wallHeight / 2f, (minimumZ + doorStart) / 2f),
-            doorStart - minimumZ, wallHeight, Vector3.right, wallMaterial);
-        Quad("Rear Segment", finish,
-            new Vector3(x, wallHeight / 2f, (doorEnd + maximumZ) / 2f),
-            maximumZ - doorEnd, wallHeight, Vector3.right, wallMaterial);
-        Quad("Door Header", finish,
-            new Vector3(x, doorHeight + (wallHeight - doorHeight) / 2f, doorCenterZ),
-            doorWidth, wallHeight - doorHeight, Vector3.right, wallMaterial);
-        RemoveColliders(finish);
+        // The chamber containing-room wall is the hallway wall here. Apply the
+        // hallway finish directly to its three solid segments; never layer a
+        // second camera-facing surface over the wall.
+        GameObject concreteShell = GameObject.Find(
+            "Chamber Geometry/Containing Room/Concrete Shell");
+        if (concreteShell == null)
+        {
+            throw new System.InvalidOperationException(
+                "The chamber containing-room shell was not found while joining the hallway.");
+        }
+
+        foreach (string segmentName in new[]
+        {
+            "Left Wall Front Segment",
+            "Left Wall Rear Segment",
+            "Left Wall Door Header",
+        })
+        {
+            Transform segment = concreteShell.transform.Find(segmentName);
+            Renderer renderer = segment != null ? segment.GetComponent<Renderer>() : null;
+            if (renderer == null)
+            {
+                throw new System.InvalidOperationException(
+                    $"The chamber hallway wall segment '{segmentName}' was not found.");
+            }
+            renderer.sharedMaterial = wallMaterial;
+        }
     }
 
     private readonly struct WallOpening
