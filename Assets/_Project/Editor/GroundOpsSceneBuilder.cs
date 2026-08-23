@@ -61,6 +61,14 @@ public static class GroundOpsSceneBuilder
     private const float BuildingSouthZ = -18.5f;
     private const float BuildingFirstFloorY = -7.1f;
     private const float BuildingRoofY = 6.35f;
+    private static readonly Vector2 TruckRoundaboutCenter = new(-11.15f, -6.15f);
+    private const float TruckRoundaboutOuterRadius = 6.15f;
+    private const float TruckRoundaboutInnerRadius = 2.55f;
+    private const float TruckRoundaboutPathRadius = 4.35f;
+    private const float TruckRoundaboutParkingAngle = -8f;
+    private const float TruckRoundaboutRoadExitAngle = 64f;
+    private const float TruckRoundaboutRoadEntryAngle = 245f;
+    private static readonly Vector2 TruckRoundaboutRoadFork = new(-17.0f, -0.4f);
 
     private static GameObject syncRoot;
     private static HashSet<GameObject> staleObjects;
@@ -2787,7 +2795,7 @@ public static class GroundOpsSceneBuilder
         // now also the walkable antenna-complex destination of the rail trip.
         MeshObject("Low-poly Mountain Ridge", parent, terrainMesh, terrainMaterial, true);
 
-        Vector3[] railRoutePoints = GetRailTruckRoutePoints(0f);
+        Vector3[] railRoutePoints = GetRailTruckMainRoadPoints(0f);
 
         // The actual antennas are roughly 2,500 feet (762 m) from the DOC. Their
         // diameters remain at 1:10 scale, but the complex is deliberately staged
@@ -2841,21 +2849,89 @@ public static class GroundOpsSceneBuilder
         Material truckGlassMaterial)
     {
         Transform journey = NewGroup("Rail Truck Journey", exteriorLandscape);
-        Vector3[] routePoints = GetRailTruckRoutePoints(0.10f);
-
-        Mesh roadMesh = GetRailRoadMesh(
-            "GroundOps_AntennaAccessRoad",
-            routePoints,
-            3.2f);
-        MeshObject("Antenna Access Road", journey, roadMesh, roadMaterial, true);
-
-        Vector3 antennaStop = routePoints[^1];
-        AntennaApronShape apronShape = GetAntennaComplexApronShape(
-            exteriorLandscape,
-            antennaStop);
+        const float pavedSurfaceOffset = 0.25f;
         MeshCollider terrainCollider = exteriorLandscape
             .Find("Low-poly Mountain Ridge")
             ?.GetComponent<MeshCollider>();
+        Vector3[] mainRoadPoints = GetRailTruckMainRoadPoints(0f);
+        Vector3[] outboundConnectorPoints =
+            GetRailTruckRoundaboutConnectorPoints(true, 0f);
+        Vector3[] returnConnectorPoints =
+            GetRailTruckRoundaboutConnectorPoints(false, 0f);
+        ConformPathAboveTerrain(
+            mainRoadPoints,
+            exteriorLandscape,
+            terrainCollider,
+            pavedSurfaceOffset);
+        ConformPathAboveTerrain(
+            outboundConnectorPoints,
+            exteriorLandscape,
+            terrainCollider,
+            pavedSurfaceOffset);
+        ConformPathAboveTerrain(
+            returnConnectorPoints,
+            exteriorLandscape,
+            terrainCollider,
+            pavedSurfaceOffset);
+        Vector3[] routePoints = GetRailTruckJourneyRoutePoints(
+            0f,
+            mainRoadPoints,
+            outboundConnectorPoints,
+            returnConnectorPoints,
+            out int antennaStopWaypointIndex);
+        ConformPathAboveTerrain(
+            routePoints,
+            exteriorLandscape,
+            terrainCollider,
+            pavedSurfaceOffset);
+
+        Mesh roadMesh = GetRailRoadMesh(
+            "GroundOps_AntennaAccessRoad",
+            mainRoadPoints,
+            3.2f,
+            exteriorLandscape,
+            terrainCollider,
+            pavedSurfaceOffset);
+        MeshObject("Antenna Access Road", journey, roadMesh, roadMaterial, true);
+        MeshObject(
+            "Roundabout Outbound Connector",
+            journey,
+            GetRailRoadMesh(
+                "GroundOps_RoundaboutOutboundConnector",
+                outboundConnectorPoints,
+                3.2f,
+                exteriorLandscape,
+                terrainCollider,
+                pavedSurfaceOffset),
+            roadMaterial,
+            true);
+        MeshObject(
+            "Roundabout Return Connector",
+            journey,
+            GetRailRoadMesh(
+                "GroundOps_RoundaboutReturnConnector",
+                returnConnectorPoints,
+                3.2f,
+                exteriorLandscape,
+                terrainCollider,
+                pavedSurfaceOffset),
+            roadMaterial,
+            true);
+
+        Mesh roundaboutMesh = GetTerrainRoundaboutMesh(
+            "GroundOps_BuildingRoundabout",
+            TruckRoundaboutCenter,
+            TruckRoundaboutInnerRadius,
+            TruckRoundaboutOuterRadius,
+            pavedSurfaceOffset + 0.02f,
+            exteriorLandscape,
+            terrainCollider);
+        MeshObject("Building Roundabout", journey, roundaboutMesh, roadMaterial, true);
+
+        Vector3 antennaStop = routePoints[antennaStopWaypointIndex];
+        AntennaApronShape apronShape = GetAntennaComplexApronShape(
+            exteriorLandscape,
+            antennaStop);
         Mesh apronMesh = GetTerrainApronMesh(
             "GroundOps_AntennaComplexApron",
             apronShape,
@@ -2912,6 +2988,7 @@ public static class GroundOpsSceneBuilder
             departurePoint,
             exitPose,
             waypoints,
+            antennaStopWaypointIndex,
             wheels,
             5f);
     }
@@ -2988,13 +3065,13 @@ public static class GroundOpsSceneBuilder
         return wheels;
     }
 
-    private static Vector3[] GetRailTruckRoutePoints(float heightAboveTerrain)
+    private static Vector3[] GetRailTruckMainRoadPoints(float heightAboveTerrain)
     {
         // Deliberately compressed stage-set path. The real antennas are about
         // 776 m away; this route is short enough to be a useful gameplay beat.
         Vector3[] controls =
         {
-            new(-15.0f, 0f, -4.0f),
+            new(TruckRoundaboutRoadFork.x, 0f, TruckRoundaboutRoadFork.y),
             new(-21.5f, 0f, 1.5f),
             new(-28.5f, 0f, 9.0f),
             new(-35.5f, 0f, 17.5f),
@@ -3003,7 +3080,50 @@ public static class GroundOpsSceneBuilder
             new(-55.2f, 0f, 35.7f),
         };
 
-        const int samplesPerControlSegment = 3;
+        return SampleTerrainPath(controls, heightAboveTerrain);
+    }
+
+    private static Vector3[] GetRailTruckRoundaboutConnectorPoints(
+        bool outbound,
+        float heightAboveTerrain)
+    {
+        Vector2 roundaboutPoint = PointOnRoundabout(
+            outbound
+                ? TruckRoundaboutRoadExitAngle
+                : TruckRoundaboutRoadEntryAngle);
+        Vector3[] controls = outbound
+            ? new[]
+            {
+                new Vector3(roundaboutPoint.x, 0f, roundaboutPoint.y),
+                new Vector3(-11.8f, 0f, -1.25f),
+                new Vector3(-14.4f, 0f, -0.70f),
+                new Vector3(
+                    TruckRoundaboutRoadFork.x,
+                    0f,
+                    TruckRoundaboutRoadFork.y),
+            }
+            : new[]
+            {
+                new Vector3(
+                    TruckRoundaboutRoadFork.x,
+                    0f,
+                    TruckRoundaboutRoadFork.y),
+                new Vector3(-18.0f, 0f, -3.4f),
+                new Vector3(-17.2f, 0f, -6.5f),
+                new Vector3(-15.3f, 0f, -8.9f),
+                new Vector3(roundaboutPoint.x, 0f, roundaboutPoint.y),
+            };
+        return SampleTerrainPath(controls, heightAboveTerrain);
+    }
+
+    private static Vector3[] SampleTerrainPath(
+        Vector3[] controls,
+        float heightAboveTerrain)
+    {
+        // Keep the paved ribbon close to the low-poly terrain between control
+        // points. Sparse samples can leave a triangle chord cutting through a
+        // terrain peak even when both of that triangle's ends are clear.
+        const int samplesPerControlSegment = 8;
         List<Vector3> points = new();
         for (int segment = 0; segment < controls.Length - 1; segment++)
         {
@@ -3017,6 +3137,105 @@ public static class GroundOpsSceneBuilder
             }
         }
         return points.ToArray();
+    }
+
+    private static Vector3[] GetRailTruckJourneyRoutePoints(
+        float heightAboveTerrain,
+        Vector3[] mainRoadPoints,
+        Vector3[] outboundConnectorPoints,
+        Vector3[] returnConnectorPoints,
+        out int antennaStopWaypointIndex)
+    {
+        List<Vector3> points = new();
+
+        // The DOC stop is on the building side of the roundabout. Outbound
+        // traffic follows its north arc before joining the single mountain
+        // road; returning traffic completes the west/south arc and parks at
+        // the same point. The truck therefore turns around visibly and always
+        // drives forward, without generating a second road up the ridge.
+        AddRoundaboutArc(
+            points,
+            TruckRoundaboutParkingAngle,
+            TruckRoundaboutRoadExitAngle,
+            heightAboveTerrain,
+            true);
+        for (int index = 1; index < outboundConnectorPoints.Length; index++)
+        {
+            points.Add(outboundConnectorPoints[index]);
+        }
+        for (int index = 1; index < mainRoadPoints.Length; index++)
+        {
+            points.Add(mainRoadPoints[index]);
+        }
+
+        antennaStopWaypointIndex = points.Count - 1;
+
+        // A broad half-circle on the already paved antenna apron turns the
+        // truck around after the player boards for the return journey.
+        Vector3 stop = points[^1];
+        Vector3 incoming = Vector3.ProjectOnPlane(
+            stop - points[^2],
+            Vector3.up).normalized;
+        Vector3 left = new(-incoming.z, 0f, incoming.x);
+        const float turnaroundRadius = 2.8f;
+        Vector3 turnaroundCenter = stop + left * turnaroundRadius;
+        const int turnaroundSegments = 10;
+        for (int index = 1; index <= turnaroundSegments; index++)
+        {
+            float angle = Mathf.PI * index / turnaroundSegments;
+            Vector3 point = turnaroundCenter
+                + (-left * Mathf.Cos(angle) + incoming * Mathf.Sin(angle))
+                    * turnaroundRadius;
+            point.y = MountainHeight(point.x, point.z) + heightAboveTerrain;
+            points.Add(point);
+        }
+
+        for (int index = mainRoadPoints.Length - 2; index >= 0; index--)
+        {
+            points.Add(mainRoadPoints[index]);
+        }
+        for (int index = 1; index < returnConnectorPoints.Length; index++)
+        {
+            points.Add(returnConnectorPoints[index]);
+        }
+        AddRoundaboutArc(
+            points,
+            TruckRoundaboutRoadEntryAngle,
+            TruckRoundaboutParkingAngle + 360f,
+            heightAboveTerrain,
+            false);
+        return points.ToArray();
+    }
+
+    private static void AddRoundaboutArc(
+        List<Vector3> points,
+        float startAngle,
+        float endAngle,
+        float heightAboveTerrain,
+        bool includeStart)
+    {
+        const float degreesPerSegment = 14f;
+        int segments = Mathf.Max(
+            1,
+            Mathf.CeilToInt(Mathf.Abs(endAngle - startAngle) / degreesPerSegment));
+        int firstIndex = includeStart ? 0 : 1;
+        for (int index = firstIndex; index <= segments; index++)
+        {
+            float angle = Mathf.Lerp(startAngle, endAngle, index / (float)segments);
+            Vector2 horizontal = PointOnRoundabout(angle);
+            points.Add(new Vector3(
+                horizontal.x,
+                MountainHeight(horizontal.x, horizontal.y) + heightAboveTerrain,
+                horizontal.y));
+        }
+    }
+
+    private static Vector2 PointOnRoundabout(float angleDegrees)
+    {
+        float radians = angleDegrees * Mathf.Deg2Rad;
+        return TruckRoundaboutCenter + new Vector2(
+            Mathf.Cos(radians),
+            Mathf.Sin(radians)) * TruckRoundaboutPathRadius;
     }
 
     private static Vector3 EvaluateCatmullRom(Vector3[] points, int segment, float t)
@@ -3035,34 +3254,149 @@ public static class GroundOpsSceneBuilder
     private static Mesh GetRailRoadMesh(
         string name,
         Vector3[] routePoints,
-        float width)
+        float width,
+        Transform exteriorLandscape,
+        MeshCollider terrainCollider,
+        float surfaceOffset)
     {
-        List<Vector3> vertices = new(routePoints.Length * 2);
-        List<int> triangles = new((routePoints.Length - 1) * 6);
+        const int widthSegments = 4;
+        int verticesPerRow = widthSegments + 1;
+        List<Vector3> vertices = new(routePoints.Length * verticesPerRow);
+        List<int> triangles = new((routePoints.Length - 1) * widthSegments * 6);
         for (int index = 0; index < routePoints.Length; index++)
         {
             Vector3 previous = routePoints[Mathf.Max(0, index - 1)];
             Vector3 next = routePoints[Mathf.Min(routePoints.Length - 1, index + 1)];
             Vector3 tangent = Vector3.ProjectOnPlane(next - previous, Vector3.up).normalized;
             Vector3 side = Vector3.Cross(Vector3.up, tangent).normalized;
-            vertices.Add(routePoints[index] - side * width * 0.5f);
-            vertices.Add(routePoints[index] + side * width * 0.5f);
+            for (int widthIndex = 0; widthIndex <= widthSegments; widthIndex++)
+            {
+                float across = Mathf.Lerp(-width * 0.5f, width * 0.5f, widthIndex / (float)widthSegments);
+                Vector3 vertex = routePoints[index] + side * across;
+                vertex.y = TerrainMeshHeight(
+                    vertex.x,
+                    vertex.z,
+                    exteriorLandscape,
+                    terrainCollider,
+                    vertex.y - surfaceOffset) + surfaceOffset;
+                vertices.Add(vertex);
+            }
         }
 
         for (int index = 0; index < routePoints.Length - 1; index++)
         {
-            int currentLeft = index * 2;
-            int currentRight = currentLeft + 1;
-            int nextLeft = currentLeft + 2;
-            int nextRight = currentLeft + 3;
-            triangles.Add(currentLeft);
-            triangles.Add(nextLeft);
-            triangles.Add(currentRight);
-            triangles.Add(currentRight);
-            triangles.Add(nextLeft);
-            triangles.Add(nextRight);
+            int currentRow = index * verticesPerRow;
+            int nextRow = currentRow + verticesPerRow;
+            for (int widthIndex = 0; widthIndex < widthSegments; widthIndex++)
+            {
+                int currentLeft = currentRow + widthIndex;
+                int currentRight = currentLeft + 1;
+                int nextLeft = nextRow + widthIndex;
+                int nextRight = nextLeft + 1;
+                triangles.Add(currentLeft);
+                triangles.Add(nextLeft);
+                triangles.Add(currentRight);
+                triangles.Add(currentRight);
+                triangles.Add(nextLeft);
+                triangles.Add(nextRight);
+            }
         }
         return GetGeneratedMesh(name, vertices, triangles);
+    }
+
+    private static Mesh GetTerrainRoundaboutMesh(
+        string name,
+        Vector2 center,
+        float innerRadius,
+        float outerRadius,
+        float surfaceOffset,
+        Transform exteriorLandscape,
+        MeshCollider terrainCollider)
+    {
+        const int segments = 64;
+        List<Vector3> vertices = new((segments + 1) * 2);
+        List<int> triangles = new(segments * 6);
+        for (int index = 0; index <= segments; index++)
+        {
+            float angle = Mathf.PI * 2f * index / segments;
+            Vector2 direction = new(Mathf.Cos(angle), Mathf.Sin(angle));
+            Vector2 inner = center + direction * innerRadius;
+            Vector2 outer = center + direction * outerRadius;
+            vertices.Add(new Vector3(
+                inner.x,
+                TerrainMeshHeight(
+                    inner.x,
+                    inner.y,
+                    exteriorLandscape,
+                    terrainCollider,
+                    MountainHeight(inner.x, inner.y)) + surfaceOffset,
+                inner.y));
+            vertices.Add(new Vector3(
+                outer.x,
+                TerrainMeshHeight(
+                    outer.x,
+                    outer.y,
+                    exteriorLandscape,
+                    terrainCollider,
+                    MountainHeight(outer.x, outer.y)) + surfaceOffset,
+                outer.y));
+        }
+
+        for (int index = 0; index < segments; index++)
+        {
+            int inner = index * 2;
+            int outer = inner + 1;
+            int nextInner = inner + 2;
+            int nextOuter = outer + 2;
+            triangles.Add(inner);
+            triangles.Add(nextInner);
+            triangles.Add(outer);
+            triangles.Add(outer);
+            triangles.Add(nextInner);
+            triangles.Add(nextOuter);
+        }
+        return GetGeneratedMesh(name, vertices, triangles);
+    }
+
+    private static void ConformPathAboveTerrain(
+        Vector3[] points,
+        Transform exteriorLandscape,
+        MeshCollider terrainCollider,
+        float surfaceOffset)
+    {
+        for (int index = 0; index < points.Length; index++)
+        {
+            Vector3 point = points[index];
+            point.y = TerrainMeshHeight(
+                point.x,
+                point.z,
+                exteriorLandscape,
+                terrainCollider,
+                MountainHeight(point.x, point.z)) + surfaceOffset;
+            points[index] = point;
+        }
+    }
+
+    private static float TerrainMeshHeight(
+        float x,
+        float z,
+        Transform exteriorLandscape,
+        MeshCollider terrainCollider,
+        float fallbackHeight)
+    {
+        if (terrainCollider == null)
+        {
+            return fallbackHeight;
+        }
+
+        Vector3 rayOrigin = exteriorLandscape.TransformPoint(new Vector3(x, 1000f, z));
+        Vector3 rayDirection = exteriorLandscape.TransformDirection(Vector3.down);
+        return terrainCollider.Raycast(
+                new Ray(rayOrigin, rayDirection),
+                out RaycastHit hit,
+                2000f)
+            ? exteriorLandscape.InverseTransformPoint(hit.point).y
+            : fallbackHeight;
     }
 
     private static Mesh GetTerrainApronMesh(
@@ -3740,6 +4074,22 @@ public static class GroundOpsSceneBuilder
         // it no longer intersected the architecture, but it was still plainly
         // visible through the chamber floor and made the room look outdoors.
         naturalHeight = Mathf.Lerp(naturalHeight, -12f, facilityPadWeight);
+
+        // The real entrance roundabout is a deliberately graded patch beside
+        // the building, not a ribbon draped over the steep terrain transition.
+        // Flatten its center and blend the cut/fill back into the hillside so
+        // the paved ring, parked truck, and road junction remain believable.
+        float roundaboutDistance = Vector2.Distance(
+            new Vector2(x, z),
+            TruckRoundaboutCenter);
+        float roundaboutGradeWeight = 1f - Mathf.SmoothStep(
+            0f,
+            1f,
+            Mathf.InverseLerp(
+                TruckRoundaboutOuterRadius + 0.75f,
+                TruckRoundaboutOuterRadius + 5.0f,
+                roundaboutDistance));
+        naturalHeight = Mathf.Lerp(naturalHeight, -7.18f, roundaboutGradeWeight);
 
         // The real complex follows a ridge, not an isolated summit. Extend the
         // crest through both dishes along their shared lateral axis, then blend

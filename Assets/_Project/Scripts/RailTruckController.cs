@@ -23,6 +23,7 @@ public sealed class RailTruckController : MonoBehaviour
     [SerializeField] private Transform departureInteractionPoint;
     [SerializeField] private Transform antennaExitPose;
     [SerializeField] private Transform[] routeWaypoints;
+    [SerializeField, Min(1)] private int antennaStopWaypointIndex = 1;
     [SerializeField] private Transform[] wheels;
     [SerializeField, Min(0.1f)] private float speedMetersPerSecond = 5f;
     [SerializeField, Min(0.2f)] private float interactionDistanceMeters = 1.8f;
@@ -41,6 +42,7 @@ public sealed class RailTruckController : MonoBehaviour
     private JourneyState state;
     private float travelledMeters;
     private float routeLength;
+    private float antennaStopDistance;
     private bool transitioning;
     private bool cameraAttached;
     private Vector3 standingCameraLocalPosition;
@@ -53,7 +55,21 @@ public sealed class RailTruckController : MonoBehaviour
 
     public JourneyState State => state;
     public string StateName => state.ToString();
-    public float Progress01 => routeLength > 0f ? travelledMeters / routeLength : 0f;
+    public float Progress01
+    {
+        get
+        {
+            if (antennaStopDistance <= 0f || routeLength <= antennaStopDistance)
+            {
+                return 0f;
+            }
+
+            return travelledMeters <= antennaStopDistance
+                ? travelledMeters / antennaStopDistance
+                : 1f - (travelledMeters - antennaStopDistance)
+                    / (routeLength - antennaStopDistance);
+        }
+    }
     public float RouteLengthMeters => routeLength;
     public float SpeedMetersPerSecond => speedMetersPerSecond;
     public bool DrawRouteGizmos => drawRouteGizmos;
@@ -66,6 +82,7 @@ public sealed class RailTruckController : MonoBehaviour
         Transform departurePoint,
         Transform exitPose,
         Transform[] waypoints,
+        int antennaWaypointIndex,
         Transform[] wheelTransforms,
         float speed)
     {
@@ -76,6 +93,10 @@ public sealed class RailTruckController : MonoBehaviour
         departureInteractionPoint = departurePoint;
         antennaExitPose = exitPose;
         routeWaypoints = waypoints;
+        antennaStopWaypointIndex = Mathf.Clamp(
+            antennaWaypointIndex,
+            1,
+            Mathf.Max(1, waypoints.Length - 2));
         wheels = wheelTransforms;
         speedMetersPerSecond = Mathf.Max(0.1f, speed);
         BuildRouteLookup();
@@ -143,14 +164,14 @@ public sealed class RailTruckController : MonoBehaviour
                 {
                     float previousDistance = travelledMeters;
                     travelledMeters = Mathf.Min(
-                        routeLength,
+                        antennaStopDistance,
                         travelledMeters + speedMetersPerSecond * Time.deltaTime);
                     SetTruckAtDistance(
                         travelledMeters,
                         true,
                         travelledMeters - previousDistance,
                         true);
-                    if (travelledMeters >= routeLength - 0.001f)
+                    if (travelledMeters >= antennaStopDistance - 0.001f)
                     {
                         state = JourneyState.ArrivedAtAntennas;
                     }
@@ -164,6 +185,10 @@ public sealed class RailTruckController : MonoBehaviour
                     StartCoroutine(ExitTruck(
                         antennaExitPose,
                         JourneyState.ParkedAtAntennas));
+                }
+                else if (keyboard.wKey.isPressed)
+                {
+                    state = JourneyState.DrivingToDoc;
                 }
                 break;
 
@@ -182,14 +207,16 @@ public sealed class RailTruckController : MonoBehaviour
                 {
                     float previousDistance = travelledMeters;
                     travelledMeters = Mathf.Max(
-                        0f,
-                        travelledMeters - speedMetersPerSecond * Time.deltaTime);
+                        antennaStopDistance,
+                        Mathf.Min(
+                            routeLength,
+                            travelledMeters + speedMetersPerSecond * Time.deltaTime));
                     SetTruckAtDistance(
                         travelledMeters,
                         true,
-                        previousDistance - travelledMeters,
-                        false);
-                    if (travelledMeters <= 0.001f)
+                        travelledMeters - previousDistance,
+                        true);
+                    if (travelledMeters >= routeLength - 0.001f)
                     {
                         state = JourneyState.ArrivedAtDoc;
                     }
@@ -203,6 +230,15 @@ public sealed class RailTruckController : MonoBehaviour
                     StartCoroutine(ExitTruck(
                         departureInteractionPoint,
                         JourneyState.ParkedAtDoc));
+                }
+                else if (keyboard.wKey.isPressed)
+                {
+                    // The route is a smooth closed loop. Wrap the scalar
+                    // distance at the shared parking point and continue toward
+                    // the antennas without teleporting or rotating the truck.
+                    travelledMeters = 0f;
+                    SetTruckAtDistance(travelledMeters, false);
+                    state = JourneyState.DrivingToAntennas;
                 }
                 break;
         }
@@ -235,7 +271,9 @@ public sealed class RailTruckController : MonoBehaviour
         }
         else if (state == JourneyState.ArrivedAtAntennas && !transitioning)
         {
-            InteractionPromptDisplay.Show(this, "Press F to exit truck");
+            InteractionPromptDisplay.Show(
+                this,
+                "Press F to exit truck | Press W to drive to building");
         }
         else if (state == JourneyState.ParkedAtAntennas
                  && playerController != null
@@ -246,7 +284,9 @@ public sealed class RailTruckController : MonoBehaviour
         }
         else if (state == JourneyState.ArrivedAtDoc && !transitioning)
         {
-            InteractionPromptDisplay.Show(this, "Press F to get back into building");
+            InteractionPromptDisplay.Show(
+                this,
+                "Press F to exit truck | Press W to drive to antennas");
         }
         else
         {
@@ -271,8 +311,8 @@ public sealed class RailTruckController : MonoBehaviour
         SetCursorCaptured(true);
 
         yield return FadeTo(1f);
-        travelledMeters = drivingToAntennas ? 0f : routeLength;
-        SetTruckAtDistance(travelledMeters, false, 0f, drivingToAntennas);
+        travelledMeters = drivingToAntennas ? 0f : antennaStopDistance;
+        SetTruckAtDistance(travelledMeters, false);
         cameraAttached = true;
         playerCamera.transform.SetPositionAndRotation(
             driverCameraPose.position,
@@ -393,6 +433,7 @@ public sealed class RailTruckController : MonoBehaviour
         routeSamples.Clear();
         routeDistances.Clear();
         routeLength = 0f;
+        antennaStopDistance = 0f;
         if (routeWaypoints == null || routeWaypoints.Length < 2
             || routeWaypoints[0] == null)
         {
@@ -412,8 +453,17 @@ public sealed class RailTruckController : MonoBehaviour
                 routeSamples.Add(position);
                 routeDistances.Add(routeLength);
             }
+
+            if (segment + 1 == antennaStopWaypointIndex)
+            {
+                antennaStopDistance = routeLength;
+            }
         }
 
+        if (antennaStopDistance <= 0f)
+        {
+            antennaStopDistance = routeLength;
+        }
     }
 
     private Vector3 EvaluateSegment(int segment, float t)

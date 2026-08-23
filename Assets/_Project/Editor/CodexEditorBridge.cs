@@ -837,9 +837,9 @@ public static class CodexEditorBridge
             {
                 Transform groundOpsRoot = RequireGroundOpsRoot();
                 Vector3 viewPosition = groundOpsRoot.TransformPoint(
-                    new Vector3(-10.8f, -1.5f, -8.0f));
+                    new Vector3(-22.0f, 4.5f, -18.0f));
                 Vector3 target = groundOpsRoot.TransformPoint(
-                    new Vector3(-15f, -3.0f, -4.0f));
+                    new Vector3(-9.5f, -3.8f, -5.5f));
                 camera.transform.position = viewPosition;
                 camera.transform.rotation = Quaternion.LookRotation(
                     target - viewPosition,

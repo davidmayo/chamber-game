@@ -49,6 +49,12 @@ public sealed class RailTruckJourneyTests : InputTestFixture
             "Ground Ops Blockout/Exterior Landscape/Rail Truck Journey/Antenna Access Road");
         GameObject apron = GameObject.Find(
             "Ground Ops Blockout/Exterior Landscape/Rail Truck Journey/Antenna Complex Apron");
+        GameObject roundabout = GameObject.Find(
+            "Ground Ops Blockout/Exterior Landscape/Rail Truck Journey/Building Roundabout");
+        GameObject outboundConnector = GameObject.Find(
+            "Ground Ops Blockout/Exterior Landscape/Rail Truck Journey/Roundabout Outbound Connector");
+        GameObject returnConnector = GameObject.Find(
+            "Ground Ops Blockout/Exterior Landscape/Rail Truck Journey/Roundabout Return Connector");
         GameObject terrain = GameObject.Find(
             "Ground Ops Blockout/Exterior Landscape/Low-poly Mountain Ridge");
         Assert.That(departure, Is.Not.Null);
@@ -61,6 +67,34 @@ public sealed class RailTruckJourneyTests : InputTestFixture
             "The enlarged antenna-complex apron must be walkable.");
         Assert.That(apron?.GetComponent<BoxCollider>(), Is.Null,
             "The terrain-following apron must not retain its obsolete box collider.");
+        Assert.That(roundabout?.GetComponent<MeshCollider>(), Is.Not.Null,
+            "The building roundabout must be visible and drivable terrain.");
+        MeshCollider terrainCollider = terrain.GetComponent<MeshCollider>();
+        foreach (GameObject pavement in new[]
+                 {
+                     road,
+                     outboundConnector,
+                     returnConnector,
+                     roundabout,
+                 })
+        {
+            Assert.That(pavement, Is.Not.Null);
+            AssertPavementAboveTerrain(pavement, terrainCollider);
+        }
+
+        Transform[] routeWaypoints =
+            (Transform[])GetPrivateField(railTruck, "routeWaypoints");
+        int antennaStopWaypointIndex =
+            (int)GetPrivateField(railTruck, "antennaStopWaypointIndex");
+        Assert.That(routeWaypoints.Length, Is.GreaterThan(4));
+        Assert.That(antennaStopWaypointIndex,
+            Is.InRange(1, routeWaypoints.Length - 2),
+            "The antenna must be an intermediate stop on the closed forward route.");
+        Assert.That(Vector3.Distance(
+                routeWaypoints[0].position,
+                routeWaypoints[^1].position),
+            Is.LessThan(0.05f),
+            "The route must return to the same DOC roundabout parking point.");
 
         string truckPath =
             "Ground Ops Blockout/Exterior Landscape/Rail Truck Journey/Rail Truck/";
@@ -158,6 +192,26 @@ public sealed class RailTruckJourneyTests : InputTestFixture
         Assert.That((float)progressProperty.GetValue(railTruck),
             Is.EqualTo(0f).Within(0.001f));
 
+        // At either endpoint W starts the next leg without forcing an exit.
+        // Prove the closed route can be circulated for another complete lap.
+        yield return Tap(keyboard.wKey);
+        yield return WaitForState(railTruck, "DrivingToAntennas", 1.5f);
+        Press(keyboard.wKey);
+        yield return WaitForState(railTruck, "ArrivedAtAntennas", 2f);
+        Release(keyboard.wKey);
+        yield return null;
+        Assert.That((float)progressProperty.GetValue(railTruck),
+            Is.EqualTo(1f).Within(0.001f));
+
+        yield return Tap(keyboard.wKey);
+        yield return WaitForState(railTruck, "DrivingToDoc", 1.5f);
+        Press(keyboard.wKey);
+        yield return WaitForState(railTruck, "ArrivedAtDoc", 2f);
+        Release(keyboard.wKey);
+        yield return null;
+        Assert.That((float)progressProperty.GetValue(railTruck),
+            Is.EqualTo(0f).Within(0.001f));
+
         yield return Tap(keyboard.fKey);
         yield return WaitForState(railTruck, "ParkedAtDoc", 1.5f);
         Assert.That(((Behaviour)player).enabled, Is.True,
@@ -177,6 +231,52 @@ public sealed class RailTruckJourneyTests : InputTestFixture
             BindingFlags.Instance | BindingFlags.NonPublic);
         Assert.That(field, Is.Not.Null, $"Private test field '{name}' was not found.");
         field.SetValue(component, value);
+    }
+
+    private static object GetPrivateField(Component component, string name)
+    {
+        FieldInfo field = component.GetType().GetField(
+            name,
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.That(field, Is.Not.Null, $"Private test field '{name}' was not found.");
+        return field.GetValue(component);
+    }
+
+    private static void AssertPavementAboveTerrain(
+        GameObject pavement,
+        MeshCollider terrainCollider)
+    {
+        Mesh mesh = pavement.GetComponent<MeshFilter>()?.sharedMesh;
+        Assert.That(mesh, Is.Not.Null, $"{pavement.name} must have a generated mesh.");
+        Vector3[] vertices = mesh.vertices;
+        int[] triangles = mesh.triangles;
+
+        foreach (Vector3 vertex in vertices)
+        {
+            AssertPointAboveTerrain(pavement, vertex, terrainCollider);
+        }
+
+        for (int index = 0; index < triangles.Length; index += 3)
+        {
+            Vector3 centroid = (
+                vertices[triangles[index]]
+                + vertices[triangles[index + 1]]
+                + vertices[triangles[index + 2]]) / 3f;
+            AssertPointAboveTerrain(pavement, centroid, terrainCollider);
+        }
+    }
+
+    private static void AssertPointAboveTerrain(
+        GameObject pavement,
+        Vector3 localPoint,
+        MeshCollider terrainCollider)
+    {
+        Vector3 worldPoint = pavement.transform.TransformPoint(localPoint);
+        Ray ray = new(worldPoint + Vector3.up * 30f, Vector3.down);
+        Assert.That(terrainCollider.Raycast(ray, out RaycastHit hit, 80f), Is.True,
+            $"Terrain was not found beneath {pavement.name} at {worldPoint}.");
+        Assert.That(worldPoint.y - hit.point.y, Is.GreaterThan(0.05f),
+            $"{pavement.name} intersects terrain at {worldPoint}.");
     }
 
     private static string GetState(Component railTruck)
