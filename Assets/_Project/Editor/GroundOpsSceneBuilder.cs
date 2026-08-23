@@ -1090,7 +1090,9 @@ public static class GroundOpsSceneBuilder
         const float hallwayOuterX = 8.1f;
         const float hallwayOuterFrontZ = -8.1f;
         const float hallwayBackZ = 27.5f;
-        const float hallwayFrontLeftX = -5.1f;
+        // Keep the south return inside the independent west building envelope.
+        // The DOC curve may project past the shell, but the hallway may not.
+        const float hallwayFrontLeftX = -4.2f;
         const float highBayOuterX = 48f;
         const float highBayFloorY = -4.0f;
         const float highBayTopY = 9.0f;
@@ -1361,23 +1363,28 @@ public static class GroundOpsSceneBuilder
         float existingDepth = BuildingNorthZ - ExistingBuildingSouthZ;
         float southDepth = ExistingBuildingSouthZ - BuildingSouthZ;
         float officeWingWidth = 8.1f - BuildingWestX;
+        const float envelopeGap = 0.05f;
+        float shellWestX = BuildingWestX - wallThickness * 0.5f - envelopeGap;
+        float shellEastX = BuildingEastX + wallThickness + envelopeGap;
+        float shellSouthZ = BuildingSouthZ;
+        float shellNorthZ = BuildingNorthZ + wallThickness + envelopeGap;
+        float shellOuterWidth = shellEastX - shellWestX + wallThickness;
+        float shellOuterDepth = shellNorthZ - shellSouthZ + wallThickness;
 
         Transform foundation = NewGroup("Foundation and Floors", parent);
-        // The high bay already owns the northeast portion of this slab. These
-        // two non-overlapping rectangles complete the rectangular footprint.
-        Box("North Office Foundation Slab", foundation,
+        // The envelope has its own complete foundation below every interior
+        // room floor. It is intentionally separated vertically from the high
+        // bay and room slabs rather than assembled from their exposed pieces.
+        const float foundationThickness = 0.20f;
+        const float interiorFloorThickness = 0.16f;
+        float foundationTopY =
+            BuildingFirstFloorY - interiorFloorThickness - envelopeGap;
+        Box("Full Building Foundation Slab", foundation,
             new Vector3(
-                (BuildingWestX + 8.1f) * 0.5f,
-                BuildingFirstFloorY - 0.08f,
-                (ExistingBuildingSouthZ + BuildingNorthZ) * 0.5f),
-            new Vector3(officeWingWidth, 0.16f, existingDepth),
-            Quaternion.identity, foundationMaterial);
-        Box("South Foundation Slab", foundation,
-            new Vector3(
-                (BuildingWestX + BuildingEastX) * 0.5f,
-                BuildingFirstFloorY - 0.08f,
-                (BuildingSouthZ + ExistingBuildingSouthZ) * 0.5f),
-            new Vector3(buildingWidth, 0.16f, southDepth),
+                (shellWestX + shellEastX) * 0.5f,
+                foundationTopY - foundationThickness * 0.5f,
+                (shellSouthZ + shellNorthZ) * 0.5f),
+            new Vector3(shellOuterWidth, foundationThickness, shellOuterDepth),
             Quaternion.identity, foundationMaterial);
 
         // This backing slab meets the undersides of the existing generated
@@ -1409,20 +1416,20 @@ public static class GroundOpsSceneBuilder
         float doorSouthZ = frontDoorCenterZ - frontDoorWidth * 0.5f;
         float doorNorthZ = frontDoorCenterZ + frontDoorWidth * 0.5f;
         Box("West Wall South of Front Door", exteriorWalls,
-            new Vector3(BuildingWestX, groundWallCenterY,
+            new Vector3(shellWestX, groundWallCenterY,
                 (BuildingSouthZ + doorSouthZ) * 0.5f),
             new Vector3(wallThickness, firstFloorHeight,
                 doorSouthZ - BuildingSouthZ),
             Quaternion.identity, exteriorMaterial);
         Box("West Wall North of Front Door", exteriorWalls,
-            new Vector3(BuildingWestX, groundWallCenterY,
-                (doorNorthZ + BuildingNorthZ) * 0.5f),
+            new Vector3(shellWestX, groundWallCenterY,
+                (doorNorthZ + shellNorthZ) * 0.5f),
             new Vector3(wallThickness, firstFloorHeight,
-                BuildingNorthZ - doorNorthZ),
+                shellNorthZ - doorNorthZ),
             Quaternion.identity, exteriorMaterial);
         float frontDoorHeaderHeight = firstFloorHeight - frontDoorHeight;
         Box("West Wall Front Door Header", exteriorWalls,
-            new Vector3(BuildingWestX,
+            new Vector3(shellWestX,
                 BuildingFirstFloorY + frontDoorHeight + frontDoorHeaderHeight * 0.5f,
                 frontDoorCenterZ),
             new Vector3(wallThickness, frontDoorHeaderHeight, frontDoorWidth),
@@ -1434,68 +1441,45 @@ public static class GroundOpsSceneBuilder
         // south wing.
         float upperSouthDepth = -5.5f - BuildingSouthZ;
         Box("West Wall Upper South Wing", exteriorWalls,
-            new Vector3(BuildingWestX,
+            new Vector3(shellWestX,
                 BuildingRoofY * 0.5f,
                 (BuildingSouthZ - 5.5f) * 0.5f),
             new Vector3(wallThickness, BuildingRoofY, upperSouthDepth),
             Quaternion.identity, exteriorMaterial);
         float westTopStripHeight = BuildingRoofY - secondFloorWallHeight;
         Box("West Wall Above DOC Cantilever", exteriorWalls,
-            new Vector3(BuildingWestX,
+            new Vector3(shellWestX,
                 secondFloorWallHeight + westTopStripHeight * 0.5f,
                 (-5.5f + 4.5f) * 0.5f),
             new Vector3(wallThickness, westTopStripHeight, 10f),
             Quaternion.identity, exteriorMaterial);
         Box("West Wall Upper North Wing", exteriorWalls,
-            new Vector3(BuildingWestX,
-                secondFloorWallHeight + westTopStripHeight * 0.5f,
-                (4.5f + BuildingNorthZ) * 0.5f),
-            new Vector3(wallThickness, westTopStripHeight,
-                BuildingNorthZ - 4.5f),
+            new Vector3(shellWestX,
+                BuildingRoofY * 0.5f,
+                (4.5f + shellNorthZ) * 0.5f),
+            new Vector3(wallThickness, BuildingRoofY,
+                shellNorthZ - 4.5f),
             Quaternion.identity, exteriorMaterial);
 
-        // The south facade is one uninterrupted full-height face.
+        // North, south, and east are deliberately boring, uninterrupted slabs.
+        // They do not inspect, reuse, or trim themselves around any room wall.
         Box("Full Height South Wall", exteriorWalls,
-            new Vector3((BuildingWestX + BuildingEastX) * 0.5f,
+            new Vector3((shellWestX + shellEastX) * 0.5f,
                 BuildingFirstFloorY + fullShellHeight * 0.5f,
-                BuildingSouthZ),
-            new Vector3(buildingWidth, fullShellHeight, wallThickness),
+                shellSouthZ),
+            new Vector3(shellOuterWidth, fullShellHeight, wallThickness),
             Quaternion.identity, exteriorMaterial);
-
-        // Existing high-bay walls form the northeast part of the envelope.
-        // Complete the east wall south of the bay, then fill only the narrow
-        // strip above the existing high-bay wall up to the common roof.
-        Box("Full Height South East Wall", exteriorWalls,
-            new Vector3(BuildingEastX,
+        Box("Full Height East Wall", exteriorWalls,
+            new Vector3(shellEastX,
                 BuildingFirstFloorY + fullShellHeight * 0.5f,
-                (BuildingSouthZ + ExistingBuildingSouthZ) * 0.5f),
-            new Vector3(wallThickness, fullShellHeight, southDepth),
+                (shellSouthZ + shellNorthZ) * 0.5f),
+            new Vector3(wallThickness, fullShellHeight, shellOuterDepth),
             Quaternion.identity, exteriorMaterial);
-        const float existingHighBayTopY = 5.9f;
-        float highBayCapHeight = BuildingRoofY - existingHighBayTopY;
-        Box("East High Bay Roofline Filler", exteriorWalls,
-            new Vector3(BuildingEastX,
-                existingHighBayTopY + highBayCapHeight * 0.5f,
-                (ExistingBuildingSouthZ + BuildingNorthZ) * 0.5f),
-            new Vector3(wallThickness, highBayCapHeight, existingDepth),
-            Quaternion.identity, exteriorMaterial);
-
-        // The hallway end wall already covers X=5.575..8.1, and the existing
-        // high-bay north wall covers X=8.1..48. Complete only the remaining
-        // west span so every visible north-facade surface has one owner.
-        const float hallwayInnerX = 5.575f;
-        Box("Full Height North Office Wall", exteriorWalls,
-            new Vector3((BuildingWestX + hallwayInnerX) * 0.5f,
+        Box("Full Height North Wall", exteriorWalls,
+            new Vector3((shellWestX + shellEastX) * 0.5f,
                 BuildingFirstFloorY + fullShellHeight * 0.5f,
-                BuildingNorthZ),
-            new Vector3(hallwayInnerX - BuildingWestX,
-                fullShellHeight, wallThickness),
-            Quaternion.identity, exteriorMaterial);
-        Box("North High Bay Roofline Filler", exteriorWalls,
-            new Vector3((8.1f + BuildingEastX) * 0.5f,
-                existingHighBayTopY + highBayCapHeight * 0.5f,
-                BuildingNorthZ),
-            new Vector3(BuildingEastX - 8.1f, highBayCapHeight, wallThickness),
+                shellNorthZ),
+            new Vector3(shellOuterWidth, fullShellHeight, wallThickness),
             Quaternion.identity, exteriorMaterial);
 
         // A single cap makes the mass read as one building rather than a row of
@@ -1504,11 +1488,10 @@ public static class GroundOpsSceneBuilder
         const float roofThickness = 0.24f;
         GameObject buildingRoof = Box("Full Building Roof Slab", parent,
             new Vector3(
-                (BuildingWestX + BuildingEastX) * 0.5f,
+                (shellWestX + shellEastX) * 0.5f,
                 BuildingRoofY + roofThickness * 0.5f,
-                (BuildingSouthZ + BuildingNorthZ) * 0.5f),
-            new Vector3(buildingWidth, roofThickness,
-                BuildingNorthZ - BuildingSouthZ),
+                (shellSouthZ + shellNorthZ) * 0.5f),
+            new Vector3(shellOuterWidth, roofThickness, shellOuterDepth),
             Quaternion.identity, roofMaterial);
         ceilingPhysicalRenderers.Add(buildingRoof.GetComponent<Renderer>());
     }

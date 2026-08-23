@@ -666,6 +666,8 @@ public static class CodexEditorBridge
             request.argument?.Trim(), "rail-truck-cab", StringComparison.OrdinalIgnoreCase);
         bool captureBuildingExterior = string.Equals(
             request.argument?.Trim(), "building-exterior", StringComparison.OrdinalIgnoreCase);
+        bool captureBuildingWest = string.Equals(
+            request.argument?.Trim(), "building-west", StringComparison.OrdinalIgnoreCase);
         int width = request.width > 0 ? Mathf.Clamp(request.width, 64, 4096) : 1280;
         int height = request.height > 0 ? Mathf.Clamp(request.height, 64, 4096) : 720;
         RenderTexture renderTexture = new(width, height, 24, RenderTextureFormat.ARGB32);
@@ -867,6 +869,20 @@ public static class CodexEditorBridge
                     new Vector3(-20f, 10f, -35f));
                 Vector3 target = groundOpsRoot.TransformPoint(
                     new Vector3(18f, -1.5f, 0f));
+                camera.transform.position = viewPosition;
+                camera.transform.rotation = Quaternion.LookRotation(
+                    target - viewPosition,
+                    Vector3.up);
+                camera.orthographic = false;
+                camera.fieldOfView = 58f;
+            }
+            else if (captureBuildingWest)
+            {
+                Transform groundOpsRoot = RequireGroundOpsRoot();
+                Vector3 viewPosition = groundOpsRoot.TransformPoint(
+                    new Vector3(-28f, 0.5f, -0.5f));
+                Vector3 target = groundOpsRoot.TransformPoint(
+                    new Vector3(-4.4f, -0.25f, -0.5f));
                 camera.transform.position = viewPosition;
                 camera.transform.rotation = Quaternion.LookRotation(
                     target - viewPosition,
