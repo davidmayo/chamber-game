@@ -9,9 +9,11 @@ public sealed class RailTruckController : MonoBehaviour
     public enum JourneyState
     {
         ParkedAtDoc,
-        Driving,
-        Arrived,
-        Completed,
+        DrivingToAntennas,
+        ArrivedAtAntennas,
+        ParkedAtAntennas,
+        DrivingToDoc,
+        ArrivedAtDoc,
     }
 
     [SerializeField] private FirstPersonPlayerController playerController;
@@ -131,11 +133,11 @@ public sealed class RailTruckController : MonoBehaviour
                     && PlayerIsNear(departureInteractionPoint)
                     && keyboard.fKey.wasPressedThisFrame)
                 {
-                    StartCoroutine(EnterTruck());
+                    StartCoroutine(EnterTruck(true));
                 }
                 break;
 
-            case JourneyState.Driving:
+            case JourneyState.DrivingToAntennas:
                 UpdateDriverView();
                 if (keyboard.wKey.isPressed)
                 {
@@ -143,19 +145,64 @@ public sealed class RailTruckController : MonoBehaviour
                     travelledMeters = Mathf.Min(
                         routeLength,
                         travelledMeters + speedMetersPerSecond * Time.deltaTime);
-                    SetTruckAtDistance(travelledMeters, true, travelledMeters - previousDistance);
+                    SetTruckAtDistance(
+                        travelledMeters,
+                        true,
+                        travelledMeters - previousDistance,
+                        true);
                     if (travelledMeters >= routeLength - 0.001f)
                     {
-                        state = JourneyState.Arrived;
+                        state = JourneyState.ArrivedAtAntennas;
                     }
                 }
                 break;
 
-            case JourneyState.Arrived:
+            case JourneyState.ArrivedAtAntennas:
                 UpdateDriverView();
                 if (keyboard.fKey.wasPressedThisFrame)
                 {
-                    StartCoroutine(ExitTruck());
+                    StartCoroutine(ExitTruck(
+                        antennaExitPose,
+                        JourneyState.ParkedAtAntennas));
+                }
+                break;
+
+            case JourneyState.ParkedAtAntennas:
+                if (playerController.enabled
+                    && PlayerIsNear(antennaExitPose)
+                    && keyboard.fKey.wasPressedThisFrame)
+                {
+                    StartCoroutine(EnterTruck(false));
+                }
+                break;
+
+            case JourneyState.DrivingToDoc:
+                UpdateDriverView();
+                if (keyboard.wKey.isPressed)
+                {
+                    float previousDistance = travelledMeters;
+                    travelledMeters = Mathf.Max(
+                        0f,
+                        travelledMeters - speedMetersPerSecond * Time.deltaTime);
+                    SetTruckAtDistance(
+                        travelledMeters,
+                        true,
+                        previousDistance - travelledMeters,
+                        false);
+                    if (travelledMeters <= 0.001f)
+                    {
+                        state = JourneyState.ArrivedAtDoc;
+                    }
+                }
+                break;
+
+            case JourneyState.ArrivedAtDoc:
+                UpdateDriverView();
+                if (keyboard.fKey.wasPressedThisFrame)
+                {
+                    StartCoroutine(ExitTruck(
+                        departureInteractionPoint,
+                        JourneyState.ParkedAtDoc));
                 }
                 break;
         }
@@ -178,15 +225,28 @@ public sealed class RailTruckController : MonoBehaviour
         {
             InteractionPromptDisplay.Show(this, "Press F to go outside");
         }
-        else if (state == JourneyState.Driving && !transitioning)
+        else if ((state == JourneyState.DrivingToAntennas
+                  || state == JourneyState.DrivingToDoc)
+                 && !transitioning)
         {
             InteractionPromptDisplay.Show(
                 this,
                 "Hold W to drive | Mouse: look | Wheel: zoom");
         }
-        else if (state == JourneyState.Arrived && !transitioning)
+        else if (state == JourneyState.ArrivedAtAntennas && !transitioning)
         {
             InteractionPromptDisplay.Show(this, "Press F to exit truck");
+        }
+        else if (state == JourneyState.ParkedAtAntennas
+                 && playerController != null
+                 && playerController.enabled
+                 && PlayerIsNear(antennaExitPose))
+        {
+            InteractionPromptDisplay.Show(this, "Press F to get in truck");
+        }
+        else if (state == JourneyState.ArrivedAtDoc && !transitioning)
+        {
+            InteractionPromptDisplay.Show(this, "Press F to get back into building");
         }
         else
         {
@@ -194,7 +254,7 @@ public sealed class RailTruckController : MonoBehaviour
         }
     }
 
-    private IEnumerator EnterTruck()
+    private IEnumerator EnterTruck(bool drivingToAntennas)
     {
         transitioning = true;
         InteractionPromptDisplay.Hide(this);
@@ -211,8 +271,8 @@ public sealed class RailTruckController : MonoBehaviour
         SetCursorCaptured(true);
 
         yield return FadeTo(1f);
-        travelledMeters = 0f;
-        SetTruckAtDistance(0f, false);
+        travelledMeters = drivingToAntennas ? 0f : routeLength;
+        SetTruckAtDistance(travelledMeters, false, 0f, drivingToAntennas);
         cameraAttached = true;
         playerCamera.transform.SetPositionAndRotation(
             driverCameraPose.position,
@@ -220,7 +280,9 @@ public sealed class RailTruckController : MonoBehaviour
         playerCamera.fieldOfView = targetFieldOfView;
         yield return FadeTo(0f);
 
-        state = JourneyState.Driving;
+        state = drivingToAntennas
+            ? JourneyState.DrivingToAntennas
+            : JourneyState.DrivingToDoc;
         transitioning = false;
     }
 
@@ -261,7 +323,7 @@ public sealed class RailTruckController : MonoBehaviour
             zoomT);
     }
 
-    private IEnumerator ExitTruck()
+    private IEnumerator ExitTruck(Transform exitPose, JourneyState resultingState)
     {
         transitioning = true;
         InteractionPromptDisplay.Hide(this);
@@ -277,8 +339,8 @@ public sealed class RailTruckController : MonoBehaviour
         }
 
         playerController.transform.SetPositionAndRotation(
-            antennaExitPose.position,
-            antennaExitPose.rotation);
+            exitPose.position,
+            exitPose.rotation);
         playerCamera.transform.localPosition = standingCameraLocalPosition;
         playerCamera.transform.localRotation = standingCameraLocalRotation;
         playerCamera.fieldOfView = standingFieldOfView;
@@ -289,7 +351,7 @@ public sealed class RailTruckController : MonoBehaviour
         }
 
         yield return FadeTo(0f);
-        state = JourneyState.Completed;
+        state = resultingState;
         playerController.enabled = true;
         transitioning = false;
     }
@@ -351,6 +413,7 @@ public sealed class RailTruckController : MonoBehaviour
                 routeDistances.Add(routeLength);
             }
         }
+
     }
 
     private Vector3 EvaluateSegment(int segment, float t)
@@ -366,7 +429,11 @@ public sealed class RailTruckController : MonoBehaviour
             + (-p0 + 3f * p1 - 3f * p2 + p3) * t * t * t);
     }
 
-    private void SetTruckAtDistance(float distance, bool spinWheels, float distanceDelta = 0f)
+    private void SetTruckAtDistance(
+        float distance,
+        bool spinWheels,
+        float distanceDelta = 0f,
+        bool faceRouteForward = true)
     {
         if (truckRoot == null || routeSamples.Count < 2)
         {
@@ -387,6 +454,10 @@ public sealed class RailTruckController : MonoBehaviour
             : 0f;
         Vector3 position = Vector3.Lerp(routeSamples[lower], routeSamples[upper], t);
         Vector3 forward = (routeSamples[upper] - routeSamples[lower]).normalized;
+        if (!faceRouteForward)
+        {
+            forward = -forward;
+        }
         truckRoot.SetPositionAndRotation(
             position,
             Quaternion.LookRotation(forward, Vector3.up));

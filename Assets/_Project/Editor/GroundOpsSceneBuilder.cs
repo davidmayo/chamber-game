@@ -53,6 +53,42 @@ public static class GroundOpsSceneBuilder
     private static HashSet<GameObject> staleObjects;
     private static HashSet<GameObject> claimedObjects;
 
+    private readonly struct AntennaApronShape
+    {
+        public readonly Vector2 Center;
+        public readonly Vector2 LongAxis;
+        public readonly Vector2 ShortAxis;
+        public readonly float HalfLength;
+        public readonly float HalfWidth;
+
+        public AntennaApronShape(
+            Vector2 center,
+            Vector2 longAxis,
+            float halfLength,
+            float halfWidth)
+        {
+            Center = center;
+            LongAxis = longAxis.normalized;
+            ShortAxis = new Vector2(-LongAxis.y, LongAxis.x);
+            HalfLength = halfLength;
+            HalfWidth = halfWidth;
+        }
+
+        public Vector2 Point(float along01, float across01)
+        {
+            return Center
+                + LongAxis * Mathf.Lerp(-HalfLength, HalfLength, along01)
+                + ShortAxis * Mathf.Lerp(-HalfWidth, HalfWidth, across01);
+        }
+
+        public bool Contains(Vector2 point, float margin = 0f)
+        {
+            Vector2 offset = point - Center;
+            return Mathf.Abs(Vector2.Dot(offset, LongAxis)) <= HalfLength + margin
+                && Mathf.Abs(Vector2.Dot(offset, ShortAxis)) <= HalfWidth + margin;
+        }
+    }
+
     [MenuItem("Tools/Ground Ops/Sync and Open Ground Ops Blockout")]
     public static void SyncAndOpenFromMenu()
     {
@@ -2575,11 +2611,6 @@ public static class GroundOpsSceneBuilder
         MeshObject("Low-poly Mountain Ridge", parent, terrainMesh, terrainMaterial, true);
 
         Vector3[] railRoutePoints = GetRailTruckRoutePoints(0f);
-        BuildForest(
-            NewGroup("Low-poly Forest", parent),
-            forestTrunkMaterial,
-            forestCrownMaterials,
-            railRoutePoints);
 
         // The actual antennas are roughly 2,500 feet (762 m) from the DOC. Their
         // diameters remain at 1:10 scale, but the complex is deliberately staged
@@ -2602,6 +2633,16 @@ public static class GroundOpsSceneBuilder
             new Vector3(0.58f, 0.79f, -0.20f),
             LargeDishRootPosition, LargeDishRootScale, LargeDishReflectorOffsetY,
             dishMaterial);
+
+        AntennaApronShape antennaApronShape = GetAntennaComplexApronShape(
+            parent,
+            railRoutePoints[^1]);
+        BuildForest(
+            NewGroup("Low-poly Forest", parent),
+            forestTrunkMaterial,
+            forestCrownMaterials,
+            railRoutePoints,
+            antennaApronShape);
         GroundOpsDishController controller =
             GetOrAddComponent<GroundOpsDishController>(parent.gameObject);
         controller.Configure(
@@ -2631,16 +2672,26 @@ public static class GroundOpsSceneBuilder
             3.2f);
         MeshObject("Antenna Access Road", journey, roadMesh, roadMaterial, true);
 
-        // A small terminal apron gives the player a stable, obvious place to
-        // step out without cutting a broad artificial clearing around the dishes.
-        Vector3 routeEnd = routePoints[^1];
-        Box(
+        Vector3 antennaStop = routePoints[^1];
+        AntennaApronShape apronShape = GetAntennaComplexApronShape(
+            exteriorLandscape,
+            antennaStop);
+        MeshCollider terrainCollider = exteriorLandscape
+            .Find("Low-poly Mountain Ridge")
+            ?.GetComponent<MeshCollider>();
+        Mesh apronMesh = GetTerrainApronMesh(
+            "GroundOps_AntennaComplexApron",
+            apronShape,
+            exteriorLandscape,
+            terrainCollider);
+        GameObject apron = MeshObject(
             "Antenna Complex Apron",
             journey,
-            routeEnd + new Vector3(0f, -0.035f, 0f),
-            new Vector3(4.8f, 0.08f, 5.8f),
-            Quaternion.Euler(0f, -34f, 0f),
-            roadMaterial);
+            apronMesh,
+            roadMaterial,
+            true);
+        BoxCollider obsoleteBoxCollider = apron.GetComponent<BoxCollider>();
+        if (obsoleteBoxCollider != null) Object.DestroyImmediate(obsoleteBoxCollider);
 
         Transform route = NewGroup("Route Waypoints", journey);
         Transform[] waypoints = new Transform[routePoints.Length];
@@ -2650,7 +2701,6 @@ public static class GroundOpsSceneBuilder
             waypoint.localPosition = routePoints[index];
             waypoints[index] = waypoint;
         }
-
         // This point is just inside the blank end wall of the short hallway
         // return. The transition fades before moving the player down to grade.
         Transform departurePoint = NewGroup("Hallway Exterior Interaction", journey);
@@ -2658,7 +2708,7 @@ public static class GroundOpsSceneBuilder
 
         Transform exitPose = NewGroup("Antenna Complex Player Exit", journey);
         Vector3 exitOffset = new(-2.15f, 0f, 0.45f);
-        Vector3 exitPosition = routeEnd + exitOffset;
+        Vector3 exitPosition = antennaStop + exitOffset;
         exitPosition.y = MountainHeight(exitPosition.x, exitPosition.z) + 0.12f;
         exitPose.localPosition = exitPosition;
         Vector3 exitLook = new Vector3(
@@ -2703,14 +2753,28 @@ public static class GroundOpsSceneBuilder
             new Vector3(1.72f, 0.52f, 1.28f), Quaternion.identity, paintMaterial);
         Box("Cab Roof", truck, new Vector3(0f, 1.72f, -0.05f),
             new Vector3(1.78f, 0.16f, 1.34f), Quaternion.identity, paintMaterial);
-        Box("Cab Back", truck, new Vector3(0f, 1.25f, -0.70f),
-            new Vector3(1.78f, 0.82f, 0.12f), Quaternion.identity, paintMaterial);
-        Box("Left Cab Pillar", truck, new Vector3(-0.81f, 1.28f, -0.03f),
-            new Vector3(0.14f, 0.82f, 1.20f), Quaternion.identity, paintMaterial);
-        Box("Right Cab Pillar", truck, new Vector3(0.81f, 1.28f, -0.03f),
-            new Vector3(0.14f, 0.82f, 1.20f), Quaternion.identity, paintMaterial);
+        Box("Cab Back", truck, new Vector3(0f, 1.02f, -0.70f),
+            new Vector3(1.78f, 0.22f, 0.12f), Quaternion.identity, paintMaterial);
+        Box("Left Cab Lower Door", truck, new Vector3(-0.81f, 1.02f, -0.03f),
+            new Vector3(0.14f, 0.22f, 1.20f), Quaternion.identity, paintMaterial);
+        Box("Right Cab Lower Door", truck, new Vector3(0.81f, 1.02f, -0.03f),
+            new Vector3(0.14f, 0.22f, 1.20f), Quaternion.identity, paintMaterial);
+        foreach (float x in new[] { -0.81f, 0.81f })
+        {
+            string side = x < 0f ? "Left" : "Right";
+            Box($"{side} Front Cab Pillar", truck, new Vector3(x, 1.37f, 0.52f),
+                new Vector3(0.14f, 0.58f, 0.16f), Quaternion.identity, paintMaterial);
+            Box($"{side} Rear Cab Pillar", truck, new Vector3(x, 1.37f, -0.58f),
+                new Vector3(0.14f, 0.58f, 0.16f), Quaternion.identity, paintMaterial);
+        }
         Box("Windshield", truck, new Vector3(0f, 1.35f, 0.58f),
             new Vector3(1.48f, 0.62f, 0.035f), Quaternion.identity, glassMaterial);
+        Box("Rear Window", truck, new Vector3(0f, 1.37f, -0.705f),
+            new Vector3(1.48f, 0.54f, 0.035f), Quaternion.identity, glassMaterial);
+        Box("Left Window", truck, new Vector3(-0.815f, 1.37f, -0.03f),
+            new Vector3(0.035f, 0.54f, 0.92f), Quaternion.identity, glassMaterial);
+        Box("Right Window", truck, new Vector3(0.815f, 1.37f, -0.03f),
+            new Vector3(0.035f, 0.54f, 0.92f), Quaternion.identity, glassMaterial);
         Box("Bed Floor", truck, new Vector3(0f, 0.76f, -1.25f),
             new Vector3(1.72f, 0.15f, 1.18f), Quaternion.identity, paintMaterial);
         Box("Left Bed Rail", truck, new Vector3(-0.80f, 1.02f, -1.25f),
@@ -2824,6 +2888,65 @@ public static class GroundOpsSceneBuilder
         return GetGeneratedMesh(name, vertices, triangles);
     }
 
+    private static Mesh GetTerrainApronMesh(
+        string name,
+        AntennaApronShape shape,
+        Transform exteriorLandscape,
+        MeshCollider terrainCollider)
+    {
+        const int xSegments = 48;
+        const int zSegments = 48;
+        const float surfaceOffset = 0.18f;
+        List<Vector3> vertices = new((xSegments + 1) * (zSegments + 1));
+        List<int> triangles = new(xSegments * zSegments * 6);
+
+        for (int zIndex = 0; zIndex <= zSegments; zIndex++)
+        {
+            for (int xIndex = 0; xIndex <= xSegments; xIndex++)
+            {
+                Vector2 horizontal = shape.Point(
+                    xIndex / (float)xSegments,
+                    zIndex / (float)zSegments);
+                float x = horizontal.x;
+                float z = horizontal.y;
+                float terrainY = MountainHeight(x, z);
+                if (terrainCollider != null)
+                {
+                    Vector3 rayOrigin = exteriorLandscape.TransformPoint(new Vector3(x, 1000f, z));
+                    Vector3 rayDirection = exteriorLandscape.TransformDirection(Vector3.down);
+                    if (terrainCollider.Raycast(
+                        new Ray(rayOrigin, rayDirection),
+                        out RaycastHit hit,
+                        2000f))
+                    {
+                        terrainY = exteriorLandscape.InverseTransformPoint(hit.point).y;
+                    }
+                }
+                vertices.Add(new Vector3(x, terrainY + surfaceOffset, z));
+            }
+        }
+
+        int stride = xSegments + 1;
+        for (int zIndex = 0; zIndex < zSegments; zIndex++)
+        {
+            for (int xIndex = 0; xIndex < xSegments; xIndex++)
+            {
+                int lowerLeft = zIndex * stride + xIndex;
+                int lowerRight = lowerLeft + 1;
+                int upperLeft = lowerLeft + stride;
+                int upperRight = upperLeft + 1;
+                triangles.Add(lowerLeft);
+                triangles.Add(upperLeft);
+                triangles.Add(lowerRight);
+                triangles.Add(lowerRight);
+                triangles.Add(upperLeft);
+                triangles.Add(upperRight);
+            }
+        }
+
+        return GetGeneratedMesh(name, vertices, triangles);
+    }
+
     private static float DistanceToRailTruckRoute(
         float x,
         float z,
@@ -2845,17 +2968,88 @@ public static class GroundOpsSceneBuilder
         return closest;
     }
 
+    private static AntennaApronShape GetAntennaComplexApronShape(
+        Transform exteriorLandscape,
+        Vector3 routeEnd)
+    {
+        Vector2 routePosition = new(routeEnd.x, routeEnd.z);
+        List<Vector2> dishPositions = new();
+        string[] dishPostPaths =
+        {
+            "13-meter Dish Proxy/Post",
+            "21-meter Dish Proxy/Post",
+        };
+
+        foreach (string path in dishPostPaths)
+        {
+            Transform post = exteriorLandscape.Find(path);
+            if (post == null) continue;
+
+            Vector3 localPosition = exteriorLandscape.InverseTransformPoint(post.position);
+            dishPositions.Add(new Vector2(localPosition.x, localPosition.z));
+        }
+
+        // MountainHeight constructs the antenna ridge along this explicit axis.
+        // Follow that straight crest rather than the slightly skewed line between
+        // the two manually staged dish roots.
+        Vector2 longAxis = ExteriorLateralDirection.normalized;
+        Vector2 dishCenter = dishPositions.Count > 0
+            ? dishPositions.Aggregate(Vector2.zero, (sum, point) => sum + point)
+                / dishPositions.Count
+            : routePosition - longAxis;
+        if (Vector2.Dot(routePosition - dishCenter, longAxis) < 0f)
+        {
+            longAxis = -longAxis;
+        }
+        Vector2 shortAxis = new(-longAxis.y, longAxis.x);
+        List<Vector2> controlPoints = new(dishPositions) { routePosition };
+        float roadAlong = Vector2.Dot(routePosition, longAxis);
+        float dishMinimumAlong = dishPositions.Count > 0
+            ? dishPositions.Min(point => Vector2.Dot(point, longAxis))
+            : roadAlong;
+        float dishMaximumAlong = dishPositions.Count > 0
+            ? dishPositions.Max(point => Vector2.Dot(point, longAxis))
+            : roadAlong;
+        float minimumAcross = controlPoints.Min(point => Vector2.Dot(point, shortAxis));
+        float maximumAcross = controlPoints.Max(point => Vector2.Dot(point, shortAxis));
+
+        // The real complex is a broad rectangular clearing stretched along the
+        // ridge crest. Leave generous space beyond the far dish, while the road
+        // enters near the opposite short edge as shown in the site sketch.
+        const float farDishPadding = 8f;
+        const float roadEndPadding = 2.5f;
+        const float nearDishPadding = 3.5f;
+        const float widthPadding = 3.5f;
+        float minimumAlong = Mathf.Min(dishMinimumAlong, roadAlong) - farDishPadding;
+        float maximumAlong = Mathf.Max(
+            roadAlong + roadEndPadding,
+            dishMaximumAlong + nearDishPadding);
+        minimumAcross -= widthPadding;
+        maximumAcross += widthPadding;
+
+        Vector2 center =
+            longAxis * ((minimumAlong + maximumAlong) * 0.5f)
+            + shortAxis * ((minimumAcross + maximumAcross) * 0.5f);
+        return new AntennaApronShape(
+            center,
+            longAxis,
+            (maximumAlong - minimumAlong) * 0.5f,
+            (maximumAcross - minimumAcross) * 0.5f);
+    }
+
     private static void BuildForest(
         Transform parent,
         Material trunkMaterial,
         Material[] crownMaterials,
-        Vector3[] railRoutePoints)
+        Vector3[] railRoutePoints,
+        AntennaApronShape antennaApronShape)
     {
         const float spacing = 1.55f;
         const float forestRadius = 112f;
         const float docClearingRadius = 24f;
         const float windowSideBackfill = 5f;
         const int gridRadius = 73;
+        const float apronCanopyClearance = 2.75f;
 
         List<Vector3> trunkVertices = new();
         List<int> trunkTriangles = new();
@@ -2881,6 +3075,7 @@ public static class GroundOpsSceneBuilder
                 // Retain the dense ridge forest while carving only the narrow
                 // sightline needed for the new access road and moving truck.
                 if (DistanceToRailTruckRoute(x, z, railRoutePoints) < 2.05f) continue;
+                if (antennaApronShape.Contains(horizontal, apronCanopyClearance)) continue;
                 // Only the broad -X half of the landscape is visible through the
                 // curved window. Retain a little backfill beyond the DOC center
                 // so the forest never ends visibly at an exact radial boundary.

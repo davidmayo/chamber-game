@@ -21,7 +21,7 @@ public sealed class RailTruckJourneyTests : InputTestFixture
     }
 
     [UnityTest]
-    public IEnumerator PlayerCanEnterDriveAndExitAtTheAntennaComplex()
+    public IEnumerator PlayerCanCompleteRoundTripBetweenBuildingAndAntennaComplex()
     {
         SceneManager.LoadScene("Main", LoadSceneMode.Single);
         yield return null;
@@ -47,6 +47,8 @@ public sealed class RailTruckJourneyTests : InputTestFixture
             "Ground Ops Blockout/Exterior Landscape/Rail Truck Journey/Antenna Complex Player Exit");
         GameObject road = GameObject.Find(
             "Ground Ops Blockout/Exterior Landscape/Rail Truck Journey/Antenna Access Road");
+        GameObject apron = GameObject.Find(
+            "Ground Ops Blockout/Exterior Landscape/Rail Truck Journey/Antenna Complex Apron");
         GameObject terrain = GameObject.Find(
             "Ground Ops Blockout/Exterior Landscape/Low-poly Mountain Ridge");
         Assert.That(departure, Is.Not.Null);
@@ -55,6 +57,24 @@ public sealed class RailTruckJourneyTests : InputTestFixture
             "The access road must be walkable after leaving the truck.");
         Assert.That(terrain?.GetComponent<MeshCollider>(), Is.Not.Null,
             "The antenna-complex terrain must be walkable after leaving the truck.");
+        Assert.That(apron?.GetComponent<MeshCollider>(), Is.Not.Null,
+            "The enlarged antenna-complex apron must be walkable.");
+        Assert.That(apron?.GetComponent<BoxCollider>(), Is.Null,
+            "The terrain-following apron must not retain its obsolete box collider.");
+
+        string truckPath =
+            "Ground Ops Blockout/Exterior Landscape/Rail Truck Journey/Rail Truck/";
+        foreach (string windowName in new[]
+                 {
+                     "Windshield",
+                     "Rear Window",
+                     "Left Window",
+                     "Right Window",
+                 })
+        {
+            Assert.That(GameObject.Find(truckPath + windowName), Is.Not.Null,
+                $"The rail truck must retain its {windowName.ToLowerInvariant()}.");
+        }
 
         SetPrivateField(railTruck, "fadeHalfSeconds", 0.01f);
         // Keep the end-to-end test fast while still proving W drives the truck.
@@ -69,7 +89,7 @@ public sealed class RailTruckJourneyTests : InputTestFixture
         Physics.SyncTransforms();
 
         yield return Tap(keyboard.fKey);
-        yield return WaitForState(railTruck, "Driving", 1.5f);
+        yield return WaitForState(railTruck, "DrivingToAntennas", 1.5f);
         Assert.That(((Behaviour)player).enabled, Is.False,
             "Standing movement must be disabled while the camera is in the truck.");
 
@@ -99,14 +119,15 @@ public sealed class RailTruckJourneyTests : InputTestFixture
             "Keys other than W must not move or steer the rail truck.");
 
         Press(keyboard.wKey);
-        yield return WaitForState(railTruck, "Arrived", 2f);
+        yield return WaitForState(railTruck, "ArrivedAtAntennas", 2f);
         Release(keyboard.wKey);
         yield return null;
 
-        Assert.That((float)progressProperty.GetValue(railTruck), Is.EqualTo(1f).Within(0.001f));
+        Assert.That((float)progressProperty.GetValue(railTruck),
+            Is.EqualTo(1f).Within(0.001f));
 
         yield return Tap(keyboard.fKey);
-        yield return WaitForState(railTruck, "Completed", 1.5f);
+        yield return WaitForState(railTruck, "ParkedAtAntennas", 1.5f);
         Assert.That(((Behaviour)player).enabled, Is.True,
             "Standing movement must be restored after exiting the truck.");
         Assert.That(playerCamera.fieldOfView, Is.EqualTo(standingFieldOfView).Within(0.01f),
@@ -122,6 +143,31 @@ public sealed class RailTruckJourneyTests : InputTestFixture
                 2f),
             Is.True,
             "The player exit pose must have walkable ground beneath it.");
+
+        yield return Tap(keyboard.fKey);
+        yield return WaitForState(railTruck, "DrivingToDoc", 1.5f);
+        Assert.That(((Behaviour)player).enabled, Is.False,
+            "Standing movement must be disabled during the return trip.");
+        Assert.That((float)progressProperty.GetValue(railTruck),
+            Is.EqualTo(1f).Within(0.001f));
+
+        Press(keyboard.wKey);
+        yield return WaitForState(railTruck, "ArrivedAtDoc", 2f);
+        Release(keyboard.wKey);
+        yield return null;
+        Assert.That((float)progressProperty.GetValue(railTruck),
+            Is.EqualTo(0f).Within(0.001f));
+
+        yield return Tap(keyboard.fKey);
+        yield return WaitForState(railTruck, "ParkedAtDoc", 1.5f);
+        Assert.That(((Behaviour)player).enabled, Is.True,
+            "Standing movement must be restored after returning to the building.");
+        Assert.That(playerCamera.fieldOfView, Is.EqualTo(standingFieldOfView).Within(0.01f),
+            "Returning to the building must restore the standing field of view.");
+        Assert.That(
+            Vector3.Distance(player.transform.position, departure.transform.position),
+            Is.LessThan(0.05f),
+            "The final F press must place the player back inside the hallway.");
     }
 
     private static void SetPrivateField(Component component, string name, object value)
