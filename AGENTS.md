@@ -26,6 +26,14 @@ This is a Unity 6.3 LTS project using URP. Keep changes small, readable, and fri
 - Do not commit Unity-generated folders such as `Library/`, `Temp/`, `Logs/`, or `UserSettings/`.
 - Always preserve `.meta` files for assets that remain in the project.
 
+## Reusable prefabs
+
+- Reusable project prefabs live under `Assets/_Project/Prefabs/`. The first two migration waves cover shared monitor/keyboard/mouse/chair components, desks and server cabinets, complete DOC/general workstation assemblies, the common ceiling-light fixtures, plate-glass panes, and the institutional door.
+- `Assets/_Project/Editor/GroundOpsPrefabLibrary.cs` bootstraps a prefab only when its asset is missing. Once created, the prefab asset is the editable source of truth; ordinary scene synchronization must not overwrite later prefab edits.
+- `GroundOpsSceneBuilder` continues to own room layout, station placement, unique equipment, and interaction/controller wiring. It places reusable prefab instances beneath stable generated wrapper objects instead of reconstructing their primitive children.
+- Keep shared geometry changes in the base prefab so every linked instance inherits them. Use prefab variants for durable visual families (for example, `Chair Black` derives from `Chair`) and use per-instance overrides only for intentional placement or configuration differences.
+- Do not unpack generated prefab instances or make durable manual edits to their scene copies. Edit the prefab asset for shared changes, or change the builder for layout and per-instance configuration.
+
 ## Generated chamber scene
 
 - `Assets/_Project/Editor/ChamberSceneBuilder.cs` is the source of truth for generated chamber geometry, materials, fixtures, and controller wiring.

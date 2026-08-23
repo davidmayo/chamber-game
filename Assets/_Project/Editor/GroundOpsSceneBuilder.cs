@@ -73,6 +73,7 @@ public static class GroundOpsSceneBuilder
     private static GameObject syncRoot;
     private static HashSet<GameObject> staleObjects;
     private static HashSet<GameObject> claimedObjects;
+    private static GroundOpsPrefabLibrary.PrefabSet reusablePrefabs;
 
     private readonly struct AntennaApronShape
     {
@@ -311,6 +312,23 @@ public static class GroundOpsSceneBuilder
         Material northMaterial = GetMaterial("GroundOpsTrueNorth", new Color(0.16f, 0.40f, 0.95f), 0f, 0.12f);
         Material eastMaterial = GetMaterial("GroundOpsTrueEast", new Color(0.95f, 0.20f, 0.14f), 0f, 0.12f);
         Material skyMaterial = GetSkyMaterial("GroundOpsSky");
+
+        reusablePrefabs = GroundOpsPrefabLibrary.Ensure(
+            deskMaterial,
+            deskBaseMaterial,
+            chairMaterial,
+            blackChairMaterial,
+            monitorMaterial,
+            monitorScreenMaterial,
+            rackMaterial,
+            lightHousingMaterial,
+            lightsOnMaterial,
+            highBayLightHousingMaterial,
+            highBayLightMaterial,
+            cleanroomLightMaterial,
+            glassMaterial,
+            woodDoorMaterial,
+            trimMaterial);
 
         CalculateWorldCardinalAxes(out Vector3 worldNorth, out Vector3 worldEast);
 
@@ -706,56 +724,27 @@ public static class GroundOpsSceneBuilder
         for (int index = 0; index < hangingFixtures.Length; index++)
         {
             (Vector3 position, float yaw, float length) fixture = hangingFixtures[index];
-            Transform fixtureRoot = NewGroup($"Uplight {index + 1}", hangingGroup);
             Quaternion rotation = Quaternion.Euler(0f, fixture.yaw, 0f);
-            Vector3 fixtureRight = rotation * Vector3.right;
-            Box("Housing", fixtureRoot,
+            Transform fixtureRoot = ReusablePrefabInstance(
+                $"Uplight {index + 1}",
+                hangingGroup,
+                reusablePrefabs.SuspendedUplight,
                 fixture.position,
-                new Vector3(fixture.length, 0.16f, 0.28f),
-                rotation,
-                housingMaterial);
-            GameObject luminousStrip = Box("Upward Luminous Strip", fixtureRoot,
-                fixture.position + Vector3.up * 0.095f,
-                new Vector3(fixture.length * 0.90f, 0.035f, 0.19f),
-                rotation,
-                lightsOnMaterial);
+                rotation);
+            Transform housing = fixtureRoot.Find("Housing");
+            Transform luminousStrip = fixtureRoot.Find("Upward Luminous Strip");
+            housing.localScale = new Vector3(fixture.length, 0.16f, 0.28f);
+            luminousStrip.localScale = new Vector3(fixture.length * 0.90f, 0.035f, 0.19f);
             luminousRenderers.Add(luminousStrip.GetComponent<Renderer>());
-
-            float hangerHeight = wallHeight - fixture.position.y;
             for (int side = -1; side <= 1; side += 2)
             {
-                Cylinder($"Hanger {side}", fixtureRoot,
-                    fixture.position
-                    + fixtureRight * (fixture.length * 0.34f * side)
-                    + Vector3.up * (hangerHeight * 0.5f),
-                    0.018f,
-                    hangerHeight,
-                    housingMaterial);
+                Transform hanger = fixtureRoot.Find($"Hanger {side}");
+                hanger.localPosition = new Vector3(
+                    fixture.length * 0.34f * side,
+                    0.29f,
+                    0f);
             }
-
-            lights.Add(CreateLight(
-                "Upward Light",
-                fixtureRoot,
-                fixture.position + Vector3.up * 0.12f,
-                Vector3.up,
-                LightType.Spot,
-                warmLight,
-                0.16f,
-                2.8f,
-                160f,
-                false,
-                0.08f));
-            lights.Add(CreateLight(
-                "Reflected Fill",
-                fixtureRoot,
-                fixture.position + Vector3.up * 0.08f,
-                Vector3.down,
-                LightType.Point,
-                warmLight,
-                0.70f,
-                7.2f,
-                0f,
-                false));
+            lights.AddRange(fixtureRoot.GetComponentsInChildren<Light>(true));
         }
 
         Vector2[] canPositions =
@@ -769,25 +758,14 @@ public static class GroundOpsSceneBuilder
         for (int index = 0; index < canPositions.Length; index++)
         {
             Vector3 position = new(canPositions[index].x, wallHeight - 0.035f, canPositions[index].y);
-            GameObject lens = Cylinder(
+            Transform fixture = ReusablePrefabInstance(
                 $"Can Light {index + 1}",
                 canGroup,
+                reusablePrefabs.RecessedCanLight,
                 position,
-                0.115f,
-                0.045f,
-                lightsOnMaterial);
-            luminousRenderers.Add(lens.GetComponent<Renderer>());
-            lights.Add(CreateLight(
-                "Downlight",
-                lens.transform,
-                new Vector3(0f, -0.08f, 0f),
-                Vector3.down,
-                LightType.Spot,
-                warmLight,
-                5.8f,
-                9.5f,
-                72f,
-                false));
+                Quaternion.identity);
+            luminousRenderers.Add(fixture.Find("Lens").GetComponent<Renderer>());
+            lights.AddRange(fixture.GetComponentsInChildren<Light>(true));
         }
 
         Transform roomFillGroup = NewGroup("Diffuse Room Fill", parent);
@@ -1008,9 +986,11 @@ public static class GroundOpsSceneBuilder
                 -Mathf.Atan2(delta.z, delta.x) * Mathf.Rad2Deg,
                 0f);
 
-            Box($"Window Panel {index + 1}", parent,
+            ReusablePrefabInstance($"Window Panel {index + 1}", parent,
+                reusablePrefabs.WindowPane,
                 new Vector3(midpoint.x, glassCenterY, midpoint.z),
-                new Vector3(length, glassHeight, 0.045f), rotation, glassMaterial);
+                rotation,
+                new Vector3(length, glassHeight, 1f));
             Box($"Bottom Rail {index + 1}", parent,
                 new Vector3(midpoint.x, sillHeight / 2f, midpoint.z),
                 new Vector3(length, sillHeight, frameThickness), rotation, trimMaterial);
@@ -1512,14 +1492,12 @@ public static class GroundOpsSceneBuilder
         Material housingMaterial,
         Material luminousMaterial)
     {
-        Transform fixture = NewGroup(name, parent);
-        Box("Housing", fixture, position,
-            new Vector3(1.20f, 0.10f, 0.24f), rotation, housingMaterial);
-        Box("Diffuser", fixture, position + Vector3.down * 0.061f,
-            new Vector3(1.08f, 0.025f, 0.18f), rotation, luminousMaterial);
-        CreateLight("Diffuse Light", fixture, position + Vector3.down * 0.14f,
-            Vector3.down, LightType.Point, new Color(1f, 0.98f, 0.94f),
-            1.15f, 5.6f, 0f, false);
+        ReusablePrefabInstance(
+            name,
+            parent,
+            reusablePrefabs.HallwayLight,
+            position,
+            rotation);
     }
 
     private static void BuildChamberHallwayFinish(
@@ -1712,9 +1690,11 @@ public static class GroundOpsSceneBuilder
         float startZ = centerZ - width / 2f;
         for (int index = 0; index < paneCount; index++)
         {
-            Box($"Glass Pane {index + 1}", window,
+            ReusablePrefabInstance($"Glass Pane {index + 1}", window,
+                reusablePrefabs.WindowPane,
                 new Vector3(x, (bottom + top) / 2f, startZ + paneWidth * (index + 0.5f)),
-                new Vector3(0.045f, top - bottom, paneWidth), Quaternion.identity, glassMaterial);
+                Quaternion.Euler(0f, 90f, 0f),
+                new Vector3(paneWidth, top - bottom, 1f));
         }
         BuildWindowFrameAlongZ("Frame", window, x, centerZ, width, bottom, top, trimMaterial);
         const float trim = 0.08f;
@@ -1736,9 +1716,11 @@ public static class GroundOpsSceneBuilder
         float startX = centerX - width / 2f;
         for (int index = 0; index < paneCount; index++)
         {
-            Box($"Glass Pane {index + 1}", window,
+            ReusablePrefabInstance($"Glass Pane {index + 1}", window,
+                reusablePrefabs.WindowPane,
                 new Vector3(startX + paneWidth * (index + 0.5f), (bottom + top) / 2f, z),
-                new Vector3(paneWidth, top - bottom, 0.045f), Quaternion.identity, glassMaterial);
+                Quaternion.identity,
+                new Vector3(paneWidth, top - bottom, 1f));
         }
         BuildWindowFrameAlongX("Frame", window, z, centerX, width, bottom, top, trimMaterial);
         const float trim = 0.08f;
@@ -1781,20 +1763,12 @@ public static class GroundOpsSceneBuilder
         {
             for (float z = minimumZ + 4f; z < maximumZ - 2f; z += 7.0f)
             {
-                Transform fixture = NewGroup($"High Fixture {fixtureIndex++}", parent);
-                Box("Housing", fixture, new Vector3(x, ceilingY - 0.28f, z),
-                    new Vector3(0.34f, 0.18f, 3.4f), Quaternion.identity, housingMaterial);
-                Box("Luminous Panel", fixture, new Vector3(x, ceilingY - 0.385f, z),
-                    new Vector3(0.22f, 0.035f, 3.16f), Quaternion.identity, luminousMaterial);
-                GameObject lightObject = NewGroup("Diffuse Light", fixture).gameObject;
-                lightObject.transform.localPosition = new Vector3(x, ceilingY - 0.52f, z);
-                Light light = lightObject.GetComponent<Light>();
-                if (light == null) light = lightObject.AddComponent<Light>();
-                light.type = LightType.Point;
-                light.color = new Color(0.82f, 0.91f, 1f);
-                light.intensity = 70f;
-                light.range = 20f;
-                light.shadows = LightShadows.None;
+                ReusablePrefabInstance(
+                    $"High Fixture {fixtureIndex++}",
+                    parent,
+                    reusablePrefabs.HighBayLight,
+                    new Vector3(x, ceilingY - 0.28f, z),
+                    Quaternion.identity);
             }
         }
     }
@@ -1911,15 +1885,12 @@ public static class GroundOpsSceneBuilder
         {
             foreach (float z in lightZ)
             {
-                Transform fixture = NewGroup($"Cleanroom Light {lightIndex++}", lighting);
-                Box("Luminous Panel", fixture,
+                ReusablePrefabInstance(
+                    $"Cleanroom Light {lightIndex++}",
+                    lighting,
+                    reusablePrefabs.CleanroomLight,
                     new Vector3(x, ceilingY - 0.025f, z),
-                    new Vector3(2.8f, 0.035f, 1.25f), Quaternion.identity, luminousMaterial);
-                Light light = CreateLight("Brutal White Fill", fixture,
-                    new Vector3(x, ceilingY - 0.28f, z), Vector3.down,
-                    LightType.Point, new Color(0.94f, 0.98f, 1f),
-                    150f, 10f, 0f, false);
-                light.shadows = LightShadows.None;
+                    Quaternion.identity);
             }
         }
     }
@@ -2229,72 +2200,15 @@ public static class GroundOpsSceneBuilder
         Material monitorMaterial,
         Material screenMaterial)
     {
-        const float deskWidth = 0.95f;
-        const float deskLength = 1.90f;
-        const float deskHeight = 0.76f;
-        const float topThickness = 0.08f;
-
         Transform station = NewGroup(name, parent);
         station.localPosition = floorPosition;
         station.localRotation = Quaternion.Euler(0f, yawDegrees, 0f);
-
-        Box("Worktop", station,
-            new Vector3(0f, deskHeight - topThickness / 2f, 0f),
-            new Vector3(deskWidth, topThickness, deskLength),
-            Quaternion.identity,
-            topMaterial);
-
-        // Two broad equipment pedestals and a window-side modesty panel make
-        // these read as heavy operations consoles rather than ordinary tables.
-        foreach ((string pedestalName, float z) in new[]
-                 {
-                     ("Forward Pedestal", 0.66f),
-                     ("Rear Pedestal", -0.66f),
-                 })
-        {
-            Box(pedestalName, station,
-                new Vector3(-0.04f, 0.34f, z),
-                new Vector3(0.72f, 0.68f, 0.42f),
-                Quaternion.identity,
-                baseMaterial);
-        }
-        Box("Window-side Modesty Panel", station,
-            new Vector3(-deskWidth / 2f + 0.045f, 0.39f, 0f),
-            new Vector3(0.09f, 0.62f, 1.56f),
-            Quaternion.identity,
-            baseMaterial);
-        Box("Rear Console Rail", station,
-            new Vector3(-deskWidth / 2f + 0.10f, deskHeight + 0.055f, 0f),
-            new Vector3(0.20f, 0.11f, 1.68f),
-            Quaternion.identity,
-            topMaterial);
-
-        BuildDesktopMonitor("Left 27-inch Monitor", station,
-            new Vector3(-0.11f, 0f, -0.35f), 75f, deskHeight,
-            monitorMaterial, screenMaterial);
-        BuildDesktopMonitor("Right 27-inch Monitor", station,
-            new Vector3(-0.11f, 0f, 0.35f), 105f, deskHeight,
-            monitorMaterial, screenMaterial);
-        Box("Keyboard", station,
-            new Vector3(0.20f, deskHeight + 0.022f, -0.048f),
-            new Vector3(0.18f, 0.044f, 0.46f),
-            Quaternion.Euler(0f, -4.878f, 0f), monitorMaterial);
-        Box("Mouse", station,
-            new Vector3(0.22f, deskHeight + 0.026f, 0.36f),
-            new Vector3(0.16f, 0.052f, 0.10f),
-            Quaternion.Euler(0f, 13.302f, 0f), monitorMaterial);
-
-        Transform chair = NewGroup("Chair", station);
-        chair.localPosition = new Vector3(0.86f, 0f, 0f);
-        Cylinder("Floor Base", chair, new Vector3(0f, 0.025f, 0f),
-            0.24f, 0.05f, baseMaterial);
-        Cylinder("Pedestal", chair, new Vector3(0f, 0.27f, 0f),
-            0.035f, 0.46f, baseMaterial);
-        Box("Seat", chair, new Vector3(0f, 0.53f, 0f),
-            new Vector3(0.48f, 0.11f, 0.48f), Quaternion.identity, chairMaterial);
-        Box("Back", chair, new Vector3(0.21f, 0.80f, 0f),
-            new Vector3(0.10f, 0.58f, 0.50f), Quaternion.identity, chairMaterial);
-        RemoveColliders(chair);
+        ReusablePrefabInstance(
+            "Furniture",
+            station,
+            reusablePrefabs.DocDishStation,
+            Vector3.zero,
+            Quaternion.identity);
         return station;
     }
 
@@ -2393,30 +2307,20 @@ public static class GroundOpsSceneBuilder
         Material monitorMaterial,
         Material screenMaterial)
     {
-        const float feetToMeters = 0.3048f;
-        const float tabletopY = 0.76f;
         Transform station = NewGroup(name, parent);
         station.localPosition = floorPosition;
         station.localRotation = Quaternion.Euler(0f, yawDegrees, 0f);
-        BuildSimpleTable("2-by-4-foot Desk", station, Vector3.zero,
-            new Vector2(4f * feetToMeters, 2f * feetToMeters),
-            topMaterial, tableBaseMaterial);
-        BuildDesktopMonitor("Left 27-inch Monitor", station,
-            new Vector3(-0.34f, 0f, 0.08f), 165f, tabletopY,
-            monitorMaterial, screenMaterial);
-        BuildDesktopMonitor("Right 27-inch Monitor", station,
-            new Vector3(0.34f, 0f, 0.08f), 195f, tabletopY,
-            monitorMaterial, screenMaterial);
-        Box("Keyboard", station,
-            new Vector3(-0.048f, tabletopY + 0.022f, -0.184f),
-            new Vector3(0.46f, 0.044f, 0.18f),
-            Quaternion.Euler(0f, -4.878f, 0f), monitorMaterial);
-        Box("Mouse", station,
-            new Vector3(0.34f, tabletopY + 0.026f, -0.20f),
-            new Vector3(0.10f, 0.052f, 0.16f),
-            Quaternion.Euler(0f, 13.302f, 0f), monitorMaterial);
-        BuildSimpleChair("Chair", station, chairPosition,
-            chairMaterial, tableBaseMaterial, Vector3.back);
+        Transform furniture = ReusablePrefabInstance(
+            "Furniture",
+            station,
+            reusablePrefabs.GeneralWorkstation,
+            Vector3.zero,
+            Quaternion.identity);
+        Transform chair = furniture.Find("Chair");
+        if (chair != null)
+        {
+            chair.localPosition = chairPosition;
+        }
     }
 
     private static void BuildDesktopMonitor(
@@ -2462,7 +2366,6 @@ public static class GroundOpsSceneBuilder
     {
         const float metersPerInch = 0.0254f;
         const float diagonal = 27f * metersPerInch;
-        const float tabletopY = 0.76f;
         const float baseHeight = 0.025f;
         const float standHeight = 0.16f;
         const float bezel = 0.022f;
@@ -2470,11 +2373,11 @@ public static class GroundOpsSceneBuilder
         float screenHeight = diagonal / Mathf.Sqrt(16f * 16f + 9f * 9f) * 9f;
         float screenWidth = screenHeight * 16f / 9f;
         float bodyHeight = screenHeight + bezel * 2f;
-        float bodyY = tabletopY + baseHeight + standHeight + bodyHeight / 2f;
+        float bodyY = baseHeight + standHeight + bodyHeight / 2f;
         Vector3 textPosition = new(0f, bodyY, bodyDepth / 2f + 0.008f);
 
-        Transform leftMonitor = station.Find("Left 27-inch Monitor");
-        Transform rightMonitor = station.Find("Right 27-inch Monitor");
+        Transform leftMonitor = station.Find("Furniture/Left 27-inch Monitor");
+        Transform rightMonitor = station.Find("Furniture/Right 27-inch Monitor");
         CreateWorldDisplayText(
             "Movement Instructions",
             leftMonitor,
@@ -2609,20 +2512,18 @@ public static class GroundOpsSceneBuilder
     {
         const int rackCount = 7;
         const float width = 0.70f;
-        const float height = 2.20f;
-        const float depth = 0.90f;
         const float gap = 0.055f;
         const float firstX = -1.65f;
         const float centerZ = 4.88f;
         Transform row = NewGroup("Seven Server Racks", parent);
         for (int index = 0; index < rackCount; index++)
         {
-            Transform rack = NewGroup($"Server Rack {index + 1}", row);
-            rack.localPosition = new Vector3(firstX + index * (width + gap), 0f, centerZ);
-            Box("Cabinet", rack, new Vector3(0f, height / 2f, 0f),
-                new Vector3(width, height, depth), Quaternion.identity, rackMaterial);
-            Box("Front Face", rack, new Vector3(0f, height / 2f, -depth / 2f - 0.008f),
-                new Vector3(width - 0.08f, height - 0.12f, 0.018f), Quaternion.identity, faceMaterial);
+            ReusablePrefabInstance(
+                $"Server Rack {index + 1}",
+                row,
+                reusablePrefabs.ServerRack,
+                new Vector3(firstX + index * (width + gap), 0f, centerZ),
+                Quaternion.identity);
         }
     }
 
@@ -2647,11 +2548,13 @@ public static class GroundOpsSceneBuilder
 
         Transform leftRack = NewGroup("DSN Uplink Rack", pair);
         leftRack.localPosition = new Vector3(-rackOffset, 0f, 0f);
-        Box("Plain Cabinet", leftRack,
-            new Vector3(0f, rackHeight / 2f, 0f),
-            new Vector3(rackWidth, rackHeight, rackDepth),
+        ReusablePrefabInstance(
+            "Cabinet Assembly",
+            leftRack,
+            reusablePrefabs.ServerRack,
+            Vector3.zero,
             Quaternion.identity,
-            rackMaterial);
+            new Vector3(rackWidth / 0.70f, rackHeight / 2.20f, rackDepth / 0.90f));
 
         // This is intentionally not a tidy rackmount KVM. The reference shows
         // an ordinary old monitor stuffed into an open bay, with a desktop
@@ -2710,11 +2613,13 @@ public static class GroundOpsSceneBuilder
 
         Transform rightRack = NewGroup("DSN Downlink Rack", pair);
         rightRack.localPosition = new Vector3(rackOffset, 0f, 0f);
-        Box("Cabinet", rightRack,
-            new Vector3(0f, rackHeight / 2f, 0f),
-            new Vector3(rackWidth, rackHeight, rackDepth),
+        ReusablePrefabInstance(
+            "Cabinet Assembly",
+            rightRack,
+            reusablePrefabs.ServerRack,
+            Vector3.zero,
             Quaternion.identity,
-            rackMaterial);
+            new Vector3(rackWidth / 0.70f, rackHeight / 2.20f, rackDepth / 0.90f));
 
         // The rack faces world -Z. This simplified KVM follows the reference:
         // inset monitor above a pull-out keyboard shelf on the right cabinet.
@@ -5023,6 +4928,58 @@ public static class GroundOpsSceneBuilder
         claimedObjects.Add(gameObject);
         staleObjects.Remove(gameObject);
         return gameObject;
+    }
+
+    private static Transform ReusablePrefabInstance(
+        string name,
+        Transform parent,
+        GameObject prefab,
+        Vector3 localPosition,
+        Quaternion localRotation,
+        Vector3? localScale = null)
+    {
+        if (prefab == null)
+        {
+            throw new System.InvalidOperationException(
+                $"Reusable prefab '{name}' is missing from the prefab library.");
+        }
+
+        GameObject instance = null;
+        for (int index = 0; index < parent.childCount; index++)
+        {
+            GameObject candidate = parent.GetChild(index).gameObject;
+            if (candidate.name == name && !claimedObjects.Contains(candidate))
+            {
+                GameObject source = PrefabUtility.GetCorrespondingObjectFromSource(candidate);
+                if (source == prefab)
+                {
+                    instance = candidate;
+                }
+                else
+                {
+                    Object.DestroyImmediate(candidate);
+                }
+                break;
+            }
+        }
+
+        if (instance == null)
+        {
+            instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab, parent);
+        }
+        instance.name = name;
+        instance.transform.SetParent(parent, false);
+        instance.transform.localPosition = localPosition;
+        instance.transform.localRotation = localRotation;
+        instance.transform.localScale = localScale ?? Vector3.one;
+        instance.SetActive(true);
+
+        foreach (Transform child in instance.GetComponentsInChildren<Transform>(true))
+        {
+            claimedObjects.Add(child.gameObject);
+            staleObjects.Remove(child.gameObject);
+        }
+        return instance.transform;
     }
 
     private static Transform NewGroup(string name, Transform parent)
