@@ -111,7 +111,8 @@ public sealed class RailTruckJourneyTests : InputTestFixture
         }
 
         SetPrivateField(railTruck, "fadeHalfSeconds", 0.01f);
-        // Keep the end-to-end test fast while still proving W drives the truck.
+        // Keep the end-to-end test fast while still proving one W tap starts
+        // an entire automatic leg.
         SetPrivateField(railTruck, "speedMetersPerSecond", 500f);
 
         CharacterController characterController = player.GetComponent<CharacterController>();
@@ -123,7 +124,7 @@ public sealed class RailTruckJourneyTests : InputTestFixture
         Physics.SyncTransforms();
 
         yield return Tap(keyboard.fKey);
-        yield return WaitForState(railTruck, "DrivingToAntennas", 1.5f);
+        yield return WaitForState(railTruck, "ArrivedAtDoc", 1.5f);
         Assert.That(((Behaviour)player).enabled, Is.False,
             "Standing movement must be disabled while the camera is in the truck.");
 
@@ -152,9 +153,8 @@ public sealed class RailTruckJourneyTests : InputTestFixture
         Assert.That((float)progressProperty.GetValue(railTruck), Is.EqualTo(0f),
             "Keys other than W must not move or steer the rail truck.");
 
-        Press(keyboard.wKey);
+        yield return Tap(keyboard.wKey);
         yield return WaitForState(railTruck, "ArrivedAtAntennas", 2f);
-        Release(keyboard.wKey);
         yield return null;
 
         Assert.That((float)progressProperty.GetValue(railTruck),
@@ -179,35 +179,29 @@ public sealed class RailTruckJourneyTests : InputTestFixture
             "The player exit pose must have walkable ground beneath it.");
 
         yield return Tap(keyboard.fKey);
-        yield return WaitForState(railTruck, "DrivingToDoc", 1.5f);
+        yield return WaitForState(railTruck, "ArrivedAtAntennas", 1.5f);
         Assert.That(((Behaviour)player).enabled, Is.False,
             "Standing movement must be disabled during the return trip.");
         Assert.That((float)progressProperty.GetValue(railTruck),
             Is.EqualTo(1f).Within(0.001f));
 
-        Press(keyboard.wKey);
+        yield return Tap(keyboard.wKey);
         yield return WaitForState(railTruck, "ArrivedAtDoc", 2f);
-        Release(keyboard.wKey);
         yield return null;
         Assert.That((float)progressProperty.GetValue(railTruck),
             Is.EqualTo(0f).Within(0.001f));
 
-        // At either endpoint W starts the next leg without forcing an exit.
-        // Prove the closed route can be circulated for another complete lap.
+        // At either endpoint a single W tap starts the complete next leg.
+        // Prove the closed route can be circulated for another complete lap
+        // without holding any key down.
         yield return Tap(keyboard.wKey);
-        yield return WaitForState(railTruck, "DrivingToAntennas", 1.5f);
-        Press(keyboard.wKey);
         yield return WaitForState(railTruck, "ArrivedAtAntennas", 2f);
-        Release(keyboard.wKey);
         yield return null;
         Assert.That((float)progressProperty.GetValue(railTruck),
             Is.EqualTo(1f).Within(0.001f));
 
         yield return Tap(keyboard.wKey);
-        yield return WaitForState(railTruck, "DrivingToDoc", 1.5f);
-        Press(keyboard.wKey);
         yield return WaitForState(railTruck, "ArrivedAtDoc", 2f);
-        Release(keyboard.wKey);
         yield return null;
         Assert.That((float)progressProperty.GetValue(railTruck),
             Is.EqualTo(0f).Within(0.001f));

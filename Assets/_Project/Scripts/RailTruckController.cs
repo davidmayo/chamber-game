@@ -160,7 +160,6 @@ public sealed class RailTruckController : MonoBehaviour
 
             case JourneyState.DrivingToAntennas:
                 UpdateDriverView();
-                if (keyboard.wKey.isPressed)
                 {
                     float previousDistance = travelledMeters;
                     travelledMeters = Mathf.Min(
@@ -186,7 +185,7 @@ public sealed class RailTruckController : MonoBehaviour
                         antennaExitPose,
                         JourneyState.ParkedAtAntennas));
                 }
-                else if (keyboard.wKey.isPressed)
+                else if (keyboard.wKey.wasPressedThisFrame)
                 {
                     state = JourneyState.DrivingToDoc;
                 }
@@ -203,7 +202,6 @@ public sealed class RailTruckController : MonoBehaviour
 
             case JourneyState.DrivingToDoc:
                 UpdateDriverView();
-                if (keyboard.wKey.isPressed)
                 {
                     float previousDistance = travelledMeters;
                     travelledMeters = Mathf.Max(
@@ -231,7 +229,7 @@ public sealed class RailTruckController : MonoBehaviour
                         departureInteractionPoint,
                         JourneyState.ParkedAtDoc));
                 }
-                else if (keyboard.wKey.isPressed)
+                else if (keyboard.wKey.wasPressedThisFrame)
                 {
                     // The route is a smooth closed loop. Wrap the scalar
                     // distance at the shared parking point and continue toward
@@ -267,7 +265,9 @@ public sealed class RailTruckController : MonoBehaviour
         {
             InteractionPromptDisplay.Show(
                 this,
-                "Hold W to drive | Mouse: look | Wheel: zoom");
+                state == JourneyState.DrivingToAntennas
+                    ? "Driving to antennas | Mouse: look | Wheel: zoom"
+                    : "Driving to building | Mouse: look | Wheel: zoom");
         }
         else if (state == JourneyState.ArrivedAtAntennas && !transitioning)
         {
@@ -320,9 +320,11 @@ public sealed class RailTruckController : MonoBehaviour
         playerCamera.fieldOfView = targetFieldOfView;
         yield return FadeTo(0f);
 
+        // Entering the cab leaves the truck stopped at its current endpoint.
+        // One W press then commits to the complete automatic leg.
         state = drivingToAntennas
-            ? JourneyState.DrivingToAntennas
-            : JourneyState.DrivingToDoc;
+            ? JourneyState.ArrivedAtDoc
+            : JourneyState.ArrivedAtAntennas;
         transitioning = false;
     }
 
