@@ -11,6 +11,8 @@ public sealed class RuntimeSceneSwitcher : MonoBehaviour
     private Button resumeButton;
     private InputSystemUIInputModule uiInputModule;
     private bool menuOpen;
+    private float previousTimeScale;
+    private bool previousAudioPaused;
 
     public static bool IsOpen { get; private set; }
 
@@ -89,6 +91,7 @@ public sealed class RuntimeSceneSwitcher : MonoBehaviour
         // package's standard Point/Click/Navigate actions every time this menu is
         // created instead of relying on AddComponent's OnEnable side effect.
         uiInputModule.AssignDefaultActions();
+        uiInputModule.enabled = true;
     }
 
     private void CreateMenuCanvas()
@@ -116,7 +119,7 @@ public sealed class RuntimeSceneSwitcher : MonoBehaviour
         panel.anchorMax = new Vector2(0.5f, 0.5f);
         panel.pivot = new Vector2(0.5f, 0.5f);
         panel.anchoredPosition = Vector2.zero;
-        panel.sizeDelta = new Vector2(360f, 180f);
+        panel.sizeDelta = new Vector2(480f, 290f);
 
         Image panelImage = panelObject.AddComponent<Image>();
         panelImage.color = new Color(0.025f, 0.035f, 0.05f, 0.94f);
@@ -126,13 +129,18 @@ public sealed class RuntimeSceneSwitcher : MonoBehaviour
         layout.spacing = 12f;
         layout.childAlignment = TextAnchor.MiddleCenter;
         layout.childControlWidth = true;
-        layout.childControlHeight = false;
+        layout.childControlHeight = true;
         layout.childForceExpandWidth = true;
         layout.childForceExpandHeight = false;
 
         Text title = CreateText("Title", panel, "Paused", 30, FontStyle.Bold);
         LayoutElement titleLayout = title.gameObject.AddComponent<LayoutElement>();
         titleLayout.preferredHeight = 56f;
+
+        Text controls = CreateText("Controls", panel,
+            "WASD to walk   Mouse to look\nF to interact   Esc to pause / resume", 22);
+        LayoutElement controlsLayout = controls.gameObject.AddComponent<LayoutElement>();
+        controlsLayout.preferredHeight = 74f;
 
         resumeButton = CreateButton("Resume Button", panel, "Resume");
         resumeButton.onClick.AddListener(CloseMenu);
@@ -195,12 +203,15 @@ public sealed class RuntimeSceneSwitcher : MonoBehaviour
 
     private void OpenMenu()
     {
+        previousTimeScale = Time.timeScale;
+        previousAudioPaused = AudioListener.pause;
         menuOpen = true;
         IsOpen = true;
         Time.timeScale = 0f;
         AudioListener.pause = true;
         menuCanvas.SetActive(true);
         SetCursorCaptured(false);
+        EventSystem.current.SetSelectedGameObject(resumeButton.gameObject);
     }
 
     private void CloseMenu()
@@ -208,8 +219,8 @@ public sealed class RuntimeSceneSwitcher : MonoBehaviour
         menuOpen = false;
         IsOpen = false;
         menuCanvas.SetActive(false);
-        Time.timeScale = 1f;
-        AudioListener.pause = false;
+        Time.timeScale = previousTimeScale;
+        AudioListener.pause = previousAudioPaused;
         SetCursorCaptured(true);
     }
 
@@ -221,8 +232,10 @@ public sealed class RuntimeSceneSwitcher : MonoBehaviour
             return;
         }
 
-        Time.timeScale = 1f;
-        AudioListener.pause = false;
+        menuOpen = false;
+        if (menuCanvas != null) menuCanvas.SetActive(false);
+        Time.timeScale = previousTimeScale;
+        AudioListener.pause = previousAudioPaused;
     }
 
     private static void SetCursorCaptured(bool captured)

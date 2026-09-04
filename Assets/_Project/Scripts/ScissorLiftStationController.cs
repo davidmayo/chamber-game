@@ -22,14 +22,14 @@ public sealed class ScissorLiftStationController : MonoBehaviour
     private void Update()
     {
         Keyboard keyboard = Keyboard.current;
-        if (keyboard == null)
+        if (keyboard == null || RuntimeSceneSwitcher.IsOpen)
         {
             return;
         }
 
         if (!controllingLift)
         {
-            if (playerNearby && keyboard.fKey.wasPressedThisFrame)
+            if (playerController.enabled && playerNearby && keyboard.fKey.wasPressedThisFrame)
             {
                 controllingLift = true;
                 playerController.enabled = false;
@@ -85,7 +85,7 @@ public sealed class ScissorLiftStationController : MonoBehaviour
                 this,
                 "Q lower / E raise     F or ESC to stop");
         }
-        else if (playerNearby)
+        else if (playerNearby && playerController.enabled)
         {
             InteractionPromptDisplay.Show(this, "Press F to use scissor lift");
         }

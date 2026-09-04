@@ -71,13 +71,12 @@ public sealed class ComputerConsoleController : MonoBehaviour
         }
 
         turntableController.enabled = false;
-        SetCursorCaptured(true);
     }
 
     private void Update()
     {
         Keyboard keyboard = Keyboard.current;
-        if (keyboard == null)
+        if (keyboard == null || RuntimeSceneSwitcher.IsOpen)
         {
             return;
         }
@@ -109,15 +108,6 @@ public sealed class ComputerConsoleController : MonoBehaviour
         if (playerNearby && keyboard.fKey.wasPressedThisFrame)
         {
             BeginSittingDown();
-            return;
-        }
-
-        if (Mouse.current != null
-            && Mouse.current.leftButton.wasPressedThisFrame
-            && !RuntimeSceneSwitcher.IsOpen
-            && Cursor.lockState != CursorLockMode.Locked)
-        {
-            SetCursorCaptured(true);
         }
     }
 
@@ -148,6 +138,12 @@ public sealed class ComputerConsoleController : MonoBehaviour
             float scroll = Mouse.current.scroll.ReadValue().y;
             if (Mathf.Abs(scroll) > 0.01f)
             {
+                // Keep the existing serialized sensitivity (degrees per Windows
+                // wheel unit), but accept devices that already report notches.
+                if (Mathf.Abs(scroll) <= 10f)
+                {
+                    scroll *= 120f;
+                }
                 seatedTargetFieldOfView = Mathf.Clamp(
                     seatedTargetFieldOfView - scroll * scrollZoomDegreesPerUnit,
                     seatedZoomLimits.x,
@@ -268,11 +264,18 @@ public sealed class ComputerConsoleController : MonoBehaviour
     private void OnDisable()
     {
         InteractionPromptDisplay.Hide(this);
-        if (!Application.isPlaying)
+        if (!Application.isPlaying || state == InteractionState.Standing)
         {
             return;
         }
 
+        if (playerCamera != null)
+        {
+            playerCamera.transform.localPosition = standingCameraLocalPosition;
+            playerCamera.transform.localRotation = standingCameraLocalRotation;
+            playerCamera.fieldOfView = standingCameraFieldOfView;
+        }
+        state = InteractionState.Standing;
         if (playerController != null)
         {
             playerController.enabled = true;
@@ -281,12 +284,16 @@ public sealed class ComputerConsoleController : MonoBehaviour
         {
             turntableController.enabled = false;
         }
-        SetCursorCaptured(false);
     }
 
     private void LateUpdate()
     {
-        if (state == InteractionState.Standing && playerNearby)
+        if (state == InteractionState.Seated)
+        {
+            InteractionPromptDisplay.Show(this,
+                "A / D pan   W / S tilt   Q / E polarity\nMouse: look   Wheel: zoom   F / Esc: stand up");
+        }
+        else if (state == InteractionState.Standing && playerNearby && playerController.enabled)
         {
             InteractionPromptDisplay.Show(this, "Press F to control table");
         }

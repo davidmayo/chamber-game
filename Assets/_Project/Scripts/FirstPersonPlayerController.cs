@@ -29,6 +29,16 @@ public sealed class FirstPersonPlayerController : MonoBehaviour
         {
             Debug.LogError("FirstPersonPlayerController requires a player camera.", this);
             enabled = false;
+            return;
+        }
+        pitchDegrees = NormalizeAngle(playerCamera.transform.localEulerAngles.x);
+    }
+
+    private void Start()
+    {
+        if (!RuntimeSceneSwitcher.IsOpen)
+        {
+            SetCursorCaptured(true);
         }
     }
 

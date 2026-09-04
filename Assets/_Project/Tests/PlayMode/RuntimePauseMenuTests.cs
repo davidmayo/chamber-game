@@ -49,6 +49,8 @@ public sealed class RuntimePauseMenuTests : InputTestFixture
         InputSystemUIInputModule inputModule =
             eventSystem.GetComponent<InputSystemUIInputModule>();
         Assert.That(inputModule, Is.Not.Null, "The pause menu did not create a new-Input-System UI module.");
+        Assert.That(eventSystem.isActiveAndEnabled, Is.True);
+        Assert.That(inputModule.isActiveAndEnabled, Is.True);
         Assert.That(inputModule.point?.action, Is.Not.Null, "The UI Point action is not assigned.");
         Assert.That(inputModule.leftClick?.action, Is.Not.Null, "The UI Click action is not assigned.");
         Assert.That(inputModule.point.action.enabled, Is.True, "The UI Point action is not enabled.");
@@ -63,9 +65,36 @@ public sealed class RuntimePauseMenuTests : InputTestFixture
 
         yield return Tap(keyboard.escapeKey);
         Button resumeButton = FindButton("Resume Button");
+        Canvas.ForceUpdateCanvases();
+        RectTransform panel = menuCanvas.transform.Find("Panel") as RectTransform;
+        foreach (RectTransform child in panel)
+        {
+            Vector3[] corners = new Vector3[4];
+            child.GetWorldCorners(corners);
+            foreach (Vector3 corner in corners)
+            {
+                Vector3 localCorner = panel.InverseTransformPoint(corner);
+                Assert.That(localCorner.y, Is.InRange(panel.rect.yMin, panel.rect.yMax),
+                    $"{child.name} extends outside the pause-menu background.");
+                Assert.That(localCorner.x, Is.InRange(panel.rect.xMin, panel.rect.xMax));
+            }
+        }
         yield return Click(resumeButton);
         Assert.That(menuCanvas.gameObject.activeSelf, Is.False);
         Assert.That(Time.timeScale, Is.EqualTo(1f));
+
+        // Resume should also work without a mouse, and restore the state that
+        // existed before pausing rather than assuming normal speed/audio.
+        Time.timeScale = 0.5f;
+        AudioListener.pause = true;
+        yield return Tap(keyboard.escapeKey);
+        Assert.That(eventSystem.currentSelectedGameObject, Is.EqualTo(resumeButton.gameObject));
+        yield return Tap(keyboard.enterKey);
+        Assert.That(menuCanvas.gameObject.activeSelf, Is.False);
+        Assert.That(Time.timeScale, Is.EqualTo(0.5f));
+        Assert.That(AudioListener.pause, Is.True);
+        Time.timeScale = 1f;
+        AudioListener.pause = false;
     }
 
     private static Button FindButton(string name)

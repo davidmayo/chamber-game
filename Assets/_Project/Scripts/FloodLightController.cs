@@ -47,7 +47,9 @@ public sealed class FloodLightController : MonoBehaviour
     private void Update()
     {
         Keyboard keyboard = Keyboard.current;
-        if (playerNearby && keyboard != null && keyboard.fKey.wasPressedThisFrame)
+        if (!RuntimeSceneSwitcher.IsOpen && playerController != null
+            && playerController.enabled && playerNearby
+            && keyboard != null && keyboard.fKey.wasPressedThisFrame)
         {
             SetLightsOn(!lightsOn);
         }
@@ -102,7 +104,7 @@ public sealed class FloodLightController : MonoBehaviour
 
     private void LateUpdate()
     {
-        if (playerNearby)
+        if (playerNearby && playerController != null && playerController.enabled)
         {
             InteractionPromptDisplay.Show(
                 this,

@@ -11,6 +11,8 @@ public sealed class InteractionPromptDisplay : MonoBehaviour
     private Object activeOwner;
     private GameObject panel;
     private Text label;
+    private RectTransform panelTransform;
+    private RectTransform canvasTransform;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void EnsureExists()
@@ -88,7 +90,20 @@ public sealed class InteractionPromptDisplay : MonoBehaviour
         if (shouldShow)
         {
             label.text = message;
+            FitPanelToText();
         }
+    }
+
+    private void FitPanelToText()
+    {
+        // Long control hints wrap inside the available screen width. Grow the
+        // background with the text instead of clipping its second line.
+        float availableWidth = Mathf.Max(1f, canvasTransform.rect.width - 80f);
+        float width = Mathf.Min(Mathf.Max(360f, label.preferredWidth + 36f),
+            Mathf.Min(1000f, availableWidth));
+        panelTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, width);
+        panelTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical,
+            Mathf.Max(58f, label.preferredHeight + 24f));
     }
 
     private void CreateCanvas()
@@ -99,6 +114,7 @@ public sealed class InteractionPromptDisplay : MonoBehaviour
             typeof(Canvas),
             typeof(CanvasScaler));
         canvasObject.transform.SetParent(transform, false);
+        canvasTransform = canvasObject.GetComponent<RectTransform>();
 
         Canvas canvas = canvasObject.GetComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
@@ -117,7 +133,7 @@ public sealed class InteractionPromptDisplay : MonoBehaviour
             typeof(Image));
         panel.transform.SetParent(canvasObject.transform, false);
 
-        RectTransform panelTransform = panel.GetComponent<RectTransform>();
+        panelTransform = panel.GetComponent<RectTransform>();
         panelTransform.anchorMin = new Vector2(0.5f, 0f);
         panelTransform.anchorMax = new Vector2(0.5f, 0f);
         panelTransform.pivot = new Vector2(0.5f, 0f);
@@ -146,6 +162,8 @@ public sealed class InteractionPromptDisplay : MonoBehaviour
         label.fontSize = 22;
         label.fontStyle = FontStyle.Bold;
         label.alignment = TextAnchor.MiddleCenter;
+        label.horizontalOverflow = HorizontalWrapMode.Wrap;
+        label.verticalOverflow = VerticalWrapMode.Overflow;
         label.color = Color.white;
         label.raycastTarget = false;
 

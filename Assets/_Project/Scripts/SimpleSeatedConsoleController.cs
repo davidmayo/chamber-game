@@ -56,13 +56,12 @@ public sealed class SimpleSeatedConsoleController : MonoBehaviour
             enabled = false;
             return;
         }
-        SetCursorCaptured(true);
     }
 
     private void Update()
     {
         Keyboard keyboard = Keyboard.current;
-        if (keyboard == null)
+        if (keyboard == null || RuntimeSceneSwitcher.IsOpen)
         {
             return;
         }
@@ -226,7 +225,19 @@ public sealed class SimpleSeatedConsoleController : MonoBehaviour
     private void OnDisable()
     {
         InteractionPromptDisplay.Hide(this);
-        if (Application.isPlaying && playerController != null)
+        if (!Application.isPlaying || state == InteractionState.Standing)
+        {
+            return;
+        }
+
+        if (playerCamera != null)
+        {
+            playerCamera.transform.localPosition = standingCameraLocalPosition;
+            playerCamera.transform.localRotation = standingCameraLocalRotation;
+            playerCamera.fieldOfView = standingCameraFieldOfView;
+        }
+        state = InteractionState.Standing;
+        if (playerController != null)
         {
             playerController.enabled = true;
         }
@@ -234,7 +245,12 @@ public sealed class SimpleSeatedConsoleController : MonoBehaviour
 
     private void LateUpdate()
     {
-        if (state == InteractionState.Standing && playerNearby)
+        if (state == InteractionState.Seated)
+        {
+            InteractionPromptDisplay.Show(this,
+                "Mouse: look   Wheel: zoom   F / Esc: stand up");
+        }
+        else if (state == InteractionState.Standing && playerNearby && playerController.enabled)
         {
             InteractionPromptDisplay.Show(this, "Press F to sit at console");
         }
