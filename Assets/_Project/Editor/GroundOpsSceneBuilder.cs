@@ -13,7 +13,7 @@ using UnityEngine.UI;
 /// photographic references and sketch under .local/reference.
 /// Dimensions are estimates and are kept together near the top of BuildBlockout.
 /// </summary>
-public static class GroundOpsSceneBuilder
+public static partial class GroundOpsSceneBuilder
 {
     public const string ScenePath = "Assets/_Project/Scenes/GroundOps.unity";
     private const string RootName = "Ground Ops Blockout";
@@ -531,6 +531,7 @@ public static class GroundOpsSceneBuilder
             truckMetalMaterial,
             truckTireMaterial,
             truckGlassMaterial);
+        BuildActivityWayfinding(facilityConnection);
         ConfigureFacilityLighting(
             scene,
             root,
@@ -2378,6 +2379,8 @@ public static class GroundOpsSceneBuilder
 
         Transform leftMonitor = station.Find("Furniture/Left 27-inch Monitor");
         Transform rightMonitor = station.Find("Furniture/Right 27-inch Monitor");
+        IncludeGeneratedDisplayInSync(leftMonitor, "Movement Instructions");
+        IncludeGeneratedDisplayInSync(rightMonitor, "Dish Pointing Readout");
         CreateWorldDisplayText(
             "Movement Instructions",
             leftMonitor,
@@ -2473,12 +2476,32 @@ public static class GroundOpsSceneBuilder
         Text text = GetOrAddComponent<Text>(textObject);
         text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         text.fontSize = fontSize;
+        text.resizeTextMaxSize = fontSize;
         text.alignment = TextAnchor.MiddleCenter;
         text.color = Color.white;
         text.text = content;
         text.horizontalOverflow = HorizontalWrapMode.Wrap;
         text.verticalOverflow = VerticalWrapMode.Overflow;
+        text.raycastTarget = false;
         return text;
+    }
+
+    private static void IncludeGeneratedDisplayInSync(Transform monitor, string name)
+    {
+        // Prefab protection claims every descendant, including our scene-only
+        // monitor canvases. Return these builder-owned additions to ordinary
+        // name/path synchronization. It reuses the first and removes duplicates
+        // left by older syncs without changing any prefab-authored children.
+        foreach (Transform child in monitor)
+        {
+            if (child.name != name || PrefabUtility.GetCorrespondingObjectFromSource(child.gameObject) != null)
+                continue;
+            foreach (Transform generated in child.GetComponentsInChildren<Transform>(true))
+            {
+                claimedObjects.Remove(generated.gameObject);
+                staleObjects.Add(generated.gameObject);
+            }
+        }
     }
 
     private static void BuildSimpleChair(
@@ -2896,6 +2919,7 @@ public static class GroundOpsSceneBuilder
             antennaStopWaypointIndex,
             wheels,
             5f);
+        BuildRidgeRecorder(journey, playerController, antennaStop);
     }
 
     private static Transform[] BuildRailTruckModel(

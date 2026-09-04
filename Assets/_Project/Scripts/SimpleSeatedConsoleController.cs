@@ -37,6 +37,8 @@ public sealed class SimpleSeatedConsoleController : MonoBehaviour
     private float transitionStartFieldOfView;
     private float seatedTargetFieldOfView;
 
+    public bool IsSeated => state == InteractionState.Seated;
+
     public void Configure(
         FirstPersonPlayerController player,
         Camera camera,

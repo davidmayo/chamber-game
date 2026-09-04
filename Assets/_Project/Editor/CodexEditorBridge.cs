@@ -641,6 +641,24 @@ public static class CodexEditorBridge
                     Quaternion.LookRotation(target - viewPosition, Vector3.up));
                 camera.fieldOfView = 72f;
             }
+            else if (preset == "ridge-recorder")
+            {
+                Transform recorder = RequireGroundOpsRoot().Find(
+                    "Exterior Landscape/Rail Truck Journey/Ridge Recorder 07");
+                if (recorder == null) throw new InvalidOperationException("Sync the facility to create Recorder 07.");
+                Vector3 viewPosition = recorder.TransformPoint(new Vector3(0f, 1.7f, -4f));
+                camera.transform.SetPositionAndRotation(viewPosition,
+                    Quaternion.LookRotation(recorder.TransformPoint(new Vector3(0f, 1.2f, 0f)) - viewPosition));
+                camera.fieldOfView = 65f;
+            }
+            else if (preset == "hallway-directory")
+            {
+                Transform operations = RequireGroundOpsRoot();
+                camera.transform.SetPositionAndRotation(
+                    operations.TransformPoint(new Vector3(6f, 1.7f, 6.25f)),
+                    operations.rotation * Quaternion.Euler(-12f, 90f, 0f));
+                camera.fieldOfView = 65f;
+            }
             camera.targetTexture = renderTexture;
             camera.Render();
             RenderTexture.active = renderTexture;

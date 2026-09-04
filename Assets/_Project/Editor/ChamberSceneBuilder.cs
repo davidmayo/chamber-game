@@ -12,7 +12,7 @@ using UnityEngine.UI;
 /// Diagnostic arrows, axes, trails, and configured-camera helpers are intentionally omitted.
 /// </summary>
 [InitializeOnLoad]
-public static class ChamberSceneBuilder
+public static partial class ChamberSceneBuilder
 {
     private const string MainScenePath = "Assets/_Project/Scenes/Main.unity";
     private const string RootName = "Chamber Geometry";
@@ -309,9 +309,11 @@ public static class ChamberSceneBuilder
             GetOrAddComponent<ScissorLiftStationController>(liftInteractionZone);
         liftController.Configure(playerController, tableController);
         BuildWallCamera(NewGroup("Chamber Wall Camera", root), cameraWhite, dark, monitorView);
+        BuildSignalWatch(root, playerController, tableController, sourceAntennaController, consoleController);
 
         FinishSync();
         GroundOpsSceneBuilder.SyncIntoFacility(scene, playerController);
+        ConnectSignalWatch(root, playerController, consoleController);
         ConfigureContinuousFacilityBuildSettings();
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
@@ -1311,11 +1313,13 @@ public static class ChamberSceneBuilder
         Text text = textObject.GetComponent<Text>();
         text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         text.fontSize = fontSize;
+        text.resizeTextMaxSize = fontSize;
         text.alignment = alignment;
         text.color = textColor ?? Color.white;
         text.text = content;
         text.horizontalOverflow = HorizontalWrapMode.Wrap;
         text.verticalOverflow = VerticalWrapMode.Overflow;
+        text.raycastTarget = false;
         return text;
     }
 

@@ -74,6 +74,7 @@ public sealed class RailTruckController : MonoBehaviour
     public float SpeedMetersPerSecond => speedMetersPerSecond;
     public bool DrawRouteGizmos => drawRouteGizmos;
     public float EditorPreviewProgress => editorPreviewProgress;
+    public bool CanPauseInCab => cameraAttached && !transitioning;
 
     public void Configure(
         FirstPersonPlayerController player,
@@ -266,8 +267,8 @@ public sealed class RailTruckController : MonoBehaviour
             InteractionPromptDisplay.Show(
                 this,
                 state == JourneyState.DrivingToAntennas
-                    ? "Driving to antennas | Mouse: look | Wheel: zoom"
-                    : "Driving to building | Mouse: look | Wheel: zoom");
+                    ? "Driving to antennas | Mouse: look | Wheel: zoom | Esc: pause"
+                    : "Driving to building | Mouse: look | Wheel: zoom | Esc: pause");
         }
         else if (state == JourneyState.ArrivedAtAntennas && !transitioning)
         {

@@ -22,6 +22,8 @@ powershell -ExecutionPolicy Bypass -File tools/unity-bridge.ps1 run_tests -Argum
 
 `run_tests` accepts `edit` (the default) or `play`. Test requests survive Play Mode script reloads and return a pass/fail summary plus an NUnit XML report in `artifactPath`. Screenshot and hierarchy commands also return an `artifactPath` in their response.
 
+`capture_game_view -Argument ridge-recorder` frames the Signal Watch recorder, and `-Argument hallway-directory` frames the hallway sign. These camera captures omit screen-space UI; Play Mode interaction tests also save screenshots including the prompts and field notebook under `Library/CodexBridge/Artifacts/`.
+
 Scene-mutating commands are rejected during Play Mode. `rebuild_chamber` also rejects a dirty scene unless `-Force` is supplied.
 
 ## Unity controls

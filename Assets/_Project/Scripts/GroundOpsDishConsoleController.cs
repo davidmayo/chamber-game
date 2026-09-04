@@ -38,6 +38,8 @@ public sealed class GroundOpsDishConsoleController : MonoBehaviour
     private float transitionStartFieldOfView;
     private float seatedTargetFieldOfView;
 
+    public bool IsSeated => state == InteractionState.Seated;
+
     public void Configure(
         FirstPersonPlayerController player,
         GroundOpsDishController dishes,

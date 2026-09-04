@@ -39,6 +39,8 @@ public sealed class ComputerConsoleController : MonoBehaviour
     private float seatedAzimuth;
     private float seatedElevation;
 
+    public bool IsSeated => state == InteractionState.Seated;
+
     public void Configure(
         FirstPersonPlayerController player,
         TurntableController turntable,
@@ -161,9 +163,12 @@ public sealed class ComputerConsoleController : MonoBehaviour
         // unchanged and has no input binding in this mode.
         float panInput = ButtonAxis(keyboard.dKey.isPressed, keyboard.aKey.isPressed);
         float tiltInput = ButtonAxis(keyboard.sKey.isPressed, keyboard.wKey.isPressed);
+        float precision = keyboard.leftShiftKey.isPressed || keyboard.rightShiftKey.isPressed ? 0.2f : 1f;
+        panInput *= precision;
+        tiltInput *= precision;
         turntableController.ApplyInput(panInput, tiltInput, Time.deltaTime);
         float polarityInput = ButtonAxis(keyboard.qKey.isPressed, keyboard.eKey.isPressed);
-        sourceAntennaController.ApplyInput(polarityInput, Time.deltaTime);
+        sourceAntennaController.ApplyInput(polarityInput * precision, Time.deltaTime);
     }
 
     private void BeginSittingDown()
@@ -291,7 +296,7 @@ public sealed class ComputerConsoleController : MonoBehaviour
         if (state == InteractionState.Seated)
         {
             InteractionPromptDisplay.Show(this,
-                "A / D pan   W / S tilt   Q / E polarity\nMouse: look   Wheel: zoom   F / Esc: stand up");
+                "A / D pan   W / S tilt   Q / E polarity   Shift: fine\nMouse: look   Wheel: zoom   F / Esc: stand up");
         }
         else if (state == InteractionState.Standing && playerNearby && playerController.enabled)
         {

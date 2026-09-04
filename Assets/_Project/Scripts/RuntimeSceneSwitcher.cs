@@ -54,7 +54,10 @@ public sealed class RuntimeSceneSwitcher : MonoBehaviour
         FirstPersonPlayerController player = FindFirstObjectByType<FirstPersonPlayerController>();
         if (player != null && !player.enabled)
         {
-            return;
+            // The automatic truck journey has no first-Escape exit action.
+            // Let its driver pause while the vehicle and view remain frozen.
+            RailTruckController truck = FindFirstObjectByType<RailTruckController>();
+            if (truck == null || !truck.CanPauseInCab) return;
         }
 
         OpenMenu();
