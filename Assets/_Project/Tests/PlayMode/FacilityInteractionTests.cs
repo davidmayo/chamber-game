@@ -278,8 +278,14 @@ public sealed class FacilityInteractionTests : InputTestFixture
 
     private static Text Prompt() => Find("InteractionPromptDisplay").GetComponentInChildren<Text>(true);
 
-    private static Behaviour Find(string type) => UnityEngine.Object.FindFirstObjectByType(
-        Type.GetType(type + ", Assembly-CSharp")) as Behaviour;
+    private static Behaviour Find(string type)
+    {
+        Type componentType = Type.GetType(type + ", Assembly-CSharp");
+        if (type == "SimpleSeatedConsoleController")
+            return GameObject.Find("Ground Ops Blockout/Server Room Equipment/DSN Server Rack")
+                .GetComponentInChildren(componentType) as Behaviour;
+        return UnityEngine.Object.FindFirstObjectByType(componentType) as Behaviour;
+    }
 
     private static object Read(object target, string field) => target.GetType()
         .GetField(field, BindingFlags.Instance | BindingFlags.NonPublic).GetValue(target);

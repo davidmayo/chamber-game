@@ -49,9 +49,11 @@ public static partial class ChamberSceneBuilder
         FacilityShiftController shift = root.GetComponentInChildren<FacilityShiftController>(true);
         shift.Configure(root.GetComponentInChildren<ChamberReferenceSignal>(true), console,
             operations.GetComponentInChildren<GroundOpsDishConsoleController>(true),
-            operations.GetComponentInChildren<SimpleSeatedConsoleController>(true),
+            operations.Find("Server Room Equipment/DSN Server Rack").GetComponentInChildren<SimpleSeatedConsoleController>(true),
             operations.GetComponentInChildren<GroundOpsDishController>(true),
             operations.GetComponentInChildren<GroundOpsSatelliteTarget>(true),
             operations.GetComponentInChildren<RidgeRecorderController>(true), effects);
+        root.GetComponentInChildren<FacilityShiftDisplay>(true).ConfigureLaboratory(
+            operations.GetComponentInChildren<NullLaboratoryController>(true));
     }
 }

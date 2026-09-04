@@ -23,6 +23,8 @@ public sealed class SimpleSeatedConsoleController : MonoBehaviour
     [SerializeField] private Vector2 seatedZoomLimits = new(25f, 75f);
     [SerializeField, Min(0f)] private float scrollZoomDegreesPerUnit = 5f;
     [SerializeField, Min(0f)] private float zoomSmoothing = 12f;
+    [SerializeField] private string standingPrompt = "Press F to sit at console";
+    [SerializeField] private string seatedPrompt = "Mouse: look   Wheel: zoom   F / Esc: stand up";
 
     private InteractionState state;
     private bool playerNearby;
@@ -38,6 +40,12 @@ public sealed class SimpleSeatedConsoleController : MonoBehaviour
     private float seatedTargetFieldOfView;
 
     public bool IsSeated => state == InteractionState.Seated;
+
+    public void ConfigurePrompts(string standing, string seated)
+    {
+        standingPrompt = standing;
+        seatedPrompt = seated;
+    }
 
     public void Configure(
         FirstPersonPlayerController player,
@@ -249,12 +257,11 @@ public sealed class SimpleSeatedConsoleController : MonoBehaviour
     {
         if (state == InteractionState.Seated)
         {
-            InteractionPromptDisplay.Show(this,
-                "Mouse: look   Wheel: zoom   F / Esc: stand up");
+            InteractionPromptDisplay.Show(this, seatedPrompt);
         }
         else if (state == InteractionState.Standing && playerNearby && playerController.enabled)
         {
-            InteractionPromptDisplay.Show(this, "Press F to sit at console");
+            InteractionPromptDisplay.Show(this, standingPrompt);
         }
         else
         {

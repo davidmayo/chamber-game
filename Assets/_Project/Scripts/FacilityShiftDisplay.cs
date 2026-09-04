@@ -4,6 +4,7 @@ using UnityEngine.UI;
 public sealed class FacilityShiftDisplay : MonoBehaviour
 {
     [SerializeField] private FacilityShiftController shift;
+    [SerializeField] private NullLaboratoryController laboratory;
     private GameObject canvasRoot;
     private GameObject notebook;
     private Text location;
@@ -11,6 +12,7 @@ public sealed class FacilityShiftDisplay : MonoBehaviour
     private Text guidance;
     private Text measurement;
     private Text notebookBody;
+    private Text notebookTitle;
     private Image progress;
     private Text progressLabel;
     private RectTransform assignmentCard;
@@ -20,6 +22,7 @@ public sealed class FacilityShiftDisplay : MonoBehaviour
     private static readonly Color Accent = new(0.45f, 0.91f, 0.83f);
 
     public void Configure(FacilityShiftController controller) => shift = controller;
+    public void ConfigureLaboratory(NullLaboratoryController controller) => laboratory = controller;
 
     private void Awake()
     {
@@ -57,9 +60,10 @@ public sealed class FacilityShiftDisplay : MonoBehaviour
         RectTransform notes = Panel("Field Notebook", canvasRoot.transform,
             new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(800f, 780f));
         notes.pivot = new Vector2(0.5f, 0.5f);
+        notes.GetComponent<Image>().color = new Color(Ink.r, Ink.g, Ink.b, 0.99f);
         notebook = notes.gameObject;
-        Text title = Label("Notebook Title", notes, new Vector2(34f, -28f), new Vector2(732f, 45f), 30, Accent);
-        title.text = "SIGNAL WATCH / FIELD NOTES";
+        notebookTitle = Label("Notebook Title", notes, new Vector2(34f, -28f), new Vector2(732f, 45f), 30, Accent);
+        notebookTitle.text = "SIGNAL WATCH / FIELD NOTES";
         notebookBody = Label("Notebook Entries", notes, new Vector2(34f, -90f), new Vector2(732f, 650f), 22, Color.white);
         notebook.SetActive(false);
     }
@@ -69,13 +73,14 @@ public sealed class FacilityShiftDisplay : MonoBehaviour
         bool visible = shift != null && !RuntimeSceneSwitcher.IsOpen;
         canvasRoot.SetActive(visible);
         if (!visible) return;
+        bool inLab = laboratory != null && laboratory.PlayerInArea;
         location.text = $"{shift.LocationName}  /  LIGHT {(shift.FlashlightOn ? "ON" : "OFF")}";
-        objective.text = shift.ObjectiveTitle;
-        guidance.text = shift.Guidance;
-        measurement.text = shift.Measurement;
-        progress.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, 610f * shift.CaptureProgress01);
-        progressLabel.text = shift.CaptureProgress01 > 0f
-            ? $"HOLD STEADY  /  CAPTURING {shift.CaptureProgress01 * 100f:0}%" : "";
+        objective.text = inLab ? laboratory.ObjectiveTitle : shift.ObjectiveTitle;
+        guidance.text = inLab ? laboratory.Guidance : shift.Guidance;
+        measurement.text = inLab ? laboratory.Measurement : shift.Measurement;
+        float capture = inLab ? laboratory.CaptureProgress01 : shift.CaptureProgress01;
+        progress.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, 610f * capture);
+        progressLabel.text = capture > 0f ? $"HOLD STEADY  /  CAPTURING {capture * 100f:0}%" : "";
         notebook.SetActive(shift.NotebookOpen);
         assignmentCard.gameObject.SetActive(!shift.NotebookOpen);
         controlsStrip.gameObject.SetActive(!shift.NotebookOpen);
@@ -84,6 +89,12 @@ public sealed class FacilityShiftDisplay : MonoBehaviour
         controlsStrip.pivot = controlsStrip.anchorMin;
         controlsStrip.anchoredPosition = narrow ? new Vector2(32f, -308f) : new Vector2(-32f, -32f);
         if (!shift.NotebookOpen) return;
+        notebookTitle.text = inLab ? "NULL REFERENCE / FIELD NOTES" : "SIGNAL WATCH / FIELD NOTES";
+        if (inLab)
+        {
+            notebookBody.text = laboratory.Notes;
+            return;
+        }
 
         string[] jobs = { "Capture the chamber reference", "Acquire the satellite",
             "Collect Recorder 07 on the ridge", "File the report at the DSN racks" };

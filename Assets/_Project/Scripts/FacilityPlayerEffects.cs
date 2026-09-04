@@ -109,6 +109,12 @@ public sealed class FacilityPlayerEffects : MonoBehaviour
 
     private uint Locate(Vector3 position)
     {
+        Vector3 local = groundOpsRoot != null ? groundOpsRoot.InverseTransformPoint(position) : position;
+        if (NullLabLayout.Contains(local))
+        {
+            LocationName = NullLabLayout.Location(local);
+            return NullLabLayout.RenderingLayer;
+        }
         float halfWidth = position.z >= 0f ? 2.5f : Mathf.Lerp(2.5f, 0.5f, -position.z / 5f);
         if (position.y >= 0f && position.y <= 3.6f && position.z >= -5f && position.z <= 5f
             && Mathf.Abs(position.x) <= halfWidth)
@@ -122,7 +128,6 @@ public sealed class FacilityPlayerEffects : MonoBehaviour
             LocationName = "CHAMBER CONTAINING ROOM";
             return 1u << 4;
         }
-        Vector3 local = groundOpsRoot != null ? groundOpsRoot.InverseTransformPoint(position) : position;
         if (local.y >= 0f && local.y <= 4f)
         {
             if ((local.x >= 5.5f && local.x <= 8.2f && local.z >= -8.2f && local.z <= 27.5f)

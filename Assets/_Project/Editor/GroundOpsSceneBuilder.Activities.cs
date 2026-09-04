@@ -13,7 +13,9 @@ public static partial class GroundOpsSceneBuilder
         BuildActivitySign(signs, "Ridge Access", new Vector3(-4.10f, 2.3f, -6.8f),
             Vector3.right, "RIDGE ACCESS\nF / TRUCK TRANSFER", 1.35f);
         BuildActivitySign(signs, "Hallway Directory", new Vector3(8.0f, 2.25f, 6.25f),
-            Vector3.left, "SIGNAL WATCH\n< CHAMBER\nOPERATIONS / RIDGE >", 1.6f);
+            Vector3.left, "SIGNAL WATCH\n< CHAMBER / STAIR 01\nOPERATIONS / RIDGE >", 1.6f);
+        BuildActivitySign(signs, "Null Laboratory Route", new Vector3(5.67f, 2.3f, 13.0f),
+            Vector3.right, "STAIR 01 >\nNULL REFERENCE LAB / LEVEL 01", 1.8f);
     }
 
     private static void BuildActivitySign(Transform parent, string name, Vector3 position,

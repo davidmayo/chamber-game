@@ -532,6 +532,7 @@ public static partial class GroundOpsSceneBuilder
             truckTireMaterial,
             truckGlassMaterial);
         BuildActivityWayfinding(facilityConnection);
+        BuildNullLaboratory(root, playerController);
         ConfigureFacilityLighting(
             scene,
             root,
@@ -553,6 +554,7 @@ public static partial class GroundOpsSceneBuilder
             serverLeftX);
         FinishSync();
 
+        GeneratedCeilingSceneVisibility.ApplyToScene(scene);
         RenderSettings.skybox = skyMaterial;
         RenderSettings.ambientMode = AmbientMode.Skybox;
     }
@@ -1231,9 +1233,13 @@ public static partial class GroundOpsSceneBuilder
             new Vector3(hallwayOuterX - docWallX, wallHeight, wallThickness),
             wallMaterial, Vector3.back, physicalRenderers, cutawayRenderers);
         WallBox("Hallway North Left Return", parent, cutaway,
-            new Vector3(docWallX, wallHeight / 2f, (25.75f + hallwayBackZ) / 2f),
-            new Vector3(wallThickness, wallHeight, hallwayBackZ - 25.75f),
+            new Vector3(docWallX, wallHeight / 2f, 25.825f),
+            new Vector3(wallThickness, wallHeight, 0.15f),
             wallMaterial, Vector3.right, physicalRenderers, cutawayRenderers);
+        Box("Stair Entrance North Jamb", parent, new Vector3(docWallX, wallHeight / 2f, 27.35f),
+            new Vector3(wallThickness, wallHeight, 0.3f), Quaternion.identity, wallMaterial);
+        Box("Stair Entrance Header", parent, new Vector3(docWallX, (2.4f + wallHeight) / 2f, 26.55f),
+            new Vector3(wallThickness, wallHeight - 2.4f, 1.3f), Quaternion.identity, wallMaterial);
 
         // Giant empty first-floor high-bay box. It is deliberately an alluring,
         // brightly lit volume seen only through glass, not an explorable room.
@@ -1349,7 +1355,6 @@ public static partial class GroundOpsSceneBuilder
         float firstFloorHeight = -BuildingFirstFloorY;
         float fullShellHeight = BuildingRoofY - BuildingFirstFloorY;
         float buildingWidth = BuildingEastX - BuildingWestX;
-        float existingDepth = BuildingNorthZ - ExistingBuildingSouthZ;
         float southDepth = ExistingBuildingSouthZ - BuildingSouthZ;
         float officeWingWidth = 8.1f - BuildingWestX;
         const float envelopeGap = 0.05f;
@@ -1382,10 +1387,23 @@ public static partial class GroundOpsSceneBuilder
             new Vector3(
                 (BuildingWestX + 8.1f) * 0.5f,
                 -0.12f,
-                (ExistingBuildingSouthZ + BuildingNorthZ) * 0.5f),
-            new Vector3(officeWingWidth, 0.08f, existingDepth),
+                (ExistingBuildingSouthZ + 25.85f) * 0.5f),
+            new Vector3(officeWingWidth, 0.08f, 25.85f - ExistingBuildingSouthZ),
             Quaternion.identity, roofMaterial);
         ceilingPhysicalRenderers.Add(northCeiling.GetComponent<Renderer>());
+        // Interior floor backing surrounds the new stair opening. The exterior
+        // roof and foundation remain complete, independent rectangular slabs.
+        foreach (var section in new[]
+        {
+            ("West", new Vector3((BuildingWestX - 3.35f) / 2f, -0.12f, 26.675f), new Vector3(-3.35f - BuildingWestX, 0.08f, 1.65f)),
+            ("East", new Vector3(6.8f, -0.12f, 26.675f), new Vector3(2.6f, 0.08f, 1.65f)),
+            ("North", new Vector3(1.075f, -0.12f, 27.45f), new Vector3(8.85f, 0.08f, 0.1f)),
+        })
+        {
+            GameObject slab = Box("Ground Floor North Ceiling " + section.Item1, foundation,
+                section.Item2, section.Item3, Quaternion.identity, roofMaterial);
+            ceilingPhysicalRenderers.Add(slab.GetComponent<Renderer>());
+        }
         Box("South Wing Second Floor Slab", foundation,
             new Vector3(
                 (BuildingWestX + BuildingEastX) * 0.5f,
@@ -4282,7 +4300,7 @@ public static partial class GroundOpsSceneBuilder
         {
             uint allZones = ExteriorRenderingLayer | DocRenderingLayer |
                 HallwayRenderingLayer | ChamberRoomRenderingLayer |
-                ChamberInteriorRenderingLayer;
+                ChamberInteriorRenderingLayer | NullLabLayout.RenderingLayer;
             SetRendererMask(playerController.transform, allZones);
             Camera playerCamera = playerController.GetComponentInChildren<Camera>(true);
             if (playerCamera != null)

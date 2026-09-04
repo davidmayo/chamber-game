@@ -24,6 +24,8 @@ powershell -ExecutionPolicy Bypass -File tools/unity-bridge.ps1 run_tests -Argum
 
 `capture_game_view -Argument ridge-recorder` frames the Signal Watch recorder, and `-Argument hallway-directory` frames the hallway sign. These camera captures omit screen-space UI; Play Mode interaction tests also save screenshots including the prompts and field notebook under `Library/CodexBridge/Artifacts/`.
 
+The first-floor review presets are `null-stair`, `null-gallery`, `null-lab`, and `null-cell`. The null-lab walkthrough also captures actual Play Mode views of the descent, bench, notebook, and certified test cell.
+
 Scene-mutating commands are rejected during Play Mode. `rebuild_chamber` also rejects a dirty scene unless `-Force` is supplied.
 
 ## Unity controls

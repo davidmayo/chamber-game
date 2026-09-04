@@ -49,7 +49,8 @@ public sealed class SignalWatchTests : InputTestFixture
         Behaviour target = Find("GroundOpsSatelliteTarget");
         Behaviour rail = Find("RailTruckController");
         Behaviour recorder = Find("RidgeRecorderController");
-        Behaviour racks = Find("SimpleSeatedConsoleController");
+        Behaviour racks = GameObject.Find("Ground Ops Blockout/Server Room Equipment/DSN Server Rack")
+            .GetComponentInChildren(Type.GetType("SimpleSeatedConsoleController, Assembly-CSharp")) as Behaviour;
         Transform hardwareFurniture = hardware.transform.parent.Find("Furniture");
         foreach (string monitorName in new[] { "Left 27-inch Monitor", "Right 27-inch Monitor" })
         {

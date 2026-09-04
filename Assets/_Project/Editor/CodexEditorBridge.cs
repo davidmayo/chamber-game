@@ -651,6 +651,22 @@ public static class CodexEditorBridge
                     Quaternion.LookRotation(recorder.TransformPoint(new Vector3(0f, 1.2f, 0f)) - viewPosition));
                 camera.fieldOfView = 65f;
             }
+            else if (preset.StartsWith("null-", StringComparison.Ordinal))
+            {
+                Transform operations = RequireGroundOpsRoot();
+                Vector3 position;
+                Vector3 target;
+                switch (preset)
+                {
+                    case "null-stair": position = new Vector3(4.7f, 1.65f, 26.55f); target = new Vector3(-2.3f, -2.0f, 26.0f); break;
+                    case "null-gallery": position = new Vector3(4.7f, -5.45f, 23.1f); target = new Vector3(4.5f, -5.45f, 13f); break;
+                    case "null-cell": position = new Vector3(2.5f, -5.45f, 20f); target = new Vector3(-0.7f, -5.25f, 21.8f); break;
+                    default: position = new Vector3(2.5f, -5.45f, 14.7f); target = new Vector3(-0.5f, -5.5f, 20.5f); break;
+                }
+                camera.transform.SetPositionAndRotation(operations.TransformPoint(position),
+                    Quaternion.LookRotation(operations.TransformDirection(target - position)));
+                camera.fieldOfView = 70f;
+            }
             else if (preset == "hallway-directory")
             {
                 Transform operations = RequireGroundOpsRoot();
