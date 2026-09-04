@@ -16,6 +16,7 @@ public static class CodexEditorBridge
 {
     private const string BridgeVersion = "1.0.0";
     private const string EnabledPreference = "ChamberGame.CodexBridge.Enabled";
+    private const string TestRequestSessionKey = "ChamberGame.CodexBridge.TestRequest";
     private const double HeartbeatIntervalSeconds = 1.0;
     private const double PollIntervalSeconds = 0.2;
 
@@ -45,6 +46,13 @@ public static class CodexEditorBridge
         EditorApplication.update += Update;
         CompilationPipeline.assemblyCompilationFinished += OnAssemblyCompilationFinished;
         Application.logMessageReceived += OnLogMessageReceived;
+        // Play Mode tests reload the scripting domain. Restore the request and
+        // callback so the client still receives the result after that reload.
+        string pendingTest = SessionState.GetString(TestRequestSessionKey, string.Empty);
+        if (!string.IsNullOrEmpty(pendingTest))
+        {
+            RegisterTestCallbacks(JsonUtility.FromJson<BridgeRequest>(pendingTest));
+        }
         WriteStatus();
     }
 
@@ -338,11 +346,42 @@ public static class CodexEditorBridge
             ? TestMode.PlayMode
             : TestMode.EditMode;
 
+        SessionState.SetString(TestRequestSessionKey, JsonUtility.ToJson(request));
+        RegisterTestCallbacks(request);
+        try
+        {
+            testRunnerApi = ScriptableObject.CreateInstance<TestRunnerApi>();
+            testRunnerApi.Execute(new ExecutionSettings(new Filter { testMode = mode }));
+        }
+        catch
+        {
+            ClearTestRequest();
+            throw;
+        }
+    }
+
+    private static void RegisterTestCallbacks(BridgeRequest request)
+    {
         activeTestRequestId = request.id;
-        testRunnerApi = ScriptableObject.CreateInstance<TestRunnerApi>();
+        TestMode mode = string.Equals(request.argument, "play", StringComparison.OrdinalIgnoreCase)
+            ? TestMode.PlayMode
+            : TestMode.EditMode;
         testCallbacks = new TestCallbacks(request.id, request.command, mode);
-        testRunnerApi.RegisterCallbacks(testCallbacks);
-        testRunnerApi.Execute(new ExecutionSettings(new Filter { testMode = mode }));
+        TestRunnerApi.RegisterTestCallback(testCallbacks);
+    }
+
+    private static void ClearTestRequest()
+    {
+        SessionState.EraseString(TestRequestSessionKey);
+        if (activeTestRequestId != null)
+        {
+            TryDelete(Path.Combine(ProcessingFolder, $"{activeTestRequestId}.json"));
+        }
+        activeTestRequestId = null;
+        if (testCallbacks != null) TestRunnerApi.UnregisterTestCallback(testCallbacks);
+        if (testRunnerApi != null) UnityEngine.Object.DestroyImmediate(testRunnerApi);
+        testRunnerApi = null;
+        testCallbacks = null;
     }
 
     private static void WriteHierarchy(BridgeRequest request)
@@ -1099,13 +1138,12 @@ public static class CodexEditorBridge
             bool success = result.FailCount == 0;
             string details = $"mode={mode}; pass={result.PassCount}; fail={result.FailCount}; " +
                              $"skip={result.SkipCount}; inconclusive={result.InconclusiveCount}";
+            string artifactPath = Path.Combine(ArtifactFolder, $"{requestId}-tests.xml");
+            TestRunnerApi.SaveResultToFile(result, artifactPath);
             WriteResponse(requestId, command, success,
                 success ? "Unity tests completed successfully." : "Unity tests completed with failures.",
-                string.Empty, details);
-            activeTestRequestId = null;
-            if (testRunnerApi != null) UnityEngine.Object.DestroyImmediate(testRunnerApi);
-            testRunnerApi = null;
-            testCallbacks = null;
+                artifactPath, details);
+            ClearTestRequest();
             WriteStatus();
         }
 

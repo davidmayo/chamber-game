@@ -20,7 +20,7 @@ powershell -ExecutionPolicy Bypass -File tools/unity-bridge.ps1 build_ground_ops
 powershell -ExecutionPolicy Bypass -File tools/unity-bridge.ps1 run_tests -Argument edit
 ```
 
-`run_tests` accepts `edit` (the default) or `play`. Screenshot and hierarchy commands return an `artifactPath` in their response.
+`run_tests` accepts `edit` (the default) or `play`. Test requests survive Play Mode script reloads and return a pass/fail summary plus an NUnit XML report in `artifactPath`. Screenshot and hierarchy commands also return an `artifactPath` in their response.
 
 Scene-mutating commands are rejected during Play Mode. `rebuild_chamber` also rejects a dirty scene unless `-Force` is supplied.
 
