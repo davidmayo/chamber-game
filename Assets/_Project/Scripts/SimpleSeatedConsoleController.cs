@@ -47,6 +47,12 @@ public sealed class SimpleSeatedConsoleController : MonoBehaviour
         seatedPrompt = seated;
     }
 
+    public void ConfigureLookLimits(Vector2 azimuth, Vector2 elevation)
+    {
+        lookAzimuthLimits = azimuth;
+        lookElevationLimits = elevation;
+    }
+
     public void Configure(
         FirstPersonPlayerController player,
         Camera camera,

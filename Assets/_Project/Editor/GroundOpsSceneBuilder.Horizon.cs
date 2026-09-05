@@ -74,8 +74,10 @@ public static partial class GroundOpsSceneBuilder
             GameObject rail=NullBox("Sail Filament",wing,new Vector3(1f,0.05f,0f),new Vector3(0.8f,0.04f,0.07f),violet);
             Object.DestroyImmediate(rail.GetComponent<Collider>());
         }
-        Text status=NullSign("Horizon Status",room,new Vector3(0f,11.6f,-25.8f),Vector3.forward,
-            "FIRST LIGHT / INTERLOCK",12f,0.55f,dark);
+        Text status=NullSign("Horizon Status",room,new Vector3(0f,10.5f,-22.8f),Vector3.forward,
+            "FIRST LIGHT / INTERLOCK",10.5f,0.55f,dark);
+        foreach(float side in new[] {-1f,1f})
+            NullBox($"Status Suspension {side}",room,new Vector3(side*4.5f,11.22f,-22.8f),new Vector3(0.045f,1.45f,0.045f),metal);
         NullSign("Horizon Interlock Instructions",room,new Vector3(-8.6f,2f,-18f),Vector3.forward,
             "FIRST LIGHT PROTOCOL\n01 CERTIFY HELIOS\n02 LOCK THE VECTOR FIELD\n03 ACQUIRE +7.5 / +4.0\n04 SPACE TO INITIATE",3.5f,1.75f,dark);
         SimpleSeatedConsoleController console=BuildSkunkConsole("Horizon Alignment Bench",room,player,new Vector3(0f,0f,-16f),Vector3.back,

@@ -3,8 +3,6 @@ using System.IO;
 using System.Reflection;
 using UnityEditor;
 using UnityEngine;
-using UnityEngine.Rendering;
-using UnityEngine.Rendering.Universal;
 using Object=UnityEngine.Object;
 
 // Stages only a disposable Play session, then photographs the real animated
@@ -27,15 +25,15 @@ public static class SkunkWorksCapture
         new("arrival",new(9f,2f,27f),new(0f,6f,9f),74f),
         new("atrium",new(5.6f,2.2f,7f),new(0f,6f,-1f),80f),
         new("helios",new(-12.5f,2.5f,7.5f),new(-19.5f,4.5f,0.8f),74f),
-        new("helios-bench",new(-19.5f,1.7f,8.8f),new(-19.5f,4.4f,0.8f),72f),
+        new("helios-bench",new(-19.5f,2.05f,9.2f),new(-19.5f,3.9f,0.8f),72f),
         new("helios-detail",new(-23.5f,4.6f,6f),new(-19.5f,4.5f,0.8f),65f),
         new("vector",new(12.5f,2.5f,9f),new(19.5f,4.6f,1f),76f),
         new("vector-front",new(19.5f,2.2f,10f),new(19.5f,4.3f,0f),76f),
-        new("vector-anchor",new(24.1f,1.7f,4f),new(23.9f,3.9f,0f),76f),
+        new("vector-anchor",new(23.9f,1.7f,5.4f),new(23.9f,3.2f,0.3f),80f),
         new("horizon-idle",new(0f,2f,-12.5f),new(0f,6f,-26f),66f),
         new("horizon-opening",new(6f,2.3f,-17.5f),new(0f,6f,-26f),70f,2),
         new("horizon-first-light",new(5f,2.7f,-15f),new(0f,6f,-26f),72f,3),
-        new("horizon-bench",new(0f,1.6f,-14.9f),new(0f,5.5f,-26f),68f,3),
+        new("horizon-bench",new(0f,2.05f,-13.1f),new(0f,4.6f,-26f),72f,3),
         new("horizon-detail",new(-4f,4.2f,-20f),new(0f,6f,-26f),74f,3),
         new("atrium-complete",new(0f,1.7f,9.4f),new(0f,5f,-4f),80f,3),
         new("night",new(38f,11f,42f),new(0f,5f,-3f),66f,4),

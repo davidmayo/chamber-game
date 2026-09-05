@@ -43,7 +43,7 @@ public static partial class GroundOpsSceneBuilder
             control.localPosition=positions[i]+Vector3.forward*2.6f;
             controls[i]=control;
             Vector3 panel=positions[i]+new Vector3(0f,1.28f,1.88f);
-            NullBox($"Anchor {i} Pedestal",apparatus,panel-new Vector3(0f,0.65f,0f),new Vector3(0.32f,1.26f,0.32f),metal);
+            NullBox($"Anchor {i} Pedestal",apparatus,panel-new Vector3(0f,0.65f,0.22f),new Vector3(0.32f,1.26f,0.32f),metal);
             labels[i]=NullSign($"Anchor {i} Readout",apparatus,panel,Vector3.forward,"VECTOR / STANDBY",1.5f,0.62f,dark);
             NullLamp($"Levitation Wash {i}",apparatus,positions[i]+Vector3.up*8.7f,Vector3.down,
                 new Color(0.12f,1f,0.65f),330f,12f,mint,false);

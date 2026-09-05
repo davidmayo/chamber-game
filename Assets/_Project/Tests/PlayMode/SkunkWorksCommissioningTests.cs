@@ -61,6 +61,14 @@ public sealed class SkunkWorksCommissioningTests : InputTestFixture
         yield return Tap(keyboard.tabKey);
         yield return Tap(keyboard.fKey);
         yield return WaitFor(()=>Property<bool>(console,"IsSeated"));
+        Set(mouse.delta,new Vector2(0f,-320f));
+        yield return Frames(2);
+        Transform pose=Field(console,"seatedCameraPose") as Transform;
+        Vector3 terminal=pose.parent.TransformPoint(new Vector3(0f,1.03f,-0.06f));
+        Assert.That(Vector3.Angle(camera.transform.forward,terminal-camera.transform.position),Is.LessThan(5f),
+            "Mouse look must let the seated player inspect the tuning readout directly.");
+        Set(mouse.delta,new Vector2(0f,320f));
+        yield return Frames(2);
         Press(keyboard.spaceKey);
         yield return Frames(25);
         Release(keyboard.spaceKey);
@@ -137,6 +145,21 @@ public sealed class SkunkWorksCommissioningTests : InputTestFixture
         Transform[] sculptures=Field(garden,"sculptures") as Transform[];
         yield return Frames(120);
         Assert.That(sculptures[2].localPosition.y,Is.GreaterThan(sculptures[0].localPosition.y+0.5f));
+        // A partial view of the garden must keep the visible field animated,
+        // even when its first side does not participate in camera rendering.
+        LineRenderer[] links=Field(garden,"links") as LineRenderer[];
+        Quaternion gardenLook=camera.transform.rotation;
+        player.enabled=false;
+        camera.transform.rotation=Quaternion.LookRotation((sculptures[1].position+sculptures[2].position)*0.5f-camera.transform.position);
+        links[0].enabled=false;
+        yield return Frames(5);
+        Vector3 previousFieldPoint=links[1].GetPosition(31);
+        yield return Frames(15);
+        Assert.That(Vector3.Distance(previousFieldPoint,links[1].GetPosition(31)),Is.GreaterThan(0.005f),
+            "Visible field motion must continue when the first link is not rendered.");
+        links[0].enabled=true;
+        camera.transform.rotation=gardenLook;
+        player.enabled=true;
         Capture(camera,"skunk-vector-certified",new Vector3(12.5f,2.5f,9f),new Vector3(19.5f,4.6f,1f));
         yield return WalkTo(new Vector3(23.9f,0f,7.8f));
         yield return WalkTo(new Vector3(12f,0f,7.8f));
@@ -179,10 +202,16 @@ public sealed class SkunkWorksCommissioningTests : InputTestFixture
         Assert.That(Property<float>(horizon,"CaptureProgress01"),Is.EqualTo(cycle));
         Assert.That(Property<float>(horizon,"OpenFraction"),Is.EqualTo(opening));
         yield return Tap(keyboard.escapeKey);
+        yield return WaitFor(()=>Property<float>(horizon,"OpenFraction")>0.71f);
+        Transform surveyor=Field(horizon,"surveyor") as Transform;
+        Assert.That(surveyor.gameObject.activeSelf,Is.True);
+        Assert.That(surveyor.localPosition.z,Is.LessThan(0f),"The probe first emerges from within the aperture.");
+        Assert.That(surveyor.localScale.x,Is.InRange(0.0001f,0.99f),"The probe appears gradually rather than popping into view.");
         yield return WaitFor(()=>Property<bool>(horizon,"Completed"));
         Assert.That(Property<float>(horizon,"OpenFraction"),Is.EqualTo(1f).Within(0.001f));
         Assert.That(Property<int>(Find("SkunkWorksCommissioning"),"CompletedCount"),Is.EqualTo(3));
-        Assert.That((Field(horizon,"surveyor") as Transform).gameObject.activeSelf,Is.True);
+        Assert.That(surveyor.localPosition.z,Is.EqualTo(3.3f).Within(0.001f));
+        Assert.That(surveyor.localScale.x,Is.EqualTo(1f).Within(0.001f));
         foreach(Transform petal in Field(horizon,"iris") as Transform[])
             foreach(Renderer renderer in petal.GetComponentsInChildren<Renderer>())
             {

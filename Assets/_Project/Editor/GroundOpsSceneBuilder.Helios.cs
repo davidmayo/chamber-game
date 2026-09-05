@@ -56,7 +56,7 @@ public static partial class GroundOpsSceneBuilder
         bench.localPosition=position;
         bench.localRotation=Quaternion.LookRotation(facing);
         ReusablePrefabInstance("Work Table",bench,reusablePrefabs.DocDesk,Vector3.zero,Quaternion.Euler(0f,90f,0f));
-        ReusablePrefabInstance("Chair",bench,reusablePrefabs.ChairBlack,new Vector3(0f,0f,-1f),Quaternion.identity);
+        ReusablePrefabInstance("Chair",bench,reusablePrefabs.ChairBlack,new Vector3(0f,0f,-1f),Quaternion.Euler(0f,180f,0f));
         NullBox("Terminal",bench,new Vector3(0f,1.03f,0.12f),new Vector3(1.65f,0.48f,0.34f),dark);
         NullBox("Terminal Light",bench,new Vector3(0f,1.31f,0.12f),new Vector3(1.65f,0.045f,0.34f),accent);
         readout=CreateWorldDisplayText("Readout",bench,new Vector3(0f,1.03f,-0.06f),1.55f,0.44f,"PROTOTYPE SYSTEM / STANDBY",48,Quaternion.identity);
@@ -74,6 +74,7 @@ public static partial class GroundOpsSceneBuilder
         body.useGravity=false;
         SimpleSeatedConsoleController console=GetOrAddComponent<SimpleSeatedConsoleController>(trigger.gameObject);
         console.Configure(player,player.PlayerCamera,pose);
+        console.ConfigureLookLimits(new Vector2(-45f,45f),new Vector2(-35f,45f));
         console.ConfigurePrompts("Press F to sit at the "+name.ToLowerInvariant(),controls+"\nMouse: look   Wheel: zoom   F / Esc: stand up");
         return console;
     }

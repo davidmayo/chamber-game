@@ -95,7 +95,9 @@ public sealed class VectorGardenController : MonoBehaviour
             sculptures[i].localPosition=position;
             sculptures[i].localRotation=Quaternion.Euler(Mathf.Sin(clock*0.3f+i)*7f,clock*(8f+i*3f),0f);
         }
-        if(links[0].isVisible || clock<0.2f) DrawField();
+        // Each side occupies a different part of the room. Looking away from
+        // A-B must not freeze the other two visible sides of the field.
+        if(links[0].isVisible || links[1].isVisible || links[2].isVisible || clock<0.2f) DrawField();
         displayTimer-=Time.deltaTime;
         if(displayTimer<=0f) { displayTimer=0.1f; UpdateLabels(); }
     }

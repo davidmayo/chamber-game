@@ -37,7 +37,7 @@ An anchor changes two heights at once. Four presses on the same anchor undo thos
 
 ## Verification and photographs
 
-`SkunkWorksJourneyTests` rides both directions, checks the parked destination switch, walks every wing and doorway, verifies floor support, and returns to the original destination. `SkunkWorksCommissioningTests` uses real Input System events for the complete commissioning sequence, interlocks, coupled anchors, interruption, pause, zoom, standing transitions, and replay. The existing facility, archive, null lab, and real-pointer pause tests remain in the suite.
+`SkunkWorksJourneyTests` rides both directions, checks the parked destination switch, walks every wing and doorway, verifies floor support, and returns to the original destination. `SkunkWorksCommissioningTests` uses real Input System events for the complete commissioning sequence, interlocks, coupled anchors, interruption, pause, zoom, terminal inspection, standing transitions, and replay. It also checks partially visible field animation, iris clearance, and gradual probe deployment. The existing facility, archive, null lab, and real-pointer pause tests remain in the suite.
 
 [The screenshot gallery](screenshots/README.md) contains sixteen actual 1920 by 1080 campus views. To reproduce it, enter a fresh Main Play session through the bridge and run:
 

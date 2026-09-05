@@ -203,13 +203,16 @@ public static partial class GroundOpsSceneBuilder
         Transform link = NewGroup(name, campus);
         link.localPosition = position;
         NullBox("Floor", link, Vector3.down*0.14f, new Vector3(size.x,0.28f,size.y), dark);
-        NullBox("Skunk Works Ceiling", link, Vector3.up*4.65f, new Vector3(size.x,0.3f,size.y), white);
+        // Adjacent room shells already occupy 0.25 m at either end. Butt the
+        // connector walls/ceiling against them instead of overlapping faces.
+        Vector2 clearSpan=alongZ ? new Vector2(size.x,size.y-0.5f) : new Vector2(size.x-0.5f,size.y);
+        NullBox("Skunk Works Ceiling", link, Vector3.up*4.65f, new Vector3(clearSpan.x,0.3f,clearSpan.y), white);
         foreach (float side in new[] { -1f, 1f })
         {
             NullBox($"Link Wall {side}", link, alongZ ? new Vector3(side*(size.x/2f+0.125f),2.25f,0f) : new Vector3(0f,2.25f,side*(size.y/2f+0.125f)),
-                alongZ ? new Vector3(0.25f,4.5f,size.y) : new Vector3(size.x,4.5f,0.25f), dark);
+                alongZ ? new Vector3(0.25f,4.5f,clearSpan.y) : new Vector3(clearSpan.x,4.5f,0.25f), dark);
             NullBox($"Link Light {side}", link, alongZ ? new Vector3(side*(size.x/2f-0.05f),1.6f,0f) : new Vector3(0f,1.6f,side*(size.y/2f-0.05f)),
-                alongZ ? new Vector3(0.05f,0.08f,size.y) : new Vector3(size.x,0.08f,0.05f), glow);
+                alongZ ? new Vector3(0.05f,0.08f,clearSpan.y) : new Vector3(clearSpan.x,0.08f,0.05f), glow);
         }
         SetRendererMask(link, SkunkWorksLayout.AllLayers);
     }

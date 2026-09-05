@@ -96,7 +96,9 @@ public sealed class HorizonEngineController : MonoBehaviour
         for(int i=0;i<rings.Length;i++)
             rings[i].localRotation=Quaternion.Euler(0f,0f,clock*(i%2==0?1f:-1f)*(4f+i*3f)*(0.2f+OpenFraction));
         surveyor.gameObject.SetActive(OpenFraction>0.7f);
-        surveyor.localPosition=new Vector3(Mathf.Sin(clock*0.35f)*0.18f,Mathf.Sin(clock*0.7f)*0.15f,-1.7f+OpenFraction*5f);
+        float deployment=Mathf.SmoothStep(0f,1f,Mathf.InverseLerp(0.7f,1f,OpenFraction));
+        surveyor.localScale=Vector3.one*Mathf.SmoothStep(0f,1f,Mathf.Clamp01(deployment*3f));
+        surveyor.localPosition=new Vector3(Mathf.Sin(clock*0.35f)*0.18f,Mathf.Sin(clock*0.7f)*0.15f,Mathf.Lerp(-2.2f,3.3f,deployment));
         surveyor.localRotation=Quaternion.Euler(clock*6f,clock*18f,20f);
         window.GetPropertyBlock(properties);
         properties.SetFloat("_Open",OpenFraction);
@@ -116,7 +118,9 @@ public sealed class HorizonEngineController : MonoBehaviour
     {
         string stage=!Ready ? "INTERLOCK / CERTIFY HELIOS + VECTOR" : IsPerforming ? $"FIRST LIGHT / {CaptureProgress01:P0}"
             : Completed ? "FIRST LIGHT RECORDED / SPACE TO REPLAY" : Aligned ? "BEACON LOCK / SPACE TO INITIATE" : "ACQUIRE THE REFERENCE BEACON";
-        readout.text=$"HORIZON / {(Completed?"COMMISSIONED":"ALIGNMENT")}\nYAW {yaw:0.0} / REF +7.5\nPITCH {pitch:0.0} / REF +4.0\n{stage}";
+        string action=!Ready ? "HELIOS + VECTOR REQUIRED" : IsPerforming ? $"FIRST LIGHT / {CaptureProgress01:P0}"
+            : Completed ? "SPACE TO REPLAY" : Aligned ? "SPACE TO INITIATE" : "A D / YAW    W S / PITCH";
+        readout.text=$"HORIZON / {(Completed?"COMMISSIONED":"ALIGNMENT")}\nYAW {yaw:0.0} / REF +7.5\nPITCH {pitch:0.0} / REF +4.0\n{action}";
         status.text=stage;
     }
     private static AudioClip CreateHum()
