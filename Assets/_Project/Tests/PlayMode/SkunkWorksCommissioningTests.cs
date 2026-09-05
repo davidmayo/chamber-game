@@ -36,7 +36,7 @@ public sealed class SkunkWorksCommissioningTests : InputTestFixture
     }
 
     [UnityTest]
-    public IEnumerator TuneAndCertifyHeliosWithTheActualConsoleControls()
+    public IEnumerator CommissionTheCampusWithActualConsoleAndAnchorControls()
     {
         SceneManager.LoadScene("Main",LoadSceneMode.Single);
         yield return Frames(3);
@@ -107,6 +107,54 @@ public sealed class SkunkWorksCommissioningTests : InputTestFixture
         Assert.That(Quaternion.Angle(rotation,core.localRotation),Is.GreaterThan(0.1f));
         Assert.That(Property<bool>(forge,"Certified"),Is.True);
         Capture(camera,"skunk-helios-certified",new Vector3(-12.5f,2.5f,7.5f),new Vector3(-19.5f,4.5f,0.8f));
+        yield return WalkTo(new Vector3(-12f,0f,0f));
+        yield return WalkTo(new Vector3(0f,0f,0f));
+        yield return WalkTo(new Vector3(12f,0f,0f));
+        yield return WalkTo(new Vector3(15.1f,0f,2.6f));
+        Behaviour garden=Find("VectorGardenController");
+        yield return Tap(keyboard.escapeKey);
+        yield return Tap(keyboard.fKey);
+        Assert.That(Property<int>(garden,"LevelA"),Is.Zero,"Pause owns all input, including the anchors.");
+        yield return Tap(keyboard.escapeKey);
+        yield return Tap(keyboard.fKey);
+        Assert.That(Property<int>(garden,"LevelA"),Is.EqualTo(1));
+        Assert.That(Property<int>(garden,"LevelB"),Is.EqualTo(1),"An anchor must change its clockwise neighbor.");
+        Assert.That(Property<int>(garden,"LevelC"),Is.Zero);
+        for(int i=0;i<3;i++) yield return Tap(keyboard.fKey);
+        Assert.That(Property<int>(garden,"LevelA"),Is.Zero,"Four steps wrap the anchor to zero.");
+        Assert.That(Property<int>(garden,"LevelB"),Is.Zero);
+        yield return WalkTo(new Vector3(15.1f,0f,7.1f));
+        yield return WalkTo(new Vector3(19.5f,0f,7.1f));
+        yield return Tap(keyboard.fKey);
+        yield return WalkTo(new Vector3(23.9f,0f,7.1f));
+        yield return WalkTo(new Vector3(23.9f,0f,2.6f));
+        yield return Tap(keyboard.fKey);
+        yield return Tap(keyboard.fKey);
+        Assert.That(Property<bool>(garden,"Aligned"),Is.True);
+        yield return WaitFor(()=>Property<bool>(garden,"Certified"));
+        yield return Tap(keyboard.fKey);
+        Assert.That(Property<bool>(garden,"Aligned"),Is.True,"Certification locks the stable field.");
+        Transform[] sculptures=Field(garden,"sculptures") as Transform[];
+        yield return Frames(120);
+        Assert.That(sculptures[2].localPosition.y,Is.GreaterThan(sculptures[0].localPosition.y+0.5f));
+        Capture(camera,"skunk-vector-certified",new Vector3(12.5f,2.5f,9f),new Vector3(19.5f,4.6f,1f));
+    }
+
+    private IEnumerator WalkTo(Vector3 local)
+    {
+        Vector3 target=campus.TransformPoint(local);
+        int count=0;
+        while(Vector3.ProjectOnPlane(target-player.transform.position,Vector3.up).magnitude>0.13f && count++<850)
+        {
+            player.transform.rotation=Quaternion.LookRotation(Vector3.ProjectOnPlane(target-player.transform.position,Vector3.up));
+            Press(keyboard.wKey);
+            yield return null;
+        }
+        Release(keyboard.wKey);
+        yield return Frames(3);
+        Assert.That(Vector3.Distance(player.transform.position,target),Is.LessThan(0.35f),
+            $"Commissioning route blocked at {campus.InverseTransformPoint(player.transform.position)} toward {local}.");
+        Assert.That(Physics.Raycast(player.transform.position+Vector3.up*0.3f,Vector3.down,0.7f,~0,QueryTriggerInteraction.Ignore),Is.True);
     }
 
     private void Capture(Camera camera,string name,Vector3 localEye,Vector3 localTarget)

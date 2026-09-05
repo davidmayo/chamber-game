@@ -25,3 +25,9 @@ At the DOC truck stop, press F to board. Choose **1** for Antennas or **2** for 
 The source experiment is playable. Match phase 126 degrees and containment 0.680 with A/D and W/S; Shift provides fine control. Hold Space for three stable seconds to certify the source. Releasing Space, drifting out of tolerance, or leaving the seat interrupts the capture. Certification persists for this session.
 
 All 13 Play Mode tests pass, including real keyboard tuning, interrupted certification, zoom/FOV restoration, and pause-safe animation. `screenshots/skunk-works-helios.png` is a live render from that successful test. Vector Garden and Horizon are still in development.
+
+## Vector milestone
+
+The Garden now unlocks from the Helios power bus. Its three floating masses display the anchor heights directly. F advances the nearby anchor and its clockwise neighbor; each wraps through four levels. Matching A 2 / B 1 / C 3 and allowing 2.5 seconds to settle certifies the field.
+
+All 13 tests pass with the commissioning test extended to physically walk between anchors, verify coupling and wraparound, reject input while paused, solve the field, and preserve its certification. The live certified Garden view is `screenshots/skunk-works-vector.png`.
