@@ -256,6 +256,7 @@ public static class CodexEditorBridge
                 {
                     throw new InvalidOperationException("Unity is already playing or changing Play Mode state.");
                 }
+                CodexAutomationAudio.Begin();
                 EditorApplication.isPlaying = true;
                 WriteResponse(request.id, request.command, true, "Requested Play Mode.",
                     string.Empty, EditorStateJson());
@@ -355,6 +356,7 @@ public static class CodexEditorBridge
             : TestMode.EditMode;
 
         SessionState.SetString(TestRequestSessionKey, JsonUtility.ToJson(request));
+        CodexAutomationAudio.Begin(true);
         RegisterTestCallbacks(request);
         try
         {
@@ -380,6 +382,7 @@ public static class CodexEditorBridge
 
     private static void ClearTestRequest()
     {
+        CodexAutomationAudio.EndTests();
         SessionState.EraseString(TestRequestSessionKey);
         if (activeTestRequestId != null)
         {
@@ -1069,6 +1072,8 @@ public static class CodexEditorBridge
             activeScene = scene.path,
             sceneDirty = scene.isDirty,
             isPlaying = EditorApplication.isPlaying,
+            automationAudioMuted = CodexAutomationAudio.Active,
+            editorAudioMuted = EditorUtility.audioMasterMute,
             isPaused = EditorApplication.isPaused,
             isCompiling = EditorApplication.isCompiling,
             isUpdating = EditorApplication.isUpdating,
@@ -1237,6 +1242,8 @@ public static class CodexEditorBridge
         public string activeScene;
         public bool sceneDirty;
         public bool isPlaying;
+        public bool automationAudioMuted;
+        public bool editorAudioMuted;
         public bool isPaused;
         public bool isCompiling;
         public bool isUpdating;

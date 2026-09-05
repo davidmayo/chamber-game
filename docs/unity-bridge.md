@@ -22,6 +22,8 @@ powershell -ExecutionPolicy Bypass -File tools/unity-bridge.ps1 run_tests -Argum
 
 `run_tests` accepts `edit` (the default) or `play`. Test requests survive Play Mode script reloads and return a pass/fail summary plus an NUnit XML report in `artifactPath`. Screenshot and hierarchy commands also return an `artifactPath` in their response.
 
+Bridge-started Play Mode and test runs mute the Unity Editor's audio output for their duration. The previous mute setting is restored when automation finishes, including across domain reloads. Pressing Play yourself and running standalone builds retain normal sound. `editor_state` reports `automationAudioMuted` and `editorAudioMuted` so this can be verified without playing sound.
+
 `capture_game_view -Argument ridge-recorder` frames the Signal Watch recorder, and `-Argument hallway-directory` frames the hallway sign. These camera captures omit screen-space UI; Play Mode interaction tests also save screenshots including the prompts and field notebook under `Library/CodexBridge/Artifacts/`.
 
 The first-floor review presets are `null-stair`, `null-gallery`, `null-lab`, and `null-cell`. The null-lab walkthrough also captures actual Play Mode views of the descent, bench, notebook, and certified test cell.
