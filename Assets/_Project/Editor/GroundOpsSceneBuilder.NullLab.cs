@@ -27,7 +27,11 @@ public static partial class GroundOpsSceneBuilder
         NullBox("Cable Gallery Ceiling", rooms, new Vector3(4.525f, ceiling + 0.08f, 18.025f), new Vector3(1.95f, 0.16f, 12.05f), wall);
         NullBox("West Wall", rooms, new Vector3(-3.325f, y + height / 2f, 17.9f), new Vector3(0.15f, height, 11.95f), wall);
         NullBox("Gallery East Wall", rooms, new Vector3(5.575f, y + height / 2f, 18.025f), new Vector3(0.15f, height, 12.2f), wall);
-        NullBox("South Wall", rooms, new Vector3(1.125f, y + height / 2f, 11.925f), new Vector3(8.75f, height, 0.15f), wall);
+        NullBox("South Wall", rooms, new Vector3(0.15f, y + height / 2f, 11.925f), new Vector3(6.8f, height, 0.15f), wall);
+        float passageHeaderHeight = height - 2.4f;
+        NullBox("Archive Passage Header", rooms,
+            new Vector3(4.525f, ceiling - passageHeaderHeight / 2f, 11.925f),
+            new Vector3(1.95f, passageHeaderHeight, 0.15f), wall);
         NullBox("Lab North Wall", rooms, new Vector3(0.15f, y + height / 2f, 23.875f), new Vector3(6.8f, height, 0.15f), wall);
         // Independent internal partition: a real opening into the lab, with a
         // fixed observation pane farther along the cable gallery.
@@ -67,7 +71,10 @@ public static partial class GroundOpsSceneBuilder
             "STAIR 01 >\nCHAMBER / OPERATIONS", 1.45f, 0.4f, dark);
 
         Transform isolator = NewGroup("Bench Supply Isolator", gallery);
-        isolator.localPosition = new Vector3(4.5f, y, 12.15f);
+        // Mount the existing supply on the gallery sidewall so the corridor
+        // continues to the archive. Its standing interaction point stays put.
+        isolator.localPosition = new Vector3(5.35f, y, 13.2f);
+        isolator.localRotation = Quaternion.Euler(0f, -90f, 0f);
         NullBox("Supply Cabinet", isolator, new Vector3(0f, 1.35f, 0f), new Vector3(0.68f, 0.9f, 0.22f), metal);
         Text supplyLabel = NullSign("Supply Instructions", isolator, new Vector3(0f, 1.5f, 0.13f), Vector3.forward,
             "N-01 / BENCH SUPPLY\nISOLATED\nF / ENERGIZE", 0.62f, 0.48f, dark);
@@ -75,7 +82,7 @@ public static partial class GroundOpsSceneBuilder
         supplyHandle.localPosition = new Vector3(0f, 1.04f, 0.20f);
         NullBox("Lever", supplyHandle, Vector3.zero, new Vector3(0.09f, 0.25f, 0.07f), yellow);
         Transform supplyPoint = NewGroup("Supply Interaction", isolator);
-        supplyPoint.localPosition = new Vector3(0f, 0f, 1.05f);
+        supplyPoint.localPosition = new Vector3(0f, 0f, 0.85f);
 
         Transform lab = NewGroup("Null Reference Lab", root);
         for (int i = 0; i < 3; i++)

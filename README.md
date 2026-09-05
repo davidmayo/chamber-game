@@ -2,11 +2,19 @@
 
 A simple first-person Unity game set in an anechoic chamber and the surrounding facility. Explore the chamber, inspect the operations consoles, point the antennas, and ride out to the ridge.
 
+## Afterglow / Signal Archive
+
+Beneath the DOC, a low amber passage opens into a tall, dark room containing a suspended light sculpture and a polished reflection inset. Reach it by taking **Stair 01**, then following the cable gallery past the Null Reference Lab and the **Afterglow** signs.
+
+Walk around the inset and press **F** at each of the three receiver banks. Sit at the playback bench beside the entrance with **F**, choose a recording with **A / D**, and press **Space once** to play its full 18-second sequence. **Orbital** weaves intersecting paths, **Pulsar** opens a luminous hourglass, and **Aurora** folds a curtain of light. Each has its own harmonic sound. You can leave the bench and walk around the sculpture while it plays; pausing freezes the recording. Recover all three recordings, or replay your favorite. Progress lasts for the session.
+
+This is a fictional, telemetry-inspired art installation. Its patterns are imagined recordings, not scientific measurements. [View the actual Play Mode screenshots](docs/screenshots/README.md).
+
 ## Null Reference Lab / Level 01
 
 A new first-floor lab sits directly beneath the chamber. Follow the chamber hallway to its far end and look for **Stair 01**. Two flights and an intermediate landing lead to the amber-lit cable gallery, then into the lab and its glazed null cell. The high bay remains sealed and has no connection to this area.
 
-At the end of the cable gallery, **F** operates the bench supply isolator. Sit at the lab bench with **F**, then use **A / D** for phase and **W / S** for amplitude. Hold **Shift** for fine adjustment. The amber waveform is the incoming reference, teal is your cancellation signal, and white is their sum. Make the white trace flat, then **hold Space** to certify the null. The tone quiets as you approach balance; certification changes the test-cell lights. **Tab** opens the lab procedure and a tuning hint.
+Beside the passage to Afterglow, **F** operates the bench supply isolator on the gallery wall. Sit at the lab bench with **F**, then use **A / D** for phase and **W / S** for amplitude. Hold **Shift** for fine adjustment. The amber waveform is the incoming reference, teal is your cancellation signal, and white is their sum. Make the white trace flat, then **hold Space** to certify the null. The tone quiets as you approach balance; certification changes the test-cell lights. **Tab** opens the lab procedure and a tuning hint.
 
 The copper reference assembly can be inspected through the opening beside the lab window. **F / Esc** leaves the bench and restores standing zoom. **R** at a powered, certified bench starts another test. The experiment is an optional, session-only activity; your Signal Watch progress continues independently. Return upstairs by the same staircase.
 
@@ -50,6 +58,6 @@ With Unity open, run the gameplay checks through the [local Editor bridge](docs/
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\unity-bridge.ps1 run_tests -Argument play
 ```
 
-The tests cover walking between rooms, the truck round trip, console interactions and zoom, pause input, prompt layout, a complete Signal Watch shift, and walking down to the null lab, operating its equipment, and climbing back upstairs. Test reports and interaction screenshots are saved under `Library/CodexBridge/Artifacts/`.
+The tests cover walking between rooms, the truck round trip, console interactions and zoom, pause input, prompt layout, a complete Signal Watch shift, and walking down to the null lab, operating its equipment, and climbing back upstairs. The archive walkthrough also checks the physical gallery route, all three receivers and recordings, replay, playback during exploration, pause, notes, zoom, and the sealed high-bay wall. Test reports and interaction screenshots are saved under `Library/CodexBridge/Artifacts/`.
 
 **Tools > Build > Clean and Build Windows + Linux** creates both standalone players under `Builds/`; both Unity platform modules must be installed. This command replaces the project's previous `Builds/` outputs.

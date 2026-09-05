@@ -533,6 +533,7 @@ public static partial class GroundOpsSceneBuilder
             truckGlassMaterial);
         BuildActivityWayfinding(facilityConnection);
         BuildNullLaboratory(root, playerController);
+        BuildSignalArchive(root, playerController);
         ConfigureFacilityLighting(
             scene,
             root,
@@ -4300,7 +4301,8 @@ public static partial class GroundOpsSceneBuilder
         {
             uint allZones = ExteriorRenderingLayer | DocRenderingLayer |
                 HallwayRenderingLayer | ChamberRoomRenderingLayer |
-                ChamberInteriorRenderingLayer | NullLabLayout.RenderingLayer;
+                ChamberInteriorRenderingLayer | NullLabLayout.RenderingLayer |
+                SignalArchiveLayout.RenderingLayer;
             SetRendererMask(playerController.transform, allZones);
             Camera playerCamera = playerController.GetComponentInChildren<Camera>(true);
             if (playerCamera != null)
@@ -4309,6 +4311,10 @@ public static partial class GroundOpsSceneBuilder
                     playerCamera.GetUniversalAdditionalCameraData();
                 cameraData.renderPostProcessing = true;
                 cameraData.volumeLayerMask = ~0;
+                // The archive's fine moving filaments need edge smoothing in
+                // the deferred renderer, where ordinary MSAA is unavailable.
+                cameraData.antialiasing = AntialiasingMode.SubpixelMorphologicalAntiAliasing;
+                cameraData.antialiasingQuality = AntialiasingQuality.High;
             }
         }
 

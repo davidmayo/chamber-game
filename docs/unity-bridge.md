@@ -26,6 +26,8 @@ powershell -ExecutionPolicy Bypass -File tools/unity-bridge.ps1 run_tests -Argum
 
 The first-floor review presets are `null-stair`, `null-gallery`, `null-lab`, and `null-cell`. The null-lab walkthrough also captures actual Play Mode views of the descent, bench, notebook, and certified test cell.
 
+For the Signal Archive, start a fresh Play session and run `capture_archive -NoWait`. Poll its response under `Library/CodexBridge/Responses/`. The photography pass advances the live sculpture, lighting, and reflection for each recording and writes three 1920 by 1080 PNGs to `docs/screenshots/`. It positions the player camera and stages receiver/playback state for reproducibility, excludes the overlay HUD, and automatically exits Play Mode to discard the staged state. It never saves the scene.
+
 Scene-mutating commands are rejected during Play Mode. `rebuild_chamber` also rejects a dirty scene unless `-Force` is supplied.
 
 ## Unity controls

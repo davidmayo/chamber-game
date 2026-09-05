@@ -218,6 +218,14 @@ public static class CodexEditorBridge
                 CaptureSceneView(request);
                 return false;
 
+            case "capture_archive":
+                SignalArchiveCapture.Begin((success, message, folder) =>
+                {
+                    WriteResponse(request.id, request.command, success, message, folder, string.Empty);
+                    TryDelete(Path.Combine(ProcessingFolder, $"{request.id}.json"));
+                });
+                return true;
+
             case "rebuild_chamber":
                 RequireSafeEditState(request);
                 if (!request.force && SceneManager.GetActiveScene().isDirty)
@@ -287,7 +295,7 @@ public static class CodexEditorBridge
             default:
                 throw new InvalidOperationException(
                     $"Unknown command '{request.command}'. Allowed commands: ping, editor_state, refresh, " +
-                    "save_scene, hierarchy, audit_geometry, capture_game_view, rebuild_chamber, enter_play_mode, " +
+                    "save_scene, hierarchy, audit_geometry, capture_game_view, capture_archive, rebuild_chamber, enter_play_mode, " +
                     "exit_play_mode, run_tests, get_logs, clear_logs.");
         }
     }

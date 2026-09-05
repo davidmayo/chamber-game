@@ -11,6 +11,7 @@ param(
         'audit_geometry',
         'capture_game_view',
         'capture_scene_view',
+        'capture_archive',
         'rebuild_chamber',
         'build_ground_ops',
         'enter_play_mode',

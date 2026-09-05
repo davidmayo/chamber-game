@@ -110,6 +110,11 @@ public sealed class FacilityPlayerEffects : MonoBehaviour
     private uint Locate(Vector3 position)
     {
         Vector3 local = groundOpsRoot != null ? groundOpsRoot.InverseTransformPoint(position) : position;
+        if (SignalArchiveLayout.Contains(local))
+        {
+            LocationName = "LEVEL 01 / SIGNAL ARCHIVE";
+            return SignalArchiveLayout.RenderingLayer;
+        }
         if (NullLabLayout.Contains(local))
         {
             LocationName = NullLabLayout.Location(local);

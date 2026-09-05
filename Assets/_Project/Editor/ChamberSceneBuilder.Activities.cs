@@ -55,5 +55,7 @@ public static partial class ChamberSceneBuilder
             operations.GetComponentInChildren<RidgeRecorderController>(true), effects);
         root.GetComponentInChildren<FacilityShiftDisplay>(true).ConfigureLaboratory(
             operations.GetComponentInChildren<NullLaboratoryController>(true));
+        root.GetComponentInChildren<FacilityShiftDisplay>(true).ConfigureArchive(
+            operations.GetComponentInChildren<SignalArchiveController>(true));
     }
 }
