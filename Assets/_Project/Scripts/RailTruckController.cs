@@ -14,6 +14,10 @@ public sealed class RailTruckController : MonoBehaviour
         ParkedAtAntennas,
         DrivingToDoc,
         ArrivedAtDoc,
+        DrivingToSkunkWorks,
+        ArrivedAtSkunkWorks,
+        ParkedAtSkunkWorks,
+        DrivingFromSkunkWorks,
     }
 
     [SerializeField] private FirstPersonPlayerController playerController;
@@ -25,6 +29,9 @@ public sealed class RailTruckController : MonoBehaviour
     [SerializeField] private Transform[] routeWaypoints;
     [SerializeField, Min(1)] private int antennaStopWaypointIndex = 1;
     [SerializeField] private Transform[] wheels;
+    [SerializeField] private Transform[] skunkWorksWaypoints;
+    [SerializeField] private int skunkWorksStopIndex;
+    [SerializeField] private Transform skunkWorksExitPose;
     [SerializeField, Min(0.1f)] private float speedMetersPerSecond = 5f;
     [SerializeField, Min(0.2f)] private float interactionDistanceMeters = 1.8f;
     [SerializeField, Min(0.05f)] private float fadeHalfSeconds = 0.32f;
@@ -52,6 +59,12 @@ public sealed class RailTruckController : MonoBehaviour
     private float lookElevation;
     private float targetFieldOfView;
     private CanvasGroup fadeCanvasGroup;
+    private bool skunkWorksSelected;
+    private Transform[] ActiveWaypoints => skunkWorksSelected ? skunkWorksWaypoints : routeWaypoints;
+    private int ActiveStopIndex => skunkWorksSelected ? skunkWorksStopIndex : antennaStopWaypointIndex;
+    private Transform RemoteExit => skunkWorksSelected ? skunkWorksExitPose : antennaExitPose;
+    public string DestinationName => skunkWorksSelected ? "Skunk Works" : "Antennas";
+    public bool SkunkWorksSelected => skunkWorksSelected;
 
     public JourneyState State => state;
     public string StateName => state.ToString();
@@ -109,6 +122,13 @@ public sealed class RailTruckController : MonoBehaviour
         drawRouteGizmos = visible;
     }
 
+    public void ConfigureSkunkWorks(Transform[] waypoints, int stopIndex, Transform exitPose)
+    {
+        skunkWorksWaypoints = waypoints;
+        skunkWorksStopIndex = stopIndex;
+        skunkWorksExitPose = exitPose;
+    }
+
     public void SetEditorPreviewProgress(float progress)
     {
         editorPreviewProgress = Mathf.Clamp01(progress);
@@ -118,6 +138,7 @@ public sealed class RailTruckController : MonoBehaviour
 
     private void Awake()
     {
+        skunkWorksSelected = false;
         BuildRouteLookup();
         CreateFadeCanvas();
         state = JourneyState.ParkedAtDoc;
@@ -160,6 +181,7 @@ public sealed class RailTruckController : MonoBehaviour
                 break;
 
             case JourneyState.DrivingToAntennas:
+            case JourneyState.DrivingToSkunkWorks:
                 UpdateDriverView();
                 {
                     float previousDistance = travelledMeters;
@@ -173,28 +195,30 @@ public sealed class RailTruckController : MonoBehaviour
                         true);
                     if (travelledMeters >= antennaStopDistance - 0.001f)
                     {
-                        state = JourneyState.ArrivedAtAntennas;
+                        state = skunkWorksSelected ? JourneyState.ArrivedAtSkunkWorks : JourneyState.ArrivedAtAntennas;
                     }
                 }
                 break;
 
             case JourneyState.ArrivedAtAntennas:
+            case JourneyState.ArrivedAtSkunkWorks:
                 UpdateDriverView();
                 if (keyboard.fKey.wasPressedThisFrame)
                 {
                     StartCoroutine(ExitTruck(
-                        antennaExitPose,
-                        JourneyState.ParkedAtAntennas));
+                        RemoteExit,
+                        skunkWorksSelected ? JourneyState.ParkedAtSkunkWorks : JourneyState.ParkedAtAntennas));
                 }
                 else if (keyboard.wKey.wasPressedThisFrame)
                 {
-                    state = JourneyState.DrivingToDoc;
+                    state = skunkWorksSelected ? JourneyState.DrivingFromSkunkWorks : JourneyState.DrivingToDoc;
                 }
                 break;
 
             case JourneyState.ParkedAtAntennas:
+            case JourneyState.ParkedAtSkunkWorks:
                 if (playerController.enabled
-                    && PlayerIsNear(antennaExitPose)
+                    && PlayerIsNear(RemoteExit)
                     && keyboard.fKey.wasPressedThisFrame)
                 {
                     StartCoroutine(EnterTruck(false));
@@ -202,6 +226,7 @@ public sealed class RailTruckController : MonoBehaviour
                 break;
 
             case JourneyState.DrivingToDoc:
+            case JourneyState.DrivingFromSkunkWorks:
                 UpdateDriverView();
                 {
                     float previousDistance = travelledMeters;
@@ -224,6 +249,8 @@ public sealed class RailTruckController : MonoBehaviour
 
             case JourneyState.ArrivedAtDoc:
                 UpdateDriverView();
+                if (keyboard.digit1Key.wasPressedThisFrame) SelectDestination(false);
+                if (keyboard.digit2Key.wasPressedThisFrame) SelectDestination(true);
                 if (keyboard.fKey.wasPressedThisFrame)
                 {
                     StartCoroutine(ExitTruck(
@@ -237,10 +264,20 @@ public sealed class RailTruckController : MonoBehaviour
                     // the antennas without teleporting or rotating the truck.
                     travelledMeters = 0f;
                     SetTruckAtDistance(travelledMeters, false);
-                    state = JourneyState.DrivingToAntennas;
+                    state = skunkWorksSelected ? JourneyState.DrivingToSkunkWorks : JourneyState.DrivingToAntennas;
                 }
                 break;
         }
+    }
+
+    private void SelectDestination(bool skunkWorks)
+    {
+        if (skunkWorks && (skunkWorksWaypoints == null || skunkWorksWaypoints.Length < 3 || skunkWorksExitPose == null)) return;
+        if (skunkWorksSelected == skunkWorks) return;
+        skunkWorksSelected = skunkWorks;
+        BuildRouteLookup();
+        travelledMeters = 0f;
+        SetTruckAtDistance(0f, false);
     }
 
     private void LateUpdate()
@@ -258,28 +295,30 @@ public sealed class RailTruckController : MonoBehaviour
             && playerController.enabled
             && PlayerIsNear(departureInteractionPoint))
         {
-            InteractionPromptDisplay.Show(this, "Press F to go outside");
+            InteractionPromptDisplay.Show(this, "Press F to board the truck / Antennas + Skunk Works");
         }
         else if ((state == JourneyState.DrivingToAntennas
-                  || state == JourneyState.DrivingToDoc)
+                  || state == JourneyState.DrivingToDoc
+                  || state == JourneyState.DrivingToSkunkWorks
+                  || state == JourneyState.DrivingFromSkunkWorks)
                  && !transitioning)
         {
             InteractionPromptDisplay.Show(
                 this,
-                state == JourneyState.DrivingToAntennas
-                    ? "Driving to antennas | Mouse: look | Wheel: zoom | Esc: pause"
+                state == JourneyState.DrivingToAntennas || state == JourneyState.DrivingToSkunkWorks
+                    ? $"Driving to {DestinationName} | Mouse: look | Wheel: zoom | Esc: pause"
                     : "Driving to building | Mouse: look | Wheel: zoom | Esc: pause");
         }
-        else if (state == JourneyState.ArrivedAtAntennas && !transitioning)
+        else if ((state == JourneyState.ArrivedAtAntennas || state == JourneyState.ArrivedAtSkunkWorks) && !transitioning)
         {
             InteractionPromptDisplay.Show(
                 this,
-                "Press F to exit truck | Press W to drive to building");
+                "Press F to exit truck | Press W to return to Space Science Center");
         }
-        else if (state == JourneyState.ParkedAtAntennas
+        else if ((state == JourneyState.ParkedAtAntennas || state == JourneyState.ParkedAtSkunkWorks)
                  && playerController != null
                  && playerController.enabled
-                 && PlayerIsNear(antennaExitPose))
+                 && PlayerIsNear(RemoteExit))
         {
             InteractionPromptDisplay.Show(this, "Press F to get in truck");
         }
@@ -287,7 +326,7 @@ public sealed class RailTruckController : MonoBehaviour
         {
             InteractionPromptDisplay.Show(
                 this,
-                "Press F to exit truck | Press W to drive to antennas");
+                $"DESTINATION: {DestinationName.ToUpperInvariant()}\n1: Antennas   2: Skunk Works   W: depart   F: exit");
         }
         else
         {
@@ -325,7 +364,7 @@ public sealed class RailTruckController : MonoBehaviour
         // One W press then commits to the complete automatic leg.
         state = drivingToAntennas
             ? JourneyState.ArrivedAtDoc
-            : JourneyState.ArrivedAtAntennas;
+            : skunkWorksSelected ? JourneyState.ArrivedAtSkunkWorks : JourneyState.ArrivedAtAntennas;
         transitioning = false;
     }
 
@@ -437,16 +476,17 @@ public sealed class RailTruckController : MonoBehaviour
         routeDistances.Clear();
         routeLength = 0f;
         antennaStopDistance = 0f;
-        if (routeWaypoints == null || routeWaypoints.Length < 2
-            || routeWaypoints[0] == null)
+        Transform[] activeRoute = ActiveWaypoints;
+        if (activeRoute == null || activeRoute.Length < 2
+            || activeRoute[0] == null)
         {
             return;
         }
 
         const int samplesPerSegment = 20;
-        routeSamples.Add(routeWaypoints[0].position);
+        routeSamples.Add(activeRoute[0].position);
         routeDistances.Add(0f);
-        for (int segment = 0; segment < routeWaypoints.Length - 1; segment++)
+        for (int segment = 0; segment < activeRoute.Length - 1; segment++)
         {
             for (int sample = 1; sample <= samplesPerSegment; sample++)
             {
@@ -457,7 +497,7 @@ public sealed class RailTruckController : MonoBehaviour
                 routeDistances.Add(routeLength);
             }
 
-            if (segment + 1 == antennaStopWaypointIndex)
+            if (segment + 1 == ActiveStopIndex)
             {
                 antennaStopDistance = routeLength;
             }
@@ -471,10 +511,11 @@ public sealed class RailTruckController : MonoBehaviour
 
     private Vector3 EvaluateSegment(int segment, float t)
     {
-        Vector3 p0 = routeWaypoints[Mathf.Max(0, segment - 1)].position;
-        Vector3 p1 = routeWaypoints[segment].position;
-        Vector3 p2 = routeWaypoints[segment + 1].position;
-        Vector3 p3 = routeWaypoints[Mathf.Min(routeWaypoints.Length - 1, segment + 2)].position;
+        Transform[] activeRoute = ActiveWaypoints;
+        Vector3 p0 = activeRoute[Mathf.Max(0, segment - 1)].position;
+        Vector3 p1 = activeRoute[segment].position;
+        Vector3 p2 = activeRoute[segment + 1].position;
+        Vector3 p3 = activeRoute[Mathf.Min(activeRoute.Length - 1, segment + 2)].position;
         return 0.5f * (
             2f * p1
             + (-p0 + p2) * t

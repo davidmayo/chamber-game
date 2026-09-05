@@ -78,6 +78,7 @@ public static class GeneratedCeilingSceneVisibility
             || objectName.Equals("Cable Gallery Ceiling", StringComparison.OrdinalIgnoreCase)
             || objectName.Equals("Archive Ceiling", StringComparison.OrdinalIgnoreCase)
             || objectName.Equals("Archive Passage Ceiling", StringComparison.OrdinalIgnoreCase)
+            || objectName.Equals("Skunk Works Ceiling", StringComparison.OrdinalIgnoreCase)
             || objectName.Equals("Full Building Roof Slab", StringComparison.OrdinalIgnoreCase)
             || objectName.Equals("Cleanroom Ceiling", StringComparison.OrdinalIgnoreCase);
     }

@@ -534,6 +534,7 @@ public static partial class GroundOpsSceneBuilder
         BuildActivityWayfinding(facilityConnection);
         BuildNullLaboratory(root, playerController);
         BuildSignalArchive(root, playerController);
+        BuildSkunkWorks(root, exteriorLandscape, playerController);
         ConfigureFacilityLighting(
             scene,
             root,
@@ -3515,6 +3516,7 @@ public static partial class GroundOpsSceneBuilder
         List<Vector3>[] crownVertices = crownMaterials.Select(_ => new List<Vector3>()).ToArray();
         List<int>[] crownTriangles = crownMaterials.Select(_ => new List<int>()).ToArray();
 
+        Vector3[] campusRoad = SkunkWorksRoadPoints();
         for (int zIndex = -gridRadius; zIndex <= gridRadius; zIndex++)
         {
             for (int xIndex = -gridRadius; xIndex <= gridRadius; xIndex++)
@@ -3531,6 +3533,8 @@ public static partial class GroundOpsSceneBuilder
                 // procedural forest outside every building footprint, including
                 // the chamber appended beyond the old Ground Ops stage.
                 if (FacilityFootprintDistance(x, z) < 4f) continue;
+                if (SkunkWorksPadDistance(x, z) < 5f) continue;
+                if (DistanceToRailTruckRoute(x, z, campusRoad) < 3.8f) continue;
                 // Retain the dense ridge forest while carving only the narrow
                 // sightline needed for the new access road and moving truck.
                 if (DistanceToRailTruckRoute(x, z, railRoutePoints) < 2.05f) continue;
@@ -4056,7 +4060,10 @@ public static partial class GroundOpsSceneBuilder
             12.56f
             - 0.010f * Mathf.Abs(alongRidge)
             + 0.18f * Mathf.Sin(alongRidge * 0.10f);
-        return Mathf.Lerp(naturalHeight, crestHeight, ridgeWeight);
+        float ridgeHeight = Mathf.Lerp(naturalHeight, crestHeight, ridgeWeight);
+        float campusGrade = 1f - Mathf.SmoothStep(0f, 1f,
+            Mathf.InverseLerp(6f, 18f, SkunkWorksPadDistance(x, z)));
+        return Mathf.Lerp(ridgeHeight, SkunkWorksLayout.GroundY, campusGrade);
     }
 
     private static float FacilityFootprintDistance(float x, float z)
@@ -4302,7 +4309,7 @@ public static partial class GroundOpsSceneBuilder
             uint allZones = ExteriorRenderingLayer | DocRenderingLayer |
                 HallwayRenderingLayer | ChamberRoomRenderingLayer |
                 ChamberInteriorRenderingLayer | NullLabLayout.RenderingLayer |
-                SignalArchiveLayout.RenderingLayer;
+                SignalArchiveLayout.RenderingLayer | SkunkWorksLayout.AllLayers;
             SetRendererMask(playerController.transform, allZones);
             Camera playerCamera = playerController.GetComponentInChildren<Camera>(true);
             if (playerCamera != null)

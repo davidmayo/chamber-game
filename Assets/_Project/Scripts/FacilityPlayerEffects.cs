@@ -110,6 +110,12 @@ public sealed class FacilityPlayerEffects : MonoBehaviour
     private uint Locate(Vector3 position)
     {
         Vector3 local = groundOpsRoot != null ? groundOpsRoot.InverseTransformPoint(position) : position;
+        if (SkunkWorksLayout.Contains(local))
+        {
+            Vector3 campus = local - SkunkWorksLayout.Origin;
+            LocationName = SkunkWorksLayout.Location(campus);
+            return campus.z > 10f ? 1u << 1 : SkunkWorksLayout.Zone(campus);
+        }
         if (SignalArchiveLayout.Contains(local))
         {
             LocationName = "LEVEL 01 / SIGNAL ARCHIVE";

@@ -662,6 +662,21 @@ public static class CodexEditorBridge
                     Quaternion.LookRotation(recorder.TransformPoint(new Vector3(0f, 1.2f, 0f)) - viewPosition));
                 camera.fieldOfView = 65f;
             }
+            else if (preset.StartsWith("skunk-", StringComparison.Ordinal))
+            {
+                Transform campus = RequireGroundOpsRoot().Find("Level 02 - Space Science Center Skunk Works");
+                if (campus == null) throw new InvalidOperationException("Sync the facility to create Skunk Works.");
+                Vector3 eye = preset == "skunk-exterior" ? new Vector3(33f,9f,38f)
+                    : preset == "skunk-forge" ? new Vector3(-12f,2.5f,7.5f)
+                    : preset == "skunk-garden" ? new Vector3(12f,2.5f,7.5f)
+                    : preset == "skunk-horizon" ? new Vector3(7f,2.4f,-12.5f) : new Vector3(5.5f,2.2f,8f);
+                Vector3 target = preset == "skunk-exterior" ? new Vector3(0f,5f,0f)
+                    : preset == "skunk-forge" ? new Vector3(-20f,4f,1f)
+                    : preset == "skunk-garden" ? new Vector3(20f,4f,1f)
+                    : preset == "skunk-horizon" ? new Vector3(0f,4.5f,-25f) : new Vector3(0f,5f,-3f);
+                camera.transform.SetPositionAndRotation(campus.TransformPoint(eye),Quaternion.LookRotation(campus.TransformDirection(target-eye)));
+                camera.fieldOfView = 76f;
+            }
             else if (preset.StartsWith("null-", StringComparison.Ordinal))
             {
                 Transform operations = RequireGroundOpsRoot();

@@ -164,6 +164,14 @@ The pause menu previously rendered correctly while its buttons were completely u
 - `SignalArchiveSculpture` builds ten runtime renderers and reuses their meshes. `SignalArchiveReflection` renders the polished inset nearby at 12 Hz through an untagged, disabled auxiliary camera. Keep reflection rendering local, release owned runtime resources, and never mutate shared materials during play. Both the room and inspection light use the `Signal Archive` rendering layer (bit 7).
 - `SignalArchiveTests` walks the complete gallery/room route using real Input System events. `capture_archive` produces live runtime screenshots and exits Play Mode; the committed photographs are under `docs/screenshots/`.
 
+## Skunk Works / Level 02
+
+- The user explicitly requested a separate futuristic building and truck destination with three prototype activities. It remains in `Main.unity` with the shared player. `SkunkWorksLayout` centralizes its Ground Ops-local origin `(-78, 7.8, -48)` and rendering layers 8 through 11. The main facility, chamber, and inaccessible high bay remain independent.
+- `GroundOpsSceneBuilder.SkunkWorks.cs` and `.SkunkWorksRoad.cs` own its rooms, graded campus, forest clearing, approach road, and truck wiring. Use ordinary facility synchronization and preserve existing stable object paths.
+- At the DOC truck stop, 1 selects Antennas, 2 selects Skunk Works, and one W press starts the selected complete leg. Both destinations return to the DOC. Keep the existing antenna route and its tests; selecting a destination must preserve the exact parked truck pose. The new campus road shares the roundabout connectors and turns forward on its arrival terrace.
+- Keep `SkunkWorksJourneyTests` as an actual Input System trip, campus walkthrough, and return check. The lab activities and final screenshot gallery are documented in `docs/skunk-works.md` as their milestones land.
+- Bridge-owned play/test sessions mute output through editor-only `CodexAutomationAudio`, preserving the prior Editor mute setting across domain reloads and restoring it afterward. Never disable runtime audio sources or change standalone player sound to silence automation.
+
 ## Facility lighting zones
 
 - The continuous `Main` scene deliberately has different lighting identities in one shared world. Preserve the named URP Rendering Layers: `Exterior`, `Dish Operations Center`, `Hallway`, `Chamber Containing Room`, and `Chamber Interior`.
