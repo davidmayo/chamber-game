@@ -91,6 +91,8 @@ public static partial class GroundOpsSceneBuilder
             NullSign($"Commissioning Pillar {i}", atrium, new Vector3(-7.76f, 1.8f, 4f + i*2f), Vector3.right,
                 i == 0 ? "01 / POWER\nHELIOS FORGE" : i == 1 ? "02 / FIELD\nVECTOR GARDEN" : "03 / FIRST LIGHT\nHORIZON ENGINE", 1.75f, 0.85f, dark);
 
+        HeliosForgeController source=BuildHelios(campus,forge,player,metal,dark,amber,white);
+        GetOrAddComponent<SkunkWorksCommissioning>(campus.gameObject).Configure(player,source);
         ConfigureSkunkZone(atrium, SkunkWorksLayout.AtriumLayer, new Vector3(0f, 6f, 1f), new Vector3(16f, 12f, 18f), new Color(0.25f, 0.72f, 1f));
         ConfigureSkunkZone(forge, SkunkWorksLayout.ForgeLayer, new Vector3(-19.5f, 5f, 2f), new Vector3(19f, 10f, 18f), new Color(1f, 0.42f, 0.15f));
         ConfigureSkunkZone(garden, SkunkWorksLayout.GardenLayer, new Vector3(19.5f, 5f, 2f), new Vector3(19f, 10f, 18f), new Color(0.12f, 1f, 0.75f));
@@ -98,7 +100,7 @@ public static partial class GroundOpsSceneBuilder
         // Stable walking markers are used by the end-to-end route checks.
         Transform walk = NewGroup("Walking Route", campus);
         Vector3[] points = { new(13f,0f,19f), new(0f,0f,18f), new(0f,0f,12f), new(0f,0f,8f),
-            new(-5f,0f,0f), new(-12f,0f,0f), new(-19.5f,0f,6.5f), new(-12f,0f,0f), new(0f,0f,0f),
+            new(-5f,0f,0f), new(-12f,0f,0f), new(-19.5f,0f,7.1f), new(-12f,0f,0f), new(0f,0f,0f),
             new(12f,0f,0f), new(19.5f,0f,6.5f), new(12f,0f,0f), new(0f,0f,0f), new(0f,0f,-12f), new(0f,0f,-16f) };
         for (int i = 0; i < points.Length; i++) NewGroup($"Route {i:00}", walk).localPosition = points[i];
         foreach(Text label in campus.GetComponentsInChildren<Text>(true))

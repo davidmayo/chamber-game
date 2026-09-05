@@ -57,5 +57,7 @@ public static partial class ChamberSceneBuilder
             operations.GetComponentInChildren<NullLaboratoryController>(true));
         root.GetComponentInChildren<FacilityShiftDisplay>(true).ConfigureArchive(
             operations.GetComponentInChildren<SignalArchiveController>(true));
+        root.GetComponentInChildren<FacilityShiftDisplay>(true).ConfigureSkunkWorks(
+            operations.GetComponentInChildren<SkunkWorksCommissioning>(true));
     }
 }

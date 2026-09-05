@@ -6,6 +6,7 @@ public sealed class FacilityShiftDisplay : MonoBehaviour
     [SerializeField] private FacilityShiftController shift;
     [SerializeField] private NullLaboratoryController laboratory;
     [SerializeField] private SignalArchiveController archive;
+    [SerializeField] private SkunkWorksCommissioning skunkWorks;
     private GameObject canvasRoot;
     private GameObject notebook;
     private Text location;
@@ -25,6 +26,7 @@ public sealed class FacilityShiftDisplay : MonoBehaviour
     public void Configure(FacilityShiftController controller) => shift = controller;
     public void ConfigureLaboratory(NullLaboratoryController controller) => laboratory = controller;
     public void ConfigureArchive(SignalArchiveController controller) => archive = controller;
+    public void ConfigureSkunkWorks(SkunkWorksCommissioning controller) => skunkWorks = controller;
 
     private void Awake()
     {
@@ -75,13 +77,14 @@ public sealed class FacilityShiftDisplay : MonoBehaviour
         bool visible = shift != null && !RuntimeSceneSwitcher.IsOpen;
         canvasRoot.SetActive(visible);
         if (!visible) return;
+        bool inSkunkWorks = skunkWorks != null && skunkWorks.PlayerInArea;
         bool inArchive = archive != null && archive.PlayerInArea;
         bool inLab = laboratory != null && laboratory.PlayerInArea;
         location.text = $"{shift.LocationName}  /  LIGHT {(shift.FlashlightOn ? "ON" : "OFF")}";
-        objective.text = inArchive ? archive.ObjectiveTitle : inLab ? laboratory.ObjectiveTitle : shift.ObjectiveTitle;
-        guidance.text = inArchive ? archive.Guidance : inLab ? laboratory.Guidance : shift.Guidance;
-        measurement.text = inArchive ? archive.Measurement : inLab ? laboratory.Measurement : shift.Measurement;
-        float capture = inArchive ? archive.PlaybackProgress01 : inLab ? laboratory.CaptureProgress01 : shift.CaptureProgress01;
+        objective.text = inSkunkWorks ? skunkWorks.ObjectiveTitle : inArchive ? archive.ObjectiveTitle : inLab ? laboratory.ObjectiveTitle : shift.ObjectiveTitle;
+        guidance.text = inSkunkWorks ? skunkWorks.Guidance : inArchive ? archive.Guidance : inLab ? laboratory.Guidance : shift.Guidance;
+        measurement.text = inSkunkWorks ? skunkWorks.Measurement : inArchive ? archive.Measurement : inLab ? laboratory.Measurement : shift.Measurement;
+        float capture = inSkunkWorks ? skunkWorks.CaptureProgress01 : inArchive ? archive.PlaybackProgress01 : inLab ? laboratory.CaptureProgress01 : shift.CaptureProgress01;
         progress.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, 610f * capture);
         progressLabel.text = inArchive ? (archive.IsPerforming ? $"PLAYBACK  /  {capture * 100f:0}%"
             : capture >= 1f ? "RECORDING RECOVERED" : "")
@@ -94,8 +97,13 @@ public sealed class FacilityShiftDisplay : MonoBehaviour
         controlsStrip.pivot = controlsStrip.anchorMin;
         controlsStrip.anchoredPosition = narrow ? new Vector2(32f, -308f) : new Vector2(-32f, -32f);
         if (!shift.NotebookOpen) return;
-        notebookTitle.text = inArchive ? "SIGNAL ARCHIVE / FIELD NOTES"
+        notebookTitle.text = inSkunkWorks ? "FIRST LIGHT / SKUNK WORKS" : inArchive ? "SIGNAL ARCHIVE / FIELD NOTES"
             : inLab ? "NULL REFERENCE / FIELD NOTES" : "SIGNAL WATCH / FIELD NOTES";
+        if (inSkunkWorks)
+        {
+            notebookBody.text = skunkWorks.Notes;
+            return;
+        }
         if (inArchive)
         {
             notebookBody.text = archive.Notes;

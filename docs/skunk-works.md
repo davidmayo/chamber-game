@@ -19,3 +19,9 @@ At the DOC truck stop, press F to board. Choose **1** for Antennas or **2** for 
 `SkunkWorksLayout` centralizes the campus placement and lighting zones. The `GroundOpsSceneBuilder.SkunkWorks` and `.SkunkWorksRoad` partial files own its generated geometry and transport wiring. The campus is placed at Ground Ops local `(-78, 7.8, -48)`; the new road branches from the shared DOC roundabout junction and has its own forward turnaround on the arrival terrace.
 
 `SkunkWorksJourneyTests` uses actual Input System events to select the destination, ride, walk the three wings, return, and restore the original truck destination. Bridge automation mutes Editor audio for these runs and restores its previous setting afterward.
+
+## Helios milestone
+
+The source experiment is playable. Match phase 126 degrees and containment 0.680 with A/D and W/S; Shift provides fine control. Hold Space for three stable seconds to certify the source. Releasing Space, drifting out of tolerance, or leaving the seat interrupts the capture. Certification persists for this session.
+
+All 13 Play Mode tests pass, including real keyboard tuning, interrupted certification, zoom/FOV restoration, and pause-safe animation. `screenshots/skunk-works-helios.png` is a live render from that successful test. Vector Garden and Horizon are still in development.
