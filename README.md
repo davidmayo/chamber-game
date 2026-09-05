@@ -2,6 +2,18 @@
 
 A simple first-person Unity game set in an anechoic chamber and the surrounding facility. Explore the chamber, inspect the operations consoles, point the antennas, and ride out to the ridge.
 
+## Skunk Works / Level 02
+
+The truck now reaches a second building: **Space Science Center Skunk Works**, a futuristic campus of ceramic towers, luminous guides, and three connected prototype experiments. At the DOC truck stop, board with **F**, choose **2**, then press **W once**. **F** exits onto the arrival terrace. Choose **1** at the DOC to retain the original antenna destination.
+
+Commission **First Light** in three steps:
+
+1. **Helios Forge:** tune the amber source with **A/D** for phase and **W/S** for containment. Match **126 / 0.680**, then **hold Space** to certify it. **Shift** gives fine control.
+2. **Vector Garden:** walk between the levitation anchors. **F** advances the nearby anchor and its next neighbor, wrapping through four heights. Match **A 2 / B 1 / C 3** and let the field settle.
+3. **Horizon Engine:** use its bench to match yaw **+7.5** and pitch **+4.0**, then press **Space**. The iris opens, the stellar window comes alive, and the survey probe emerges. You can stand up and walk around during the sequence, or replay it afterward.
+
+**Tab** opens the campus procedure. Both benches support mouse look, wheel zoom, and **F/Escape** to stand up. Progress lasts for the session, independently of the original facility assignment. The truck returns to the DOC. These are fictional experiments with deliberately simple gameplay measurements. [Campus guide](docs/skunk-works.md) · [Live screenshot gallery](docs/screenshots/README.md).
+
 ## Afterglow / Signal Archive
 
 Beneath the DOC, a low amber passage opens into a tall, dark room containing a suspended light sculpture and a polished reflection inset. Reach it by taking **Stair 01**, then following the cable gallery past the Null Reference Lab and the **Afterglow** signs.
@@ -44,7 +56,7 @@ Open the project in Unity 6.3 LTS, open `Assets/_Project/Scenes/Main.unity`, and
 
 The chamber lights respond to movement inside the chamber and normally switch off after 30 seconds of stillness. The floodlights are independent. Darkness is part of the experience.
 
-At the outside end of the hallway, **F** enters the truck. Press **W once** to start the trip; it drives itself and stops at the destination. At either stop, **F** exits and **W** starts the next leg. Mouse look and wheel zoom work in the cab, and **Esc** pauses the ride.
+At the outside end of the hallway, **F** enters the truck. At the DOC, **1** selects Antennas and **2** selects Skunk Works. Press **W once** to start the trip; it drives itself and stops at the destination. At either destination, **F** exits and **W** starts the return leg. Mouse look and wheel zoom work in the cab, and **Esc** pauses the ride.
 
 ## Edit and verify
 
@@ -58,6 +70,8 @@ With Unity open, run the gameplay checks through the [local Editor bridge](docs/
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\unity-bridge.ps1 run_tests -Argument play
 ```
 
-The tests cover walking between rooms, the truck round trip, console interactions and zoom, pause input, prompt layout, a complete Signal Watch shift, and walking down to the null lab, operating its equipment, and climbing back upstairs. The archive walkthrough also checks the physical gallery route, all three receivers and recordings, replay, playback during exploration, pause, notes, zoom, and the sealed high-bay wall. Test reports and interaction screenshots are saved under `Library/CodexBridge/Artifacts/`.
+The tests cover walking between rooms, both truck destinations, console interactions and zoom, real pause-menu clicks, prompt layout, a complete Signal Watch shift, the Null Lab, and all three archive recordings. The Skunk Works checks walk every wing and complete its commissioning sequence with actual keyboard events, including interlocks, coupled anchors, interrupted captures, pause, replay, and restored standing zoom. Test reports and interaction screenshots are saved under `Library/CodexBridge/Artifacts/`.
+
+Bridge-owned Play sessions and test runs temporarily mute Editor audio and restore its previous setting afterward. Pressing Play yourself and running standalone builds retain normal sound.
 
 **Tools > Build > Clean and Build Windows + Linux** creates both standalone players under `Builds/`; both Unity platform modules must be installed. This command replaces the project's previous `Builds/` outputs.

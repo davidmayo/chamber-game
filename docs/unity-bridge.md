@@ -30,6 +30,8 @@ The first-floor review presets are `null-stair`, `null-gallery`, `null-lab`, and
 
 For the Signal Archive, start a fresh Play session and run `capture_archive -NoWait`. Poll its response under `Library/CodexBridge/Responses/`. The photography pass advances the live sculpture, lighting, and reflection for each recording and writes three 1920 by 1080 PNGs to `docs/screenshots/`. It positions the player camera and stages receiver/playback state for reproducibility, excludes the overlay HUD, and automatically exits Play Mode to discard the staged state. It never saves the scene.
 
+For the Skunk Works campus, use `capture_skunk_works -NoWait` from a fresh Play session. It writes sixteen 1920 by 1080 views covering the approach, atrium, all three experiments, First Light, and the campus at night. The actual runtime controllers animate each staged view before capture. HDR is retained through post processing before conversion to sRGB PNG. As with the archive pass, it exits Play Mode and discards the demonstration state and temporary time of day. Neither photography command should be run in a Play session whose progress you want to keep.
+
 Scene-mutating commands are rejected during Play Mode. `rebuild_chamber` also rejects a dirty scene unless `-Force` is supplied.
 
 ## Unity controls

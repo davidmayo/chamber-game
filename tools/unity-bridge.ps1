@@ -12,6 +12,7 @@ param(
         'capture_game_view',
         'capture_scene_view',
         'capture_archive',
+        'capture_skunk_works',
         'rebuild_chamber',
         'build_ground_ops',
         'enter_play_mode',

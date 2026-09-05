@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 
 public static partial class GroundOpsSceneBuilder
 {
@@ -47,8 +49,13 @@ public static partial class GroundOpsSceneBuilder
         NullSign("Campus Motto", terrace, new Vector3(0f, 5.85f, 10.25f), Vector3.forward,
             "LEVEL 02 / MAKE THE IMPOSSIBLE REPEATABLE", 9f, 0.55f, dark);
         for (int i=0;i<3;i++)
-            NullLamp($"Facade Wash {i}", terrace, new Vector3(-25f+i*25f,9f,28f), new Vector3(0f,0.05f,-1f),
-                new Color(0.72f,0.88f,1f),1500f,65f,cyan,false);
+        {
+            Light wash=NullLamp($"Facade Wash {i}", terrace, new Vector3(-25f+i*25f,9f,28f), new Vector3(0f,0.05f,-1f),
+                new Color(0.72f,0.88f,1f),1500f,65f,cyan,true);
+            wash.spotAngle=105f;
+            wash.innerSpotAngle=68f;
+            SetSkunkShadowBudget(wash);
+        }
         SkunkRing("Crown Structure",terrace,new Vector3(0f,12.6f,-1f),13f,0.24f,white,Quaternion.Euler(64f,0f,12f));
         SkunkRing("Crown Light",terrace,new Vector3(0f,12.6f,-1f),13.28f,0.08f,cyan,Quaternion.Euler(64f,0f,12f));
         foreach(float x in new[] { -7f,7f })
@@ -87,13 +94,23 @@ public static partial class GroundOpsSceneBuilder
         for (int i = 0; i < 3; i++)
             SkunkRing($"Emblem Orbit {i}", emblem, Vector3.zero, 2.0f + i * 0.38f, 0.045f, cyan,
                 Quaternion.Euler(25f + i * 58f, i * 60f, i * 24f));
+        Text[] records=new Text[3];
         for (int i = 0; i < 3; i++)
-            NullSign($"Commissioning Pillar {i}", atrium, new Vector3(-7.76f, 1.8f, 4f + i*2f), Vector3.right,
+            records[i]=NullSign($"Commissioning Pillar {i}", atrium, new Vector3(-7.76f, 1.8f, 4f + i*2f), Vector3.right,
                 i == 0 ? "01 / POWER\nHELIOS FORGE" : i == 1 ? "02 / FIELD\nVECTOR GARDEN" : "03 / FIRST LIGHT\nHORIZON ENGINE", 1.75f, 0.85f, dark);
+        SkunkRing("Hall Compass",atrium,new Vector3(0f,0.025f,2.4f),2.4f,0.018f,cyan,Quaternion.Euler(90f,0f,0f));
+        foreach(float side in new[] {-1f,1f})
+            NullBox($"Hall Source Guide {side}",atrium,new Vector3(side*5.3f,0.018f,0f),new Vector3(5.1f,0.015f,0.055f),side<0f?amber:mint);
+        NullBox("Hall Horizon Guide",atrium,new Vector3(0f,0.018f,-4.5f),new Vector3(0.055f,0.015f,6.7f),violet);
 
         HeliosForgeController source=BuildHelios(campus,forge,player,metal,dark,amber,white);
         VectorGardenController field=BuildVectorGarden(garden,player,source,metal,dark,mint,white);
-        GetOrAddComponent<SkunkWorksCommissioning>(campus.gameObject).Configure(player,source,field);
+        HorizonEngineController aperture=BuildHorizon(campus,horizon,player,source,field,metal,dark,violet,white,cyan);
+        GetOrAddComponent<SkunkWorksCommissioning>(campus.gameObject).Configure(player,source,field,aperture);
+        GetOrAddComponent<SkunkWorksCommissioning>(campus.gameObject).ConfigureHall(emblem,records);
+        BuildSkunkTaskLights(forge,new Vector3(-19.5f,4.5f,0.8f),10.5f,280f,new Color(1f,0.80f,0.58f),amber);
+        BuildSkunkTaskLights(garden,new Vector3(19.5f,4.5f,1f),10.5f,230f,new Color(0.65f,1f,0.84f),mint);
+        BuildSkunkTaskLights(horizon,new Vector3(0f,6f,-26f),-12.5f,330f,new Color(0.68f,0.77f,1f),violet);
         ConfigureSkunkZone(atrium, SkunkWorksLayout.AtriumLayer, new Vector3(0f, 6f, 1f), new Vector3(16f, 12f, 18f), new Color(0.25f, 0.72f, 1f));
         ConfigureSkunkZone(forge, SkunkWorksLayout.ForgeLayer, new Vector3(-19.5f, 5f, 2f), new Vector3(19f, 10f, 18f), new Color(1f, 0.42f, 0.15f));
         ConfigureSkunkZone(garden, SkunkWorksLayout.GardenLayer, new Vector3(19.5f, 5f, 2f), new Vector3(19f, 10f, 18f), new Color(0.12f, 1f, 0.75f));
@@ -103,7 +120,7 @@ public static partial class GroundOpsSceneBuilder
         Vector3[] points = { new(13f,0f,19f), new(0f,0f,18f), new(0f,0f,12f), new(0f,0f,8f),
             new(-5f,0f,0f), new(-12f,0f,0f), new(-19.5f,0f,7.1f), new(-12f,0f,0f), new(0f,0f,0f),
             new(12f,0f,0f), new(12f,0f,7.8f), new(19.5f,0f,7.8f), new(12f,0f,7.8f), new(12f,0f,0f),
-            new(0f,0f,0f), new(0f,0f,-12f), new(0f,0f,-16f) };
+            new(0f,0f,0f), new(0f,0f,-12f), new(0f,0f,-14.9f) };
         for (int i = 0; i < points.Length; i++) NewGroup($"Route {i:00}", walk).localPosition = points[i];
         foreach(Text label in campus.GetComponentsInChildren<Text>(true))
         {
@@ -142,7 +159,7 @@ public static partial class GroundOpsSceneBuilder
         for (int i = 0; i < 4; i++)
         {
             Vector3 p = new(Mathf.Lerp(x0+3f,x1-3f,i%2), height-0.6f, Mathf.Lerp(z0+3f,z1-3f,i/2));
-            NullLamp($"Ceiling Wash {i}", room, p, Vector3.down, new Color(0.60f, 0.80f, 1f), 170f, height+7f, glow, false);
+            NullLamp($"Ceiling Wash {i}", room, p, Vector3.down, new Color(0.72f, 0.86f, 1f), 85f, height+7f, glow, false);
         }
         // A dark lower wall band and floor inlays give the bright shell scale.
         foreach (float z in new[] { z0+0.3f, z1-0.3f })
@@ -199,11 +216,20 @@ public static partial class GroundOpsSceneBuilder
 
     private static void ConfigureSkunkZone(Transform room, uint mask, Vector3 center, Vector3 size, Color color)
     {
-        SetRendererMask(room, mask | ExteriorRenderingLayer);
+        SetRendererMask(room, mask);
+        // Only the enclosing wall slabs also receive the exterior fixtures.
+        // Equipment and floors keep their local lab lighting identity.
+        foreach(Transform child in room)
+            if(child.name.Contains(" Wall") || child.name.StartsWith("North ") || child.name.StartsWith("South ")
+                || child.name.StartsWith("East ") || child.name.StartsWith("West ") || child.name.StartsWith("Facade "))
+                SetRendererMask(child,mask | ExteriorRenderingLayer);
         SetLightMask(room, mask);
         Transform zones = NewGroup("Local Lighting", room);
+        VolumeProfile profile=GetVolumeProfile("SkunkWorks"+room.name.Replace(" ",""),0f,14f,5f,0.45f,1f);
+        GetOrAddVolumeComponent<Tonemapping>(profile).mode.Override(TonemappingMode.ACES);
+        UnityEditor.EditorUtility.SetDirty(profile);
         BuildLocalVolume(room.name+" Camera Volume", zones, center, Quaternion.identity, size, 28f, 0.35f,
-            GetVolumeProfile("SkunkWorks"+room.name.Replace(" ",""), 0.3f, 17f, 4f, 0.45f, 0.9f));
+            profile);
         BuildLocalReflectionProbe(room.name+" Reflection", zones, center, Quaternion.identity, size, 0.5f,
             GetSolidCubemap("SkunkWorks"+room.name.Replace(" ",""), color*0.23f));
     }
@@ -232,5 +258,25 @@ public static partial class GroundOpsSceneBuilder
         ring.transform.localPosition = position;
         ring.transform.localRotation = rotation;
         return ring;
+    }
+
+    private static void SetSkunkShadowBudget(Light light)
+    {
+        // Broad architectural shadows need only the pipeline's low tier.
+        // Preserve room for the original facility in the shared shadow atlas.
+        UniversalAdditionalLightData data=GetOrAddComponent<UniversalAdditionalLightData>(light.gameObject);
+        UnityEditor.SerializedObject serialized=new(data);
+        serialized.FindProperty("m_AdditionalLightsShadowResolutionTier").intValue=
+            UniversalAdditionalLightData.AdditionalLightsShadowResolutionTierLow;
+        serialized.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    private static void BuildSkunkTaskLights(Transform room,Vector3 target,float frontZ,float intensity,Color color,Material glow)
+    {
+        foreach(float side in new[] {-1f,1f})
+        {
+            Vector3 position=new(target.x+side*5.5f,6.8f,frontZ);
+            NullLamp($"Prototype Task Wash {side}",room,position,(target-position).normalized,color,intensity,26f,glow,false);
+        }
     }
 }

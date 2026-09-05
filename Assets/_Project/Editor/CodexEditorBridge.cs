@@ -218,6 +218,14 @@ public static class CodexEditorBridge
                 CaptureSceneView(request);
                 return false;
 
+            case "capture_skunk_works":
+                SkunkWorksCapture.Begin((success, message, folder) =>
+                {
+                    WriteResponse(request.id, request.command, success, message, folder, string.Empty);
+                    TryDelete(Path.Combine(ProcessingFolder, $"{request.id}.json"));
+                });
+                return true;
+
             case "capture_archive":
                 SignalArchiveCapture.Begin((success, message, folder) =>
                 {

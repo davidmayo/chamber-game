@@ -86,7 +86,7 @@ public sealed class FacilityShiftDisplay : MonoBehaviour
         measurement.text = inSkunkWorks ? skunkWorks.Measurement : inArchive ? archive.Measurement : inLab ? laboratory.Measurement : shift.Measurement;
         float capture = inSkunkWorks ? skunkWorks.CaptureProgress01 : inArchive ? archive.PlaybackProgress01 : inLab ? laboratory.CaptureProgress01 : shift.CaptureProgress01;
         progress.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, 610f * capture);
-        progressLabel.text = inArchive ? (archive.IsPerforming ? $"PLAYBACK  /  {capture * 100f:0}%"
+        progressLabel.text = inSkunkWorks ? skunkWorks.CaptureStatus : inArchive ? (archive.IsPerforming ? $"PLAYBACK  /  {capture * 100f:0}%"
             : capture >= 1f ? "RECORDING RECOVERED" : "")
             : capture > 0f ? $"HOLD STEADY  /  CAPTURING {capture * 100f:0}%" : "";
         notebook.SetActive(shift.NotebookOpen);

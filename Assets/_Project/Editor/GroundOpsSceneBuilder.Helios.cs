@@ -38,6 +38,7 @@ public static partial class GroundOpsSceneBuilder
         }
         SkunkRing("Suspension Crown",apparatus,new Vector3(0f,8.6f,0f),2.3f,0.20f,metal,Quaternion.Euler(90f,0f,0f));
         Light sourceLight=NullLamp("Source Radiance",apparatus,new Vector3(0f,5.4f,0f),Vector3.down,new Color(1f,0.4f,0.09f),150f,13f,amber,true);
+        SetSkunkShadowBudget(sourceLight);
         Text wall=NullSign("Source Status",room,new Vector3(-19.5f,5.8f,-6.75f),Vector3.forward,
             "HELIOS / TUNING REQUIRED",9f,0.5f,dark);
         SimpleSeatedConsoleController console=BuildSkunkConsole("Helios Tuning Bench",room,player,
@@ -62,7 +63,7 @@ public static partial class GroundOpsSceneBuilder
         readout.color=new Color(0.72f,0.94f,1f);
         Transform pose=NewGroup("Seated Camera Pose",bench);
         pose.localPosition=new Vector3(0f,1.45f,-1.1f);
-        pose.localRotation=Quaternion.Euler(-18f,0f,0f);
+        pose.localRotation=Quaternion.Euler(-10f,0f,0f);
         Transform trigger=NewGroup("Console Interaction",bench);
         trigger.localPosition=new Vector3(0f,0.9f,-1f);
         BoxCollider bounds=GetOrAddComponent<BoxCollider>(trigger.gameObject);

@@ -138,6 +138,98 @@ public sealed class SkunkWorksCommissioningTests : InputTestFixture
         yield return Frames(120);
         Assert.That(sculptures[2].localPosition.y,Is.GreaterThan(sculptures[0].localPosition.y+0.5f));
         Capture(camera,"skunk-vector-certified",new Vector3(12.5f,2.5f,9f),new Vector3(19.5f,4.6f,1f));
+        yield return WalkTo(new Vector3(23.9f,0f,7.8f));
+        yield return WalkTo(new Vector3(12f,0f,7.8f));
+        yield return WalkTo(new Vector3(12f,0f,0f));
+        yield return WalkTo(Vector3.zero);
+        yield return WalkTo(new Vector3(0f,0f,-12f));
+        yield return WalkTo(new Vector3(0f,0f,-14.9f));
+        Behaviour horizon=Find("HorizonEngineController");
+        Behaviour horizonSeat=Field(horizon,"console") as Behaviour;
+        Assert.That(Property<bool>(horizon,"Ready"),Is.True);
+        yield return Tap(keyboard.fKey);
+        yield return WaitFor(()=>Property<bool>(horizonSeat,"IsSeated"));
+        yield return Tap(keyboard.spaceKey);
+        Assert.That(Property<bool>(horizon,"IsPerforming"),Is.False,"An unaligned aperture cannot begin First Light.");
+        Press(keyboard.dKey);
+        yield return WaitFor(()=>Property<float>(horizon,"Yaw")>=7.3f);
+        Release(keyboard.dKey);
+        yield return Frames(2);
+        Press(keyboard.wKey);
+        yield return WaitFor(()=>Property<float>(horizon,"Pitch")>=3.8f);
+        Release(keyboard.wKey);
+        yield return Frames(2);
+        Assert.That(Property<bool>(horizon,"Aligned"),Is.True,
+            $"Horizon yaw {Property<float>(horizon,"Yaw")}, pitch {Property<float>(horizon,"Pitch")}");
+        float horizonFov=camera.fieldOfView;
+        Set(mouse.scroll,new Vector2(0f,120f));
+        yield return Frames(8);
+        Set(mouse.scroll,Vector2.zero);
+        Assert.That(camera.fieldOfView,Is.LessThan(horizonFov-1f));
+        yield return Tap(keyboard.spaceKey);
+        yield return WaitFor(()=>Property<float>(horizon,"OpenFraction")>0.1f);
+        yield return Tap(keyboard.escapeKey);
+        yield return WaitFor(()=>player.enabled);
+        Assert.That(player.enabled,Is.True,"The automatic sequence can continue after leaving the bench.");
+        Assert.That(camera.fieldOfView,Is.EqualTo(standingFov).Within(0.01f));
+        yield return Tap(keyboard.escapeKey);
+        float cycle=Property<float>(horizon,"CaptureProgress01");
+        float opening=Property<float>(horizon,"OpenFraction");
+        yield return Frames(30);
+        Assert.That(Property<float>(horizon,"CaptureProgress01"),Is.EqualTo(cycle));
+        Assert.That(Property<float>(horizon,"OpenFraction"),Is.EqualTo(opening));
+        yield return Tap(keyboard.escapeKey);
+        yield return WaitFor(()=>Property<bool>(horizon,"Completed"));
+        Assert.That(Property<float>(horizon,"OpenFraction"),Is.EqualTo(1f).Within(0.001f));
+        Assert.That(Property<int>(Find("SkunkWorksCommissioning"),"CompletedCount"),Is.EqualTo(3));
+        Assert.That((Field(horizon,"surveyor") as Transform).gameObject.activeSelf,Is.True);
+        foreach(Transform petal in Field(horizon,"iris") as Transform[])
+            foreach(Renderer renderer in petal.GetComponentsInChildren<Renderer>())
+            {
+                Assert.That(renderer.bounds.min.y,Is.GreaterThan(campus.position.y),"An open iris leaf must clear the floor.");
+                Assert.That(renderer.bounds.max.y,Is.LessThan(campus.position.y+12f),"An open iris leaf must fit below the ceiling.");
+            }
+        Capture(camera,"skunk-horizon-first-light",new Vector3(5f,2.7f,-15f),new Vector3(0f,6f,-26f));
+        yield return Tap(keyboard.fKey);
+        yield return WaitFor(()=>Property<bool>(horizonSeat,"IsSeated"));
+        yield return Tap(keyboard.spaceKey);
+        Assert.That(Property<bool>(horizon,"IsPerforming"),Is.True,"First Light can be replayed.");
+        Assert.That(Property<bool>(horizon,"Completed"),Is.True,"Replay preserves the commissioning record.");
+        yield return Tap(keyboard.escapeKey);
+    }
+
+    [UnityTest]
+    public IEnumerator UnpoweredExperimentsRejectCommissioningInput()
+    {
+        SceneManager.LoadScene("Main",LoadSceneMode.Single);
+        yield return Frames(3);
+        player=Find("FirstPersonPlayerController");
+        campus=GameObject.Find("Ground Ops Blockout/Level 02 - Space Science Center Skunk Works").transform;
+        CharacterController body=player.GetComponent<CharacterController>();
+        body.enabled=false;
+        player.transform.position=campus.TransformPoint(new Vector3(15.1f,0f,2.6f));
+        body.enabled=true;
+        Physics.SyncTransforms();
+        yield return Frames(5);
+        yield return Tap(keyboard.fKey);
+        Assert.That(Property<int>(Find("VectorGardenController"),"LevelA"),Is.Zero);
+        yield return WalkTo(new Vector3(12f,0f,0f));
+        yield return WalkTo(Vector3.zero);
+        yield return WalkTo(new Vector3(0f,0f,-12f));
+        yield return WalkTo(new Vector3(0f,0f,-14.9f));
+        Behaviour horizon=Find("HorizonEngineController");
+        yield return Tap(keyboard.fKey);
+        yield return WaitFor(()=>Property<bool>(Field(horizon,"console"),"IsSeated"));
+        float yaw=Property<float>(horizon,"Yaw");
+        Press(keyboard.dKey);
+        yield return Frames(30);
+        Release(keyboard.dKey);
+        yield return Frames(2);
+        yield return Tap(keyboard.spaceKey);
+        Assert.That(Property<float>(horizon,"Yaw"),Is.EqualTo(yaw));
+        Assert.That(Property<bool>(horizon,"IsPerforming"),Is.False);
+        Assert.That(Property<bool>(horizon,"Ready"),Is.False);
+        yield return Tap(keyboard.escapeKey);
     }
 
     private IEnumerator WalkTo(Vector3 local)
@@ -164,7 +256,8 @@ public sealed class SkunkWorksCommissioningTests : InputTestFixture
         float fov=camera.fieldOfView;
         RenderTexture previousTarget=camera.targetTexture;
         RenderTexture previousActive=RenderTexture.active;
-        RenderTexture target=new(1920,1080,24,RenderTextureFormat.ARGB32);
+        RenderTexture target=new(1920,1080,24,RenderTextureFormat.DefaultHDR);
+        RenderTexture output=new(1920,1080,0,RenderTextureFormat.ARGB32,RenderTextureReadWrite.sRGB);
         Texture2D image=new(1920,1080,TextureFormat.RGB24,false);
         try
         {
@@ -172,7 +265,8 @@ public sealed class SkunkWorksCommissioningTests : InputTestFixture
             camera.fieldOfView=74f;
             camera.targetTexture=target;
             camera.Render();
-            RenderTexture.active=target;
+            Graphics.Blit(target,output);
+            RenderTexture.active=output;
             image.ReadPixels(new Rect(0,0,1920,1080),0,0);
             image.Apply();
             string folder=Path.Combine(Application.dataPath,"..","Library","CodexBridge","Artifacts");
@@ -186,7 +280,9 @@ public sealed class SkunkWorksCommissioningTests : InputTestFixture
             camera.transform.SetPositionAndRotation(position,rotation);
             camera.fieldOfView=fov;
             target.Release();
+            output.Release();
             UnityEngine.Object.Destroy(target);
+            UnityEngine.Object.Destroy(output);
             UnityEngine.Object.Destroy(image);
         }
     }
@@ -195,7 +291,7 @@ public sealed class SkunkWorksCommissioningTests : InputTestFixture
     private static IEnumerator WaitFor(Func<bool> condition)
     {
         int count=0;
-        while(!condition() && count++<650) yield return null;
+        while(!condition() && count++<1100) yield return null;
         Assert.That(condition(),Is.True,"The expected commissioning state was not reached.");
         yield return null;
     }
